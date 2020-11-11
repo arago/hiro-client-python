@@ -1,8 +1,8 @@
 from setuptools import setup, find_packages
-from hiro_client import __version__
+from hiro_graph_client import __version__
 
 setup(
-    name="hiro_client",
+    name="hiro_graph_client",
     version=__version__,
     packages=find_packages(),
 
@@ -22,6 +22,7 @@ setup(
     license="MIT",
     classifiers=[
         "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ]

@@ -1,2 +1,2 @@
-from hiro_client import __version__
+from hiro_graph_client import __version__
 print(__version__)

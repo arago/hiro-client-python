@@ -13,19 +13,18 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.abspath('../../src/hiro-client'))
+from hiro_graph_client import __version__
 
-from hiro_client import __version__
+sys.path.insert(0, os.path.abspath('../../src/hiro_graph_client'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'hiro_client'
+project = 'hiro_graph_client'
 copyright = '2020, arago GmbH'
 author = 'Wolfgang Hübner'
 
 # The full version, including alpha/beta/rc tags
 release = __version__
-
 
 # -- General configuration ---------------------------------------------------
 

@@ -22,7 +22,7 @@ IMAGE_TAG := $(if $(GIT_BRANCH),$(GIT_BRANCH),$(RPM_VERSION)_$(RPM_RELEASE))
 #
 # Name of the package, version and several paths of the source code
 #
-PACKAGENAME := hiro_client
+PACKAGENAME := hiro_graph_client
 
 SRCPATH := src
 PYTHONPATH := $(SRCPATH)/$(PACKAGENAME)
@@ -67,8 +67,8 @@ install-sphinx:
 
 # Create a python code documentation using sphinx
 pythondoc: install install-sphinx
-	sphinx-apidoc -f -P -o $(PYTHONDOCPATH)/hiro_client $(PYTHONPATH)
-	sphinx-build -M html $(PYTHONDOCPATH)/hiro_client $(PYTHONDOCPATH)/hiro_client
+	sphinx-apidoc -f -P -o $(PYTHONDOCPATH)/hiro_graph_client $(PYTHONPATH)
+	sphinx-build -M html $(PYTHONDOCPATH)/hiro_graph_client $(PYTHONDOCPATH)/hiro_graph_client
 
 
 #######################################################################################################################
@@ -81,13 +81,12 @@ uninstall:
 
 # Cleanup pythondoc
 clean-pythondoc:
-	rm -rf $(PYTHONDOCPATH)/$(PACKAGENAME)/html $(PYTHONDOCPATH)/$(PACKAGENAME)/doctrees $(PYTHONDOCPATH)/hiro_client/html $(PYTHONDOCPATH)/hiro_client/doctrees
+	rm -rf $(PYTHONDOCPATH)/$(PACKAGENAME)/html $(PYTHONDOCPATH)/$(PACKAGENAME)/doctrees
 	rm -f `find $(PYTHONDOCPATH) -type f \( -name "*.rst" -and -not -name "index.rst" \)`
 
 # Cleanup, but keep installed packages and dist tar
 clean:
 	rm -f depends install install-sphinx
-	rm -rf hiro-clients
 	rm -f $(TESTFILE)
 	(cd $(PYTHONPATH); rm -f *.whl)
 	rm -rf $(SRCPATH)/dist/ $(SRCPATH)/build/

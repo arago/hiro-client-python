@@ -4,7 +4,7 @@ from abc import abstractmethod
 from enum import Enum
 from typing import Optional, Tuple, Any, Iterator, IO
 
-from hiro_client.client import Graphit, TokenHandler, APIConfig
+from hiro_graph_client.client import Graphit, TokenHandler, APIConfig
 from requests.exceptions import RequestException
 
 
