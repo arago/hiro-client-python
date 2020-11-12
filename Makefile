@@ -79,7 +79,7 @@ pythondoc: install install-sphinx
 #######################################################################################################################
 
 # Make wheel and source package
-dist:
+dist: install
 	$(PIP) install $(PIPARGS) --upgrade setuptools wheel twine
 	$(PYTHON) src/setup.py sdist bdist_wheel
 
