@@ -27,7 +27,9 @@ PACKAGENAME := hiro_graph_client
 SRCPATH := src
 PYTHONPATH := $(SRCPATH)/$(PACKAGENAME)
 PYTHONDOCPATH := docs/python
-VERSION := $(shell $(PYTHON) $(SRCPATH)/version.py)
+VERSION := $(shell cat $(PYTHONPATH)/VERSION)
+
+TIMESTAMP := $(shell $(PYTHON) $(SRCPATH)/timestamp.py)
 
 #
 # Paths and names used for distributable packages
@@ -45,6 +47,7 @@ TESTFILE := tests/test-results.xml
 # Install as a local tool on the current system. Remember to use PIPARGS=--user for a local installation.
 #######################################################################################################################
 install:
+	$(PIP) install $(PIPARGS) --requirement $(PYTHONPATH)/requirements.txt
 	$(PIP) install $(PIPARGS) $(SRCPATH)/
 	touch install
 
@@ -67,9 +70,32 @@ install-sphinx:
 
 # Create a python code documentation using sphinx
 pythondoc: install install-sphinx
-	sphinx-apidoc -f -P -o $(PYTHONDOCPATH)/hiro_graph_client $(PYTHONPATH)
-	sphinx-build -M html $(PYTHONDOCPATH)/hiro_graph_client $(PYTHONDOCPATH)/hiro_graph_client
+	sphinx-apidoc -f -P -o $(PYTHONDOCPATH)/$(PACKAGENAME) $(PYTHONPATH)
+	sphinx-build -M html $(PYTHONDOCPATH)/$(PACKAGENAME) $(PYTHONDOCPATH)/$(PACKAGENAME)
 
+
+#######################################################################################################################
+# Upload to PyPI
+#######################################################################################################################
+
+# Make wheel and source package
+dist:
+	$(PIP) install $(PIPARGS) --upgrade setuptools wheel twine
+	$(PYTHON) src/setup.py sdist bdist_wheel
+
+# give each package a timestamp as buildnumber to be able to upload packages multiple times
+# also only publish whl file
+publish-test: clean-dist dist
+	mkdir -p dist-test
+	(cd dist-test && rm -f *.whl)
+	cp -a dist/*.whl dist-test/
+	(cd dist-test && mv *.whl $$(ls -1 *.whl | sed -e "s/${VERSION}-py/${VERSION}-${TIMESTAMP}-py/g"))
+	$(PYTHON) -m twine upload --repository testpypi --username "$${TESTPYPI_CREDENTIALS_USR}" --password "$${TESTPYPI_CREDENTIALS_PSW}" dist-test/*
+
+# publishing to PyPI only works once for each version. To update your package, you have to create a new version
+# in src/hiro_graph_client/__init__.py
+publish: dist
+	$(PYTHON) -m twine upload --repository pypi --username "$${PYPI_CREDENTIALS_USR}" --password "$${PYPI_CREDENTIALS_PSW}" dist/*
 
 #######################################################################################################################
 # Cleanup
@@ -77,7 +103,7 @@ pythondoc: install install-sphinx
 
 # Uninstall hiro-client
 uninstall:
-	$(PIP) uninstall -y hiro-client $(PACKAGENAME)
+	$(PIP) uninstall -y $(PACKAGENAME) || true
 
 # Cleanup pythondoc
 clean-pythondoc:
@@ -86,12 +112,13 @@ clean-pythondoc:
 
 # Cleanup, but keep installed packages and dist tar
 clean:
+	$(PIP) install $(PIPARGS) --upgrade pyclean
 	rm -f depends install install-sphinx
 	rm -f $(TESTFILE)
-	(cd $(PYTHONPATH); rm -f *.whl)
-	rm -rf $(SRCPATH)/dist/ $(SRCPATH)/build/
+	$(PYTHON) -m pyclean .
+
+clean-dist:
+	rm -rf $(SRCPATH)/dist/ $(SRCPATH)/build/ dist dist-test build hiro_graph_client.egg-info
 
 # Like 'clean', but also remove installed packages.
-distclean: uninstall clean clean-pythondoc
-	rm -rf dist $(AWS_PACKAGEPATH)
-	rm -f $(DISTBASENAME).tar.gz $(DISTBASENAME).zip $(S3_BUCKET_PACKAGE)
+distclean: uninstall clean-pythondoc clean-dist clean
