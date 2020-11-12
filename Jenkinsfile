@@ -36,12 +36,12 @@ pipeline {
                     }
                 }
             }
-        }
-
-        stage('Make distribution') {
-            steps {
-                sh 'make dist'
+            stage('docker:Make distribution') {
+                steps {
+                    sh 'make dist'
+                }
             }
+
         }
 
         stage('Push to TestPyPI') {
