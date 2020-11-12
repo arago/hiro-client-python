@@ -1,6 +1,8 @@
 pipeline {
     agent {
-        label 'slave-docker-7.7'
+        dockerfile {
+            filename 'Dockerfile'
+        }
     }
 
     environment {
@@ -8,40 +10,30 @@ pipeline {
                 returnStdout: true,
                 script: 'pwd -P'
         )}""".trim()
-        PIPARGS='--user'
+        PIPARGS = '--user'
         PYPI_CREDENTIALS = credentials('PyPI')
         TESTPYPI_CREDENTIALS = credentials('TestPyPI')
     }
 
     stages {
 
-        stage('Build and test in docker') {
-            agent {
-                dockerfile {
-                    filename 'Dockerfile'
-                    reuseNode true
-                }
+        stage('Checkout') {
+            steps {
+                checkout scm
             }
-            stages {
-                stage('docker:Checkout') {
-                    steps {
-                        checkout scm
-                    }
-                }
+        }
 
-                stage('docker:Test') {
-                    steps {
-                        sh 'make test'
-                        junit testResults: 'tests/test-*.xml', allowEmptyResults: true
-                    }
-                }
+        stage('Test') {
+            steps {
+                sh 'make test'
+                junit testResults: 'tests/test-*.xml', allowEmptyResults: true
             }
-            stage('docker:Make distribution') {
-                steps {
-                    sh 'make dist'
-                }
-            }
+        }
 
+        stage('Make distribution') {
+            steps {
+                sh 'make dist'
+            }
         }
 
         stage('Push to TestPyPI') {
