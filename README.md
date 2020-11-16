@@ -7,7 +7,7 @@ of huge batches of data in parallel.
 
 This project needs at least Python 3.7. 
 
-Install the hiro-client as a python module by using one of the following: 
+Install the hiro-client as a python package by using one of the following: 
 
 * Global installation
     ```shell script
@@ -17,7 +17,7 @@ Install the hiro-client as a python module by using one of the following:
     ```shell script
     pip3 install src/
     ```
-    You need an account with administrative rights to be able to install the tool globally.
+    You need an account with administrative rights to be able to install the package globally.
 
 * Installation for single user 
 
@@ -28,10 +28,6 @@ Install the hiro-client as a python module by using one of the following:
     ```shell script
     pip3 install --user src/
     ```
-    This will usually install the commandline tool under `${HOME}/.local/bin`.
-
-Take note of warnings while installing the packages, since the installed python executable script might not be part of
-the `PATH` environment on your system.
 
 For more details, take a look at the [Makefile](Makefile).
 
