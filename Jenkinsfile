@@ -40,7 +40,6 @@ pipeline {
             when {
                 anyOf {
                     tag "t*"
-                    tag "v*"
                 }
             }
 
