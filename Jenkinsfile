@@ -63,6 +63,7 @@ pipeline {
 
     post {
         cleanup {
+            sh 'make distclean'
             deleteDir()
         }
     }
