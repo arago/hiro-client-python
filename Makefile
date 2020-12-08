@@ -81,7 +81,7 @@ pythondoc: install install-sphinx
 # Make wheel and source package
 dist: install
 	$(PIP) install $(PIPARGS) --upgrade setuptools wheel twine
-	$(PYTHON) src/setup.py sdist bdist_wheel
+	(cd src && $(PYTHON) ./setup.py sdist bdist_wheel && mv dist build ..)
 
 # give each package a timestamp as buildnumber to be able to upload packages multiple times
 # also only publish whl file
