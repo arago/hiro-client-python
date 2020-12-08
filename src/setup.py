@@ -22,6 +22,9 @@ setup(
         'requests',
         'backoff'
     ],
+    package_data={
+        'hiro_graph_client': ['VERSION']
+    },
 
     author="arago GmbH",
     author_email="info@arago.co",
