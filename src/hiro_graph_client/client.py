@@ -362,6 +362,11 @@ class AbstractAPI(APIConfig):
         try:
             if self._raise_exceptions:
                 res.raise_for_status()
+                if res.status_code > 600:
+                    raise requests.exceptions.HTTPError(
+                        u'%s Illegal return code: %s for url: %s' % (res.status_code, res.reason, res.url),
+                        response=res)
+
         except requests.exceptions.HTTPError as err:
             http_error_msg = str(err.args[0])
 
