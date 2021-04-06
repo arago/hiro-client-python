@@ -76,22 +76,13 @@ class TokenInfo:
         :raises AuthenticationTokenError: When the token request returned an error.
         """
         if 'error' in res:
+            message: str = '{}: {}'.format(what, res['error'].get('message'))
             code: int = int(res['error'].get('code'))
 
             if code == 401:
-                raise TokenExpiredError(
-                    '{}: {}'.format(
-                        what,
-                        res['error'].get('message')),
-                    int(res['error'].get('code'))
-                )
+                raise TokenExpiredError(message, code)
             else:
-                raise AuthenticationTokenError(
-                    '{}: {}'.format(
-                        what,
-                        res['error'].get('message')),
-                    int(res['error'].get('code'))
-                )
+                raise AuthenticationTokenError(message, code)
 
         self.token = res.get('_TOKEN')
 
