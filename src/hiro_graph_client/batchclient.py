@@ -4,7 +4,7 @@ from abc import abstractmethod
 from enum import Enum
 from typing import Optional, Tuple, Any, Iterator, IO
 
-from hiro_graph_client.client import Graphit, TokenHandler, APIConfig
+from hiro_graph_client.client import HiroGraph, TokenHandler, APIConfig
 from requests.exceptions import RequestException
 
 
@@ -28,7 +28,7 @@ class Entity(Enum):
     ATTACHMENT = "attachment"
 
 
-class ResultCallback:
+class HiroResultCallback:
 
     @abstractmethod
     def result(self, data: Any, code: int) -> None:
@@ -37,19 +37,19 @@ class ResultCallback:
 
 class HiroConnection:
     """
-    Contains the Graphit Client and a possibly predefined token.
+    Contains the HiroGraph Client and a possibly predefined token.
     """
 
     token: str = None
     """Set a predefined token for the hiro connection."""
-    client: Graphit
+    client: HiroGraph
     """The python client for REST API"""
 
-    def __init__(self, client: Graphit, token: str = None):
+    def __init__(self, client: HiroGraph, token: str = None):
         """
-        Contains the Graphit Client and a possibly predefined token.
+        Contains the HiroGraph Client and a possibly predefined token.
 
-        :param client: Required: Graphit Client
+        :param client: Required: HiroGraph Client
         :param token: Optional: Predefined token
         """
         self.client = client
@@ -251,7 +251,7 @@ class HiroBatchRunner:
 
     def get_id_by_xid(self, ogit_xid: str) -> Optional[str]:
         """
-        Get an ogit/_id from the *xid_cache* or get it from Graphit when it is not in the cache is or it is
+        Get an ogit/_id from the *xid_cache* or get it from HiroGraph when it is not in the cache is or it is
         disabled.
 
         :param ogit_xid: The xid to use to look for an ogit/_id.
@@ -274,7 +274,7 @@ class HiroBatchRunner:
 
     def check_id(self, ogit_id: str) -> Optional[str]:
         """
-        Check for existence of an id in *xid_cache* or, if not found there or cache is disabled, in Graphit.
+        Check for existence of an id in *xid_cache* or, if not found there or cache is disabled, in HiroGraph.
 
         :param ogit_id: The ogit/_id to check.
         :return: The ogit/_id of the result or None
@@ -293,7 +293,7 @@ class HiroBatchRunner:
         Get the ogit/_id from the source data given in *attributes*.
 
         * If the ogit/_id is present in *attributes*, return it.
-        * If ogit/_id is missing but ogit/_xid is present, use the ogit/_xid to get the ogit/_id from Graphit and
+        * If ogit/_id is missing but ogit/_xid is present, use the ogit/_xid to get the ogit/_id from HiroGraph and
           return it.
 
         :param attributes: Dict of attributes.
@@ -320,7 +320,7 @@ class HiroBatchRunner:
         Get the ogit/_id from the source data given in *attributes*.
 
         * If the ogit/_id is present in *attributes*, return it.
-        * If ogit/_id is missing but ogit/_xid is present, use the ogit/_xid to get the ogit/_id from Graphit and
+        * If ogit/_id is missing but ogit/_xid is present, use the ogit/_xid to get the ogit/_id from HiroGraph and
           return it.
 
         :param attributes: Dict of attributes.
@@ -554,7 +554,7 @@ class CreateVerticesRunner(HiroBatchRunner):
         Create vertices
 
         :param session_data: Required: Session data / caches.
-        :param connection: Required: The handler for the connection to HIRO Graphit.
+        :param connection: Required: The handler for the connection to HIRO HiroGraph.
         """
         super().__init__(Entity.VERTEX, Action.CREATE, session_data, connection)
 
@@ -584,7 +584,7 @@ class UpdateVerticesRunner(HiroBatchRunner):
         Update vertices
 
         :param session_data: Required: Session data / caches.
-        :param connection: Required: The handler for the connection to HIRO Graphit.
+        :param connection: Required: The handler for the connection to HIRO HiroGraph.
         """
         super().__init__(Entity.VERTEX, Action.UPDATE, session_data, connection)
 
@@ -613,7 +613,7 @@ class DeleteVerticesRunner(HiroBatchRunner):
         Delete vertices
 
         :param session_data: Required: Session data / caches.
-        :param connection: Required: The handler for the connection to HIRO Graphit.
+        :param connection: Required: The handler for the connection to HIRO HiroGraph.
         """
         super().__init__(Entity.VERTEX, Action.DELETE, session_data, connection)
 
@@ -641,7 +641,7 @@ class HandleVerticesRunner(HiroBatchRunner):
         Handle vertices. Either update or create them based on incoming payload entries.
 
         :param session_data: Required: Session data / caches.
-        :param connection: Required: The handler for the connection to HIRO Graphit.
+        :param connection: Required: The handler for the connection to HIRO HiroGraph.
         """
         super().__init__(Entity.VERTEX, Action.UNDEFINED, session_data, connection)
 
@@ -682,7 +682,7 @@ class CreateEdgesRunner(HiroBatchRunner):
         Create edges between vertices
 
         :param session_data: Required: Session data / caches.
-        :param connection: Required: The handler for the connection to HIRO Graphit.
+        :param connection: Required: The handler for the connection to HIRO HiroGraph.
         """
         super().__init__(Entity.EDGE, Action.CREATE, session_data, connection)
 
@@ -708,7 +708,7 @@ class DeleteEdgesRunner(HiroBatchRunner):
         Delete edges between vertices
 
         :param session_data: Required: Session data / caches.
-        :param connection: Required: The handler for the connection to HIRO Graphit.
+        :param connection: Required: The handler for the connection to HIRO HiroGraph.
         """
         super().__init__(Entity.EDGE, Action.DELETE, session_data, connection)
 
@@ -734,7 +734,7 @@ class AddTimeseriesRunner(HiroBatchRunner):
         Attach timeseries values to a vertex.
 
         :param session_data: Required: Session data / caches.
-        :param connection: Required: The handler for the connection to HIRO Graphit.
+        :param connection: Required: The handler for the connection to HIRO HiroGraph.
         """
         super().__init__(Entity.TIMESERIES, Action.CREATE, session_data, connection)
 
@@ -759,7 +759,7 @@ class AddAttachmentRunner(HiroBatchRunner):
         Attach an attachment to a vertex.
 
         :param session_data: Required: Session data / caches.
-        :param connection: Required: The handler for the connection to HIRO Graphit.
+        :param connection: Required: The handler for the connection to HIRO HiroGraph.
         """
         super().__init__(Entity.ATTACHMENT, Action.CREATE, session_data, connection)
 
@@ -790,9 +790,9 @@ class AddAttachmentRunner(HiroBatchRunner):
             raise SourceValueError('"data" not found or empty in "attributes._content_data".')
 
 
-class GraphitBatch:
+class HiroGraphBatch:
     """
-    This class handles lists of vertex-, edge- or timeseries-data via Graphit.
+    This class handles lists of vertex-, edge- or timeseries-data via HiroGraph.
     """
 
     api_config: APIConfig
@@ -800,7 +800,7 @@ class GraphitBatch:
     request_queue: queue.Queue
     result_queue: queue.Queue
 
-    callback: ResultCallback
+    callback: HiroResultCallback
 
     use_xid_cache: bool
     """Use xid caching. Default is True when omitted or set to None."""
@@ -816,11 +816,11 @@ class GraphitBatch:
         "add_timeseries",
         "add_attachments"
     ]
-    """This is the list of commands (method names) that GraphitBatch handles."""
+    """This is the list of commands (method names) that HiroGraphBatch handles."""
 
     def __init__(self,
                  graph_endpoint: str,
-                 callback: ResultCallback,
+                 callback: HiroResultCallback = None,
                  hiro_token: str = None,
                  username: str = None,
                  password: str = None,
@@ -835,15 +835,15 @@ class GraphitBatch:
         """
         Constructor
 
-        Use the connection to HIRO Graphit either by giving a predefined *hiro_token* or by
+        Use the connection to HIRO HiroGraph either by giving a predefined *hiro_token* or by
         specifying all other parameters needed for authentication.
 
         :param graph_endpoint: required: URL of the graph.
-        :param callback: required: Callback object for results.
+        :param callback: required when multi_command() is used, optional otherwise: Callback object for results.
         :param hiro_token: optional, required if other authentication data is missing: Predefined token to authenticate
                            against HIRO. Overrides all other authentication data.
-        :param username: optional, required if *hiro_token* is None: Username for Graphit .
-        :param password: optional, required if *hiro_token* is None: Password for Graphit.
+        :param username: optional, required if *hiro_token* is None: Username for HiroGraph .
+        :param password: optional, required if *hiro_token* is None: Password for HiroGraph.
         :param client_id: optional, required if *hiro_token* is None: Id for Authentication (OAuth2).
         :param client_secret: optional, required if *hiro_token* is None: Secret for Authentication (OAuth2).
         :param auth_endpoint: optional, required if *hiro_token* is None: URL of the authentication API.
@@ -920,7 +920,7 @@ class GraphitBatch:
         if not session:
             session = self.__init_session()
         if not connection:
-            connection = HiroConnection(Graphit.new_from(self.api_config, session.token_handler), self.hiro_token)
+            connection = HiroConnection(HiroGraph.new_from(self.api_config, session.token_handler), self.hiro_token)
         return session, connection
 
     def create_vertices(self, attributes: dict, connection: HiroConnection = None, session: SessionData = None):
@@ -1096,7 +1096,8 @@ class GraphitBatch:
         Thread exits when *self.result_queue.get()* reads None.
         """
         for result, code in iter(self.result_queue.get, None):
-            self.callback.result(result, code)
+            if self.callback is not None:
+                self.callback.result(result, code)
             self.result_queue.task_done()
 
     def _worker(self, session: SessionData) -> None:
@@ -1108,7 +1109,7 @@ class GraphitBatch:
 
         :param session: The session object to share between all connections.
         """
-        connection = HiroConnection(Graphit.new_from(self.api_config, session.token_handler), self.hiro_token)
+        connection = HiroConnection(HiroGraph.new_from(self.api_config, session.token_handler), self.hiro_token)
 
         for command, attributes in iter(self.request_queue.get, None):
             func = getattr(self, command, None)
@@ -1125,8 +1126,10 @@ class GraphitBatch:
         ::
 
             {
-                "[command]": payload,
-                "[command]": payload
+                "[command]": { "[key]": "[value]" }
+            },
+            {
+                "[command]": { "[key]": "[value]" }
             }
 
         with payload being a list of dict containing the attributes to run with that command.
@@ -1137,9 +1140,9 @@ class GraphitBatch:
 
             session = self.__init_session()
 
-            executor.submit(GraphitBatch._reader, self)
+            executor.submit(HiroGraphBatch._reader, self)
             for _ in range(self.parallel_workers):
-                executor.submit(GraphitBatch._worker, self, session)
+                executor.submit(HiroGraphBatch._worker, self, session)
 
             handle_session_data = False
             for command_entry in command_iter:

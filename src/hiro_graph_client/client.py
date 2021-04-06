@@ -76,13 +76,22 @@ class TokenInfo:
         :raises AuthenticationTokenError: When the token request returned an error.
         """
         if 'error' in res:
-            raise AuthenticationTokenError(
-                '{}: {} ({})'.format(
-                    what,
-                    res['error'].get('message'),
-                    res['error'].get('code')
+            code: int = int(res['error'].get('code'))
+
+            if code == 401:
+                raise TokenExpiredError(
+                    '{}: {}'.format(
+                        what,
+                        res['error'].get('message')),
+                    int(res['error'].get('code'))
                 )
-            )
+            else:
+                raise AuthenticationTokenError(
+                    '{}: {}'.format(
+                        what,
+                        res['error'].get('message')),
+                    int(res['error'].get('code'))
+                )
 
         self.token = res.get('_TOKEN')
 
@@ -517,8 +526,11 @@ class TokenHandler(AbstractAPI):
                 "refresh_token": self._token_info.refresh_token
             }
 
-            res = self.post(url, data)
-            self._token_info.parse_token_result(res, 'Refresh token')
+            try:
+                res = self.post(url, data)
+                self._token_info.parse_token_result(res, 'Refresh token')
+            except TokenExpiredError:
+                self.get_token()
 
     ###############################################################################################################
     # Response and token handling
@@ -546,7 +558,7 @@ class TokenHandler(AbstractAPI):
         return token
 
 
-class Graphit(AbstractAPI):
+class HiroGraph(AbstractAPI):
     """
     Python implementation for accessing the HIRO Graphit REST API
     """
@@ -907,12 +919,22 @@ class Graphit(AbstractAPI):
 
 class AuthenticationTokenError(Exception):
     """
-    Class for unrecoverable failures with access tokens
+    Class for unrecoverable failures with access tokens.
+    Contains a message and an optional message code. If the code is None, no code will be printed in __str__().
     """
     message: str
+    code: int
 
-    def __init__(self, message: str):
+    def __init__(self, message: str, code: int = None):
         self.message = message
+        self.code = code
 
     def __str__(self):
-        return "{}: {}".format(self.__class__.__name__, self.message)
+        if self.code is None:
+            return "{}: {}".format(self.__class__.__name__, self.message)
+        else:
+            return "{}: {} ({})".format(self.__class__.__name__, self.message, self.code)
+
+
+class TokenExpiredError(AuthenticationTokenError):
+    pass

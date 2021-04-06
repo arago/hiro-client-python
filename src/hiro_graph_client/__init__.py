@@ -1,18 +1,18 @@
 """
-Package which contains the classes to communicate with HIRO / Graphit.
+Package which contains the classes to communicate with HIRO Graph.
 """
 import site
 from os import path
 
-from hiro_graph_client.batchclient import GraphitBatch, SessionData, AbstractIOCarrier, SourceValueError, ResultCallback
-from hiro_graph_client.client import Graphit, AuthenticationTokenError, accept_all_certs
+from hiro_graph_client.batchclient import HiroGraphBatch, SessionData, AbstractIOCarrier, SourceValueError, HiroResultCallback
+from hiro_graph_client.client import HiroGraph, AuthenticationTokenError, accept_all_certs
 
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'VERSION'), encoding='utf-8') as f:
     __version__ = f.read().strip()
 
 __all__ = [
-    'Graphit', 'GraphitBatch', 'SessionData', 'ResultCallback',
+    'HiroGraph', 'HiroGraphBatch', 'SessionData', 'HiroResultCallback',
     'AuthenticationTokenError', 'AbstractIOCarrier',
     'SourceValueError', 'accept_all_certs', '__version__'
 ]
