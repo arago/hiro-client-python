@@ -1,34 +1,34 @@
-from typing import Any, Iterator
-
-from hiro_graph_client import HiroGraph, HiroGraphBatch, HiroResultCallback
-
-
-class RunBatch(HiroResultCallback):
-    hiro_batch_client: HiroGraphBatch
-
-    def __init__(self,
-                 username: str,
-                 password: str,
-                 client_id: str,
-                 client_secret: str,
-                 graph_endpoint: str,
-                 auth_endpoint: str):
-        self.hiro_batch_client = HiroGraphBatch(
-            callback=self,
-            graph_endpoint=graph_endpoint,
-            auth_endpoint=auth_endpoint,
-            username=username,
-            password=password,
-            client_id=client_id,
-            client_secret=client_secret
-        )
-
-    def result(self, data: Any, code: int) -> None:
-        print('Data: ' + str(data))
-        print('Code: ' + str(code))
-
-    def run(self, commands: Iterator[dict]):
-        self.hiro_batch_client.multi_command(commands)
+# from typing import Any, Iterator
+#
+# from hiro_graph_client import HiroGraph, HiroGraphBatch, HiroResultCallback
+#
+#
+# class RunBatch(HiroResultCallback):
+#     hiro_batch_client: HiroGraphBatch
+#
+#     def __init__(self,
+#                  username: str,
+#                  password: str,
+#                  client_id: str,
+#                  client_secret: str,
+#                  graph_endpoint: str,
+#                  auth_endpoint: str):
+#         self.hiro_batch_client = HiroGraphBatch(
+#             callback=self,
+#             graph_endpoint=graph_endpoint,
+#             auth_endpoint=auth_endpoint,
+#             username=username,
+#             password=password,
+#             client_id=client_id,
+#             client_secret=client_secret
+#         )
+#
+#     def result(self, data: Any, code: int) -> None:
+#         print('Data: ' + str(data))
+#         print('Code: ' + str(code))
+#
+#     def run(self, commands: Iterator[dict]):
+#         self.hiro_batch_client.multi_command(commands)
 
 
 class TestClient:
