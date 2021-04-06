@@ -1,3 +1,9 @@
+# v3.0.0
+
+* Renamed classes to match documentation elsewhere (i.e. Graphit -> HiroGraph, GraphitBatch -> HiroGraphBatch).
+* Catch token expired error when refresh_token has expired.
+* Documentation with examples
+
 # v2.4.2
 
 Added VERSION to package_data in setup.py
