@@ -40,6 +40,39 @@ print(query_result)
 Example to use the batch client to process a batch of requests:
 
 ```python
+from hiro_graph_client import HiroGraphBatch
+
+hiro_batch_client = HiroGraphBatch(
+    username='',
+    password='',
+    client_id='',
+    client_secret='',
+    graph_endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/
+    auth_endpoint='https://[server]:8443/api/auth/6' # see https://developer.hiro.arago.co/7.0/api/
+)
+
+# See code documentation about the possible commands and their attributes.
+commands: list = [
+    {
+        "handle_vertices": {
+            "ogit/_xid": "haas1000:connector1:machine1"
+        }
+    },
+    {
+        "handle_vertices": {
+            "ogit/_xid": "haas1000:connector2:machine2"
+        }
+    }
+]
+
+query_results: list = hiro_batch_client.multi_command(commands)
+
+print(query_results)
+```
+
+Example to use the batch client to process a batch of requests with callbacks for each result:
+
+```python
 from hiro_graph_client import HiroGraphBatch, HiroResultCallback
 
 class RunBatch(HiroResultCallback):
@@ -80,6 +113,7 @@ batch_runner = RunBatch(
     auth_endpoint='https://[server]:8443/api/auth/6' # see https://developer.hiro.arago.co/7.0/api/
 )
 
+# See code documentation about the possible commands and their attributes.
 commands: list = [
     {
         "handle_vertices": {
@@ -95,6 +129,5 @@ commands: list = [
 
 batch_runner.run(commands)
 ```
-
 
 (c) 2020 arago GmbH

@@ -1089,7 +1089,7 @@ class HiroGraphBatch:
 
             self.request_queue.put(('add_attachments', attributes))
 
-    def _reader(self) -> None:
+    def _reader(self, collected_results: list) -> None:
         """
         Thread executor function. Read items from the *self.result_queue* and call the callback function with them.
 
@@ -1098,6 +1098,8 @@ class HiroGraphBatch:
         for result, code in iter(self.result_queue.get, None):
             if self.callback is not None:
                 self.callback.result(result, code)
+            if collected_results is not None:
+                collected_results.append(result)
             self.result_queue.task_done()
 
     def _worker(self, session: SessionData) -> None:
@@ -1117,7 +1119,7 @@ class HiroGraphBatch:
                 func(attributes, connection, session)
             self.request_queue.task_done()
 
-    def multi_command(self, command_iter: Iterator[dict]) -> None:
+    def multi_command(self, command_iter: Iterator[dict]) -> Optional[list]:
         """
         Run a multi-command batch.
 
@@ -1135,12 +1137,15 @@ class HiroGraphBatch:
         with payload being a list of dict containing the attributes to run with that command.
 
         :param command_iter: An iterator for a dict of pairs "[command]:payload".
+        :return a list with results when no callback is set, None otherwise.
         """
         with concurrent.futures.ThreadPoolExecutor() as executor:
 
             session = self.__init_session()
 
-            executor.submit(HiroGraphBatch._reader, self)
+            collected_results = [] if self.callback is None else None
+
+            executor.submit(HiroGraphBatch._reader, self, collected_results)
             for _ in range(self.parallel_workers):
                 executor.submit(HiroGraphBatch._worker, self, session)
 
@@ -1176,6 +1181,8 @@ class HiroGraphBatch:
                 self.request_queue.put(None)
 
             self.result_queue.put(None)
+
+            return collected_results
 
 
 class SourceValueError(ValueError):

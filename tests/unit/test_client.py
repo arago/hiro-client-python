@@ -60,6 +60,37 @@ class TestClient:
     def test_batch_command(self):
         pass
 
+        # hiro_batch_client = HiroGraphBatch(
+        #     username=self.USERNAME,
+        #     password=self.PASSWORD,
+        #     client_id=self.CLIENT_ID,
+        #     client_secret=self.CLIENT_SECRET,
+        #     graph_endpoint=self.URL,
+        #     auth_endpoint=self.AUTH_URL
+        # )
+        #
+        # commands: list = [
+        #     {
+        #         "handle_vertices": {
+        #             "ogit/_xid": "haas1000:connector1:machine1"
+        #         }
+        #     },
+        #     {
+        #         "handle_vertices": {
+        #             "ogit/_xid": "haas1000:connector2:machine2"
+        #         }
+        #     }
+        # ]
+        #
+        # query_results: list = hiro_batch_client.multi_command(commands)
+        #
+        # print(query_results)
+        #
+        # assert isinstance(query_results, list)
+
+    def test_batch_command_callback(self):
+        pass
+
         # batch_runner: RunBatch = RunBatch(
         #     graph_endpoint=self.URL,
         #     auth_endpoint=self.AUTH_URL,
