@@ -209,10 +209,10 @@ class AbstractAPI(APIConfig):
         :param token: External token to use. Default is False to handle token internally.
         :return: Yields an iterator over raw chunks of the response payload.
         """
-        headers = self._get_headers(token)
+        headers = self._get_headers(token, content=False)
         headers['Accept'] = accept or "*/*"
         with requests.get(url,
-                          headers=self._get_headers(token, content=False),
+                          headers=headers,
                           verify=False,
                           stream=True,
                           proxies=self._get_proxies()) as res:
