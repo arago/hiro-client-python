@@ -29,7 +29,7 @@ Install the hiro-client as a python package by using one of the following:
     pip3 install --user src/
     ```
 
-For more details, take a look at the [Makefile](Makefile).
+For more details, take a look at the [Makefile](Makefile) and the [README.md in src](src).
 
 
 
