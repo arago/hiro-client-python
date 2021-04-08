@@ -58,7 +58,7 @@ class HiroApp(AuthenticatedAPI):
         :return: The result payload
         """
         url = self._endpoint + '/' + quote_plus(node_id)
-        return self.get(url, token)
+        return self.get(url, token=token)
 
     def get_config(self, token: str = None) -> dict:
         """
@@ -69,7 +69,7 @@ class HiroApp(AuthenticatedAPI):
         :return: The result payload
         """
         url = self._endpoint + '/config'
-        return self.get(url, token)
+        return self.get(url, token=token)
 
     def get_content(self, node_id, path, token: str = None) -> Iterator[bytes]:
         """
@@ -81,7 +81,7 @@ class HiroApp(AuthenticatedAPI):
         :return: The result payload as iterator over binary data.
         """
         url = self._endpoint + '/' + quote_plus(node_id) + '/content/' + quote_plus(path)
-        return self.get_binary(url, token)
+        return self.get_binary(url, token=token)
 
     def get_manifest(self, node_id, token: str = None) -> dict:
         """
@@ -92,7 +92,7 @@ class HiroApp(AuthenticatedAPI):
         :return: The result payload - usually with a binary content.
         """
         url = self._endpoint + '/' + quote_plus(node_id) + '/manifest'
-        return self.get(url, token)
+        return self.get(url, token=token)
 
     def get_desktop(self, token: str = None) -> dict:
         """
@@ -102,4 +102,4 @@ class HiroApp(AuthenticatedAPI):
         :return: The result payload - usually with a binary content.
         """
         url = self._endpoint + '/desktop'
-        return self.get(url, token)
+        return self.get(url, token=token)

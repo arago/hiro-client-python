@@ -54,7 +54,7 @@ class HiroAuth(AuthenticatedAPI):
         :return: The result payload
         """
         url = self._endpoint + '/me/account'
-        return self.get(url, token)
+        return self.get(url, token=token)
 
     def get_avatar(self, token: str = None) -> Iterator[bytes]:
         """
@@ -64,7 +64,7 @@ class HiroAuth(AuthenticatedAPI):
         :return: The result payload as Iterator over binary data. Complete binary payload is an image/png.
         """
         url = self._endpoint + '/me/avatar'
-        return self.get_binary(url, token)
+        return self.get_binary(url, accept='image/png', token=token)
 
     def put_avatar(self, data: Any, token: str = None) -> dict:
         """
@@ -75,7 +75,7 @@ class HiroAuth(AuthenticatedAPI):
         :return: The result payload
         """
         url = self._endpoint + '/me/avatar'
-        return self.put_binary(url, data, 'image/png', token)
+        return self.put_binary(url, data, content_type='image/png', token=token)
 
     def change_password(self, old_password: str, new_password: str, token: str = None) -> dict:
         """
@@ -93,7 +93,7 @@ class HiroAuth(AuthenticatedAPI):
             "newPassword": new_password
         }
 
-        return self.put(url, data, token)
+        return self.put(url, data, token=token)
 
     def get_profile(self, token: str = None) -> dict:
         """
@@ -103,7 +103,7 @@ class HiroAuth(AuthenticatedAPI):
         :return: The result payload
         """
         url = self._endpoint + '/me/profile'
-        return self.get(url, token)
+        return self.get(url, token=token)
 
     def post_profile(self, data: dict, token: str = None) -> dict:
         """
@@ -115,7 +115,7 @@ class HiroAuth(AuthenticatedAPI):
         :return: The result payload
         """
         url = self._endpoint + '/me/profile'
-        return self.post(url, data, token)
+        return self.post(url, data, token=token)
 
     def get_roles(self, token: str = None) -> dict:
         """
@@ -125,7 +125,7 @@ class HiroAuth(AuthenticatedAPI):
         :return: The result payload
         """
         url = self._endpoint + '/me/roles'
-        return self.get(url, token)
+        return self.get(url, token=token)
 
     def get_teams(self, token: str = None) -> dict:
         """
@@ -135,4 +135,4 @@ class HiroAuth(AuthenticatedAPI):
         :return: The result payload
         """
         url = self._endpoint + '/me/teams'
-        return self.get(url, token)
+        return self.get(url, token=token)

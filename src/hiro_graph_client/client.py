@@ -60,8 +60,7 @@ class HiroGraph(AuthenticatedAPI):
         """
         HIRO REST query API: `POST self._endpoint + '/query/vertices'`
 
-        :param query: The actual query. e.g. outE().inV() for gremlin, ogit\\\\/_type: ogit\\\\/Question for vertices,
-                      id1,id2,id3 for Multi-ID, id1 for XID (External ID)'
+        :param query: The actual query. e.g. ogit\\\\/_type: ogit\\\\/Question for vertices.
         :param fields: the comma separated list of fields to return
         :param token: Optional external token.
         :param limit: limit of entries to return
@@ -79,7 +78,33 @@ class HiroGraph(AuthenticatedAPI):
                 "offset": offset}
         if order is not None:
             data['order'] = order
-        return self.post(url, data, token)
+        return self.post(url, data, token=token)
+
+    def query_gremlin(self,
+                      query: str,
+                      root: str,
+                      fields: str = None,
+                      token: str = None,
+                      include_deleted: bool = False,
+                      meta=False) -> dict:
+        """
+        HIRO REST query API: `POST self._endpoint + '/query/gremlin'`
+
+        :param query: The actual query. e.g. outE().inV() for gremlin.
+        :param root: ogit/_id of the root node where the gremlin query starts.
+        :param fields: the comma separated list of fields to return
+        :param token: Optional external token.
+        :param include_deleted: Include deleted values.
+        :param meta: List detailed metainformations in result payload
+        :return: Result payload
+        """
+        url = self._endpoint + '/query/gremlin'
+        data = {"query": str(query),
+                "root": root,
+                "fields": (quote_plus(fields.replace(" ", ""), safe="/,") if fields else ""),
+                "includeDeleted": include_deleted,
+                "listMeta": meta}
+        return self.post(url, data, token=token)
 
     def create_node(self, data: dict, obj_type: str, token: str = None, return_id=False) -> dict:
         """
@@ -92,7 +117,7 @@ class HiroGraph(AuthenticatedAPI):
         :return: The result payload
         """
         url = self._endpoint + '/new/' + quote_plus(obj_type)
-        res = self.post(url, data, token)
+        res = self.post(url, data, token=token)
         return res['ogit/_id'] if return_id and 'error' not in res else res
 
     def update_node(self, node_id: str, data: dict, token: str = None) -> dict:
@@ -105,7 +130,7 @@ class HiroGraph(AuthenticatedAPI):
         :return: The result payload
         """
         url = self._endpoint + '/' + quote_plus(node_id)
-        return self.post(url, data, token)
+        return self.post(url, data, token=token)
 
     def delete_node(self, node_id: str, token: str = None) -> dict:
         """
@@ -116,7 +141,7 @@ class HiroGraph(AuthenticatedAPI):
         :return: The result payload
         """
         url = self._endpoint + '/' + quote_plus(node_id)
-        return self.delete(url, token)
+        return self.delete(url, token=token)
 
     def connect_nodes(self, from_node_id: str, verb: str, to_node_id: str, token: str = None) -> dict:
         """
@@ -130,7 +155,7 @@ class HiroGraph(AuthenticatedAPI):
         """
         url = self._endpoint + '/connect/' + quote_plus(verb)
         data = {"out": from_node_id, "in": to_node_id}
-        return self.post(url, data, token)
+        return self.post(url, data, token=token)
 
     def disconnect_nodes(self, from_node_id: str, verb: str, to_node_id: str, token: str = None) -> dict:
         """
@@ -149,7 +174,7 @@ class HiroGraph(AuthenticatedAPI):
         ) + "$$" + quote_plus(
             to_node_id
         )
-        return self.delete(url, token)
+        return self.delete(url, token=token)
 
     def get_node(self, node_id: str, fields: str = None, meta: bool = None, token: str = None) -> dict:
         """
@@ -167,7 +192,26 @@ class HiroGraph(AuthenticatedAPI):
         }
 
         url = self._endpoint + '/' + quote_plus(node_id) + self._get_query_part(query)
-        return self.get(url, token)
+        return self.get(url, token=token)
+
+    def get_nodes(self, node_ids: list, fields: str = None, meta: bool = None, token: str = None) -> dict:
+        """
+        HIRO REST query API: `GET self._endpoint + '/{id}'`
+
+        :param node_ids: list of ogit/_ids of the node/vertexes or edges
+        :param fields: Filter for fields
+        :param meta: List detailed metainformations in result payload
+        :param token: Optional external token.
+        :return: The result payload
+        """
+        query = {
+            "query": ",".join(node_ids),
+            "fields": fields.replace(" ", "") if fields else None,
+            "listMeta": "true" if meta else None
+        }
+
+        url = self._endpoint + '/query/ids' + self._get_query_part(query)
+        return self.get(url, token=token)
 
     def get_node_by_xid(self, node_id: str, fields: str = None, meta: bool = None, token: str = None) -> dict:
         """
@@ -185,7 +229,7 @@ class HiroGraph(AuthenticatedAPI):
         }
 
         url = self._endpoint + '/xid/' + quote_plus(node_id) + self._get_query_part(query)
-        return self.get(url, token)
+        return self.get(url, token=token)
 
     def get_timeseries(self, node_id: str, starttime: str = None, endtime: str = None, token: str = None) -> dict:
         """
@@ -203,7 +247,7 @@ class HiroGraph(AuthenticatedAPI):
         }
 
         url = self._endpoint + '/' + quote_plus(node_id) + '/values' + self._get_query_part(query)
-        res = self.get(url, token)
+        res = self.get(url, token=token)
         if 'error' in res:
             return res
         timeseries = res['items']
@@ -221,7 +265,7 @@ class HiroGraph(AuthenticatedAPI):
         """
         url = self._endpoint + '/' + quote_plus(node_id) + '/values?synchronous=true'
         data = {"items": items}
-        return self.post(url, data, token)
+        return self.post(url, data, token=token)
 
     def get_attachment(self,
                        node_id: str,
@@ -243,7 +287,7 @@ class HiroGraph(AuthenticatedAPI):
         }
 
         url = self._endpoint + '/' + quote_plus(node_id) + '/content' + self._get_query_part(query)
-        return self.get_binary(url, token)
+        return self.get_binary(url, token=token)
 
     def post_attachment(self,
                         node_id: str,
@@ -260,4 +304,4 @@ class HiroGraph(AuthenticatedAPI):
         :return: The result payload
         """
         url = self._endpoint + '/' + quote_plus(node_id) + '/content'
-        return self.post_binary(url, data, content_type, token)
+        return self.post_binary(url, data, content_type=content_type, token=token)

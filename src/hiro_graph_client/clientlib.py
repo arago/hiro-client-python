@@ -200,14 +200,17 @@ class AbstractAPI(APIConfig):
     ###############################################################################################################
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def get_binary(self, url: str, token: str = None) -> Iterator[bytes]:
+    def get_binary(self, url: str, accept: str = None, token: str = None) -> Iterator[bytes]:
         """
         Implementation of GET for binary data.
 
         :param url: Url to use
+        :param accept: Mimetype for accept. Will be set to */* if not given.
         :param token: External token to use. Default is False to handle token internally.
         :return: Yields an iterator over raw chunks of the response payload.
         """
+        headers = self._get_headers(token)
+        headers['Accept'] = accept or "*/*"
         with requests.get(url,
                           headers=self._get_headers(token, content=False),
                           verify=False,
