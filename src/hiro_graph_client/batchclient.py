@@ -4,7 +4,8 @@ from abc import abstractmethod
 from enum import Enum
 from typing import Optional, Tuple, Any, Iterator, IO
 
-from hiro_graph_client.client import HiroGraph, TokenHandler, APIConfig
+from hiro_graph_client.client import HiroGraph
+from hiro_graph_client.clientlib import TokenHandler, APIConfig
 from requests.exceptions import RequestException
 
 
@@ -29,6 +30,10 @@ class Entity(Enum):
 
 
 class HiroResultCallback:
+    """
+    Abstract class for objects that receive each result of a command in its method *result(...)*.
+    Objects of this type are given to the *HiroGraphBatch* as parameter *callback=*.
+    """
 
     @abstractmethod
     def result(self, data: Any, code: int) -> None:
@@ -42,8 +47,9 @@ class HiroConnection:
 
     token: str = None
     """Set a predefined token for the hiro connection."""
+
     client: HiroGraph
-    """The python client for REST API"""
+    """The python client for HIRO REST Graph API"""
 
     def __init__(self, client: HiroGraph, token: str = None):
         """
@@ -827,7 +833,6 @@ class HiroGraphBatch:
                  client_id: str = None,
                  client_secret: str = None,
                  auth_endpoint: str = None,
-                 iam_endpoint: str = None,
                  use_xid_cache: bool = True,
                  proxies: dict = None,
                  parallel_workers: int = 8,
@@ -847,7 +852,6 @@ class HiroGraphBatch:
         :param client_id: optional, required if *hiro_token* is None: Id for Authentication (OAuth2).
         :param client_secret: optional, required if *hiro_token* is None: Secret for Authentication (OAuth2).
         :param auth_endpoint: optional, required if *hiro_token* is None: URL of the authentication API.
-        :param iam_endpoint: optional: URL of the IAM instance for accessing accounts. Default is None.
         :param use_xid_cache: Use xid caching. Default is True when omitted or set to None.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param parallel_workers: Amount of parallel workers for requests. Default is 8.
@@ -880,9 +884,8 @@ class HiroGraphBatch:
                                     password=password,
                                     client_id=client_id,
                                     client_secret=client_secret,
-                                    graph_endpoint=graph_endpoint,
+                                    endpoint=graph_endpoint,
                                     auth_endpoint=auth_endpoint,
-                                    iam_endpoint=iam_endpoint,
                                     raise_exceptions=True,
                                     proxies=proxies)
 
@@ -1123,16 +1126,17 @@ class HiroGraphBatch:
         """
         Run a multi-command batch.
 
-        The command_iter iterates over a dict with pairs
+        The command_iter iterates over a list of dicts with pairs like
 
         ::
 
             {
-                "[command]": { "[key]": "[value]" }
+                "[command]": { "[key]": "[value]", ... }
             },
             {
-                "[command]": { "[key]": "[value]" }
-            }
+                "[command]": { "[key]": "[value]", ... }
+            },
+            ...
 
         with payload being a list of dict containing the attributes to run with that command.
 

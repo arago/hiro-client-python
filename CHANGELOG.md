@@ -1,3 +1,10 @@
+# v3.1.0
+
+* Separation of APIs in client libraries. Currently, supported APIs are:
+  * HiroGraph: https://core.arago.co/help/specs/?url=definitions/graph.yaml
+  * HiroAuth: https://core.arago.co/help/specs/?url=definitions/auth.yaml
+  * HiroApp: https://core.arago.co/help/specs/?url=definitions/app.yaml
+
 # v3.0.0
 
 * Renamed classes to match documentation elsewhere (i.e. Graphit -> HiroGraph, GraphitBatch -> HiroGraphBatch).
