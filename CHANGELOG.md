@@ -4,6 +4,8 @@
   * HiroGraph: https://core.arago.co/help/specs/?url=definitions/graph.yaml
   * HiroAuth: https://core.arago.co/help/specs/?url=definitions/auth.yaml
   * HiroApp: https://core.arago.co/help/specs/?url=definitions/app.yaml
+* Use correct headers with binary transfers.
+* Added gremlin and multi-id queries to HiroGraph.
 
 # v3.0.0
 
