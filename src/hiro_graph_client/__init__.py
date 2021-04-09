@@ -4,7 +4,7 @@ Package which contains the classes to communicate with HIRO Graph.
 import site
 from os import path
 
-from hiro_graph_client.clientlib import AuthenticationTokenError, accept_all_certs
+from hiro_graph_client.clientlib import TokenHandler, AuthenticationTokenError, accept_all_certs
 from hiro_graph_client.client import HiroGraph
 from hiro_graph_client.authclient import HiroAuth
 from hiro_graph_client.appclient import HiroApp
@@ -17,7 +17,7 @@ with open(path.join(this_directory, 'VERSION'), encoding='utf-8') as f:
 
 __all__ = [
     'HiroGraph', 'HiroAuth', 'HiroApp', 'HiroGraphBatch', 'SessionData', 'HiroResultCallback',
-    'AuthenticationTokenError', 'AbstractIOCarrier',
+    'TokenHandler', 'AuthenticationTokenError', 'AbstractIOCarrier',
     'SourceValueError', 'accept_all_certs', '__version__'
 ]
 
