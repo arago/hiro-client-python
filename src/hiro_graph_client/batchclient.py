@@ -394,7 +394,7 @@ class HiroBatchRunner:
         To be used with self.for_each_attribute()
 
         Try to resolve_ids keys that start with "id:" or "xid:". Try to find the
-        ogit/_id of a vertex by using the value for such a key in graphit. Return a tuple of (key, value) with the key
+        ogit/_id of a vertex by using the value for such a key in the graph. Return a tuple of (key, value) with the key
         without its prefix "id:" or "xid:" and the value resolved to a real "ogit/_id".
 
         :param key: Attribute key
@@ -1138,12 +1138,31 @@ class HiroGraphBatch:
             },
             ...
 
+        or
+
+        ::
+
+            {
+                "[command]": [
+                    { "[key]": "[value]", ... },
+                    { "[key]": "[value]", ... }
+                ]
+            },
+            ...
+
+
         with payload being a list of dict containing the attributes to run with that command.
 
         :param command_iter: An iterator for a dict of pairs "[command]:payload".
         :return a list with results when no callback is set, None otherwise.
         """
         with concurrent.futures.ThreadPoolExecutor() as executor:
+
+            def _request_queue_put(_command: str, _attributes: dict) -> None:
+                if isinstance(_attributes, dict):
+                    self.request_queue.put((_command, _attributes))
+                else:
+                    raise SourceValueError("Found attributes that are not a dict.")
 
             session = self.__init_session()
 
@@ -1161,13 +1180,20 @@ class HiroGraphBatch:
                         command = "handle_vertices"
                         handle_session_data = True
 
-                    if command in self.commands:
-                        self.request_queue.put((command, attributes))
-                    else:
+                    try:
+                        if command in self.commands:
+                            if isinstance(attributes, list):
+                                for attribute_entry in attributes:
+                                    _request_queue_put(command, attribute_entry)
+                            else:
+                                _request_queue_put(command, attributes)
+                        else:
+                            raise SourceValueError("No such command \"{}\".".format(command))
+                    except SourceValueError as err:
                         sub_result, sub_code = HiroBatchRunner.error_message(
                             Entity.UNDEFINED,
                             Action.UNDEFINED,
-                            SourceValueError("No such command \"{}\".".format(command)),
+                            err,
                             attributes,
                             400), 400
 
