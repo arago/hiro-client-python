@@ -358,13 +358,13 @@ class AbstractAPI(APIConfig):
     @staticmethod
     def _get_query_part(params: dict) -> str:
         """
-        Create the query part of an url. Keys in *params* that are set to None are removed.
+        Create the query part of an url. Keys in *params* whose values are set to None are removed.
 
         :param params: A dict of params to use for the query.
         :return: The query part of an url with a leading '?', or an empty string when query is empty.
         """
         params_cleaned = {k: v for k, v in params.items() if v is not None}
-        return '?' + urlencode(params_cleaned, quote_via=quote, safe="/,") if params_cleaned else ""
+        return ('?' + urlencode(params_cleaned, quote_via=quote, safe="/,")) if params_cleaned else ""
 
     def _parse_json_response(self, res: requests.Response, token: str = None) -> dict:
         """
