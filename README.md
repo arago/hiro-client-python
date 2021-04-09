@@ -33,4 +33,4 @@ For more details, take a look at the [Makefile](Makefile) and the [README.md in 
 
 
 
-(c) 2020 arago GmbH (https://www.arago.co/)
+(c) 2021 arago GmbH (https://www.arago.co/)
