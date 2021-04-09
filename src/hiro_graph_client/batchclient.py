@@ -941,7 +941,7 @@ class HiroGraphBatch:
         """
         Update vertex from *attributes*.
 
-        Attributes needs at least a column "ogit/_id" or "ogit/_xid" to find the vertex to be updated.
+        Attributes needs at least a key "ogit/_id" or "ogit/_xid" to find the vertex to be updated.
         It then sanitizes the payload by ignoring every attribute starting with "ogit/_" (unless "ogit/_owner",
         "ogit/_content" or "ogit/_tags") of the dict before attempting to update.
 
@@ -956,7 +956,7 @@ class HiroGraphBatch:
         """
         Delete vertex given by *attributes*.
 
-        Attributes needs at least a column "ogit/_id" or "ogit/_xid" to find the vertex to be deleted.
+        Attributes needs at least a key "ogit/_id" or "ogit/_xid" to find the vertex to be deleted.
 
         :param attributes: Dict containing the attributes for the vertex.
         :param connection: optional: Connection to use. A new connection will be used if this is not set.
@@ -983,7 +983,7 @@ class HiroGraphBatch:
         """
         Create edge from *attributes*.
 
-        Attributes needs a column "from:ogit/_id" or "from:ogit/_xid" and
+        Attributes needs a key "from:ogit/_id" or "from:ogit/_xid" and
         "to:ogit/_id" or "to:ogit/_xid" as well as "verb" to be able to determine the vertices to connect.
 
         :param attributes: Dict containing the fields "from:...,verb,to:..." for the edge.
@@ -997,7 +997,7 @@ class HiroGraphBatch:
         """
         Delete edge given by *attributes*.
 
-        Attributes needs a column "from:ogit/_id" or "from:ogit/_xid" and
+        Attributes needs a key "from:ogit/_id" or "from:ogit/_xid" and
         "to:ogit/_id" or "to:ogit/_xid" as well as "verb" to be able to determine the edge between the vertices to
         delete.
 
@@ -1012,7 +1012,7 @@ class HiroGraphBatch:
         """
         Update vertices with timeseries data.
 
-        Attributes needs at least a column "ogit/_id" or "ogit/_xid" to find the vertex to be updated.
+        Attributes needs at least a key "ogit/_id" or "ogit/_xid" to find the vertex to be updated.
 
         :param attributes: Contains the timeseries items.
         :param connection: optional: Connection to use. A new connection will be used if this is not set.

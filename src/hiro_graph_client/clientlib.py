@@ -117,13 +117,17 @@ class TokenInfo:
 
 
 class APIConfig:
+    """
+    This is just a collection of common configuration values for accessing REST APIs.
+    """
+
     def __init__(self,
                  username: str,
                  password: str,
                  client_id: str,
                  client_secret: str,
                  endpoint: str,
-                 auth_endpoint: str,
+                 auth_endpoint: str = None,
                  raise_exceptions: bool = False,
                  proxies: dict = None):
         """
@@ -149,13 +153,18 @@ class APIConfig:
 
 
 class AbstractAPI(APIConfig):
+    """
+    This abstract root class contains the methods for HTTP requests used by all API classes. Also contains several
+    tool methods for handling headers, url query parts and response error checking.
+    """
+
     def __init__(self,
                  username: str,
                  password: str,
                  client_id: str,
                  client_secret: str,
                  endpoint: str,
-                 auth_endpoint: str,
+                 auth_endpoint: str = None,
                  raise_exceptions: bool = False,
                  proxies: dict = None):
         """
@@ -209,10 +218,11 @@ class AbstractAPI(APIConfig):
         :param token: External token to use. Default is False to handle token internally.
         :return: Yields an iterator over raw chunks of the response payload.
         """
-        headers = self._get_headers(token, content=False)
-        headers['Accept'] = accept or "*/*"
         with requests.get(url,
-                          headers=headers,
+                          headers=self._get_headers(
+                              token,
+                              {"Content-Type": None, "Accept": (accept or "*/*")}
+                          ),
                           verify=False,
                           stream=True,
                           proxies=self._get_proxies()) as res:
@@ -231,11 +241,12 @@ class AbstractAPI(APIConfig):
         :param token: External token to use. Default is False to handle token internally.
         :return: The payload of the response
         """
-        headers = self._get_headers(token)
-        headers['Content-Type'] = content_type or "application/octet-stream"
         res = requests.post(url,
                             data=data,
-                            headers=headers,
+                            headers=self._get_headers(
+                                token,
+                                {"Content-Type": (content_type or "application/octet-stream")}
+                            ),
                             verify=False,
                             proxies=self._get_proxies())
         return self._parse_json_response(res, token)
@@ -251,11 +262,12 @@ class AbstractAPI(APIConfig):
         :param token: External token to use. Default is False to handle token internally.
         :return: The payload of the response
         """
-        headers = self._get_headers(token)
-        headers['Content-Type'] = content_type or "application/octet-stream"
         res = requests.put(url,
                            data=data,
-                           headers=headers,
+                           headers=self._get_headers(
+                               token,
+                               {"Content-Type": (content_type or "application/octet-stream")}
+                           ),
                            verify=False,
                            proxies=self._get_proxies())
         return self._parse_json_response(res, token)
@@ -270,7 +282,7 @@ class AbstractAPI(APIConfig):
         :return: The payload of the response
         """
         res = requests.get(url,
-                           headers=self._get_headers(token, content=False),
+                           headers=self._get_headers(token, {"Content-Type": None}),
                            verify=False,
                            proxies=self._get_proxies())
         return self._parse_json_response(res, token)
@@ -287,7 +299,7 @@ class AbstractAPI(APIConfig):
         """
         res = requests.post(url,
                             json=data,
-                            headers=self._get_headers(token, content=True),
+                            headers=self._get_headers(token),
                             verify=False,
                             proxies=self._get_proxies())
         return self._parse_json_response(res, token)
@@ -304,7 +316,7 @@ class AbstractAPI(APIConfig):
         """
         res = requests.put(url,
                            json=data,
-                           headers=self._get_headers(token, content=True),
+                           headers=self._get_headers(token),
                            verify=False,
                            proxies=self._get_proxies())
         return self._parse_json_response(res, token)
@@ -319,7 +331,7 @@ class AbstractAPI(APIConfig):
         :return: The payload of the response
         """
         res = requests.delete(url,
-                              headers=self._get_headers(token, content=False),
+                              headers=self._get_headers(token, {"Content-Type": None}),
                               verify=False,
                               proxies=self._get_proxies())
         return self._parse_json_response(res, token)
@@ -336,24 +348,23 @@ class AbstractAPI(APIConfig):
         """
         return self._proxies.copy() if self._proxies else None
 
-    def _get_headers(self, token: str, content: bool = True) -> dict:
+    def _get_headers(self, token: str, override: dict = None) -> dict:
         """
         Create a header dict for requests. Uses abstract method *self._handle_token()*.
 
         :param token: An external token that gets passed through if it is not None.
-        :param content: Remove 'Content-Type' from headers when set to False.
+        :param override: Dict of headers that override the internal headers. If a header key is set to value None,
+               it will be removed from the headers.
         :return: A dict containing header values for requests.
         """
         token = self._handle_token(token)
         headers = self._headers.copy()
-
-        if not content and 'Content-Type' in headers:
-            del headers['Content-Type']
+        headers.update(override)
 
         if token:
             headers['Authorization'] = "Bearer " + token
 
-        return headers
+        return {k: v for k, v in headers.items() if v is not None}
 
     @staticmethod
     def _get_query_part(params: dict) -> str:
@@ -459,7 +470,6 @@ class TokenHandler(AbstractAPI):
                  client_id: str,
                  client_secret: str,
                  endpoint: str,
-                 auth_endpoint: str,
                  raise_exceptions: bool = False,
                  proxies: dict = None):
         """
@@ -469,25 +479,33 @@ class TokenHandler(AbstractAPI):
         :param password: Password for authentication
         :param client_id: OAuth client_id for authentication
         :param client_secret: OAuth client_secret for authentication
-        :param endpoint: Full url for service API
-        :param auth_endpoint: Full url for auth
+        :param endpoint: Full url for auth API
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False.
         :param proxies: Proxy configuration for *requests*. Default is None.
         """
-        super().__init__(username,
-                         password,
-                         client_id,
-                         client_secret,
-                         endpoint,
-                         auth_endpoint,
-                         raise_exceptions,
-                         proxies)
+        super().__init__(username=username,
+                         password=password,
+                         client_id=client_id,
+                         client_secret=client_secret,
+                         endpoint=endpoint,
+                         raise_exceptions=raise_exceptions,
+                         proxies=proxies)
 
         self._token_info = TokenInfo()
         self._lock = threading.RLock()
 
+    @classmethod
+    def new_from(cls, other: APIConfig):
+        return cls(other._username,
+                   other._password,
+                   other._client_id,
+                   other._client_secret,
+                   other._auth_endpoint,
+                   other._raise_exceptions,
+                   other._proxies)
+
     @property
-    def token(self):
+    def token(self) -> str:
         with self._lock:
             if not self._token_info.token:
                 self.get_token()
@@ -498,16 +516,16 @@ class TokenHandler(AbstractAPI):
 
     def get_token(self) -> None:
         """
-        Construct a request to obtain a new token. API self._auth_endpoint + '/app'
+        Construct a request to obtain a new token. API self._endpoint + '/app'
 
         :raises AuthenticationTokenError: When no auth_endpoint is set.
         """
         with self._lock:
-            if not self._auth_endpoint:
+            if not self._endpoint:
                 raise AuthenticationTokenError(
-                    'Token is invalid and auth_endpoint for obtaining is not set.')
+                    'Token is invalid and endpoint (auth_endpoint) for obtaining is not set.')
 
-            url = self._auth_endpoint + '/app'
+            url = self._endpoint + '/app'
             data = {
                 "client_id": self._client_id,
                 "client_secret": self._client_secret,
@@ -520,15 +538,15 @@ class TokenHandler(AbstractAPI):
 
     def refresh_token(self) -> None:
         """
-        Construct a request to refresh an existing token. API self._auth_endpoint + '/refresh'.
+        Construct a request to refresh an existing token. API self._endpoint + '/refresh'.
         Does not refresh tokens that are younger than 30 sec to avoid refresh storms on parallel connections.
 
         :raises AuthenticationTokenError: When no auth_endpoint is set.
         """
         with self._lock:
-            if not self._auth_endpoint:
+            if not self._endpoint:
                 raise AuthenticationTokenError(
-                    'Token is invalid and auth_endpoint for refresh is not set.')
+                    'Token is invalid and endpoint (auth_endpoint) for refresh is not set.')
 
             if self._token_info.fresh():
                 return
@@ -537,7 +555,7 @@ class TokenHandler(AbstractAPI):
                 self.get_token()
                 return
 
-            url = self._auth_endpoint + '/refresh'
+            url = self._endpoint + '/refresh'
             data = {
                 "client_id": self._client_id,
                 "client_secret": self._client_secret,
@@ -676,7 +694,7 @@ class AuthenticationTokenError(Exception):
         self.message = message
         self.code = code
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self.code is None:
             return "{}: {}".format(self.__class__.__name__, self.message)
         else:
