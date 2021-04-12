@@ -346,8 +346,8 @@ https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/pos
 
 * `ogit/_type` must be present in each of the attribute dicts.
 
-* Attribute keys that start with `=`, `+` or `-` denote map value entries. These values have to be dicts in the correct
-  format, see https://developer.hiro.arago.co/7.0/documentation/api/list-api/.
+* Attribute keys that start with `=`, `+` or `-` denote map value entries. These values have to be in the correct
+  format according to https://developer.hiro.arago.co/7.0/documentation/api/list-api/.
 
 * Attributes of the format `"xid:[attribute_name]": "[ogit/_xid]"` are resolved to `"[attribute_name]": "[ogit/_id]"` by
   querying HIRO before executing the main command.
@@ -410,8 +410,8 @@ https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/pos
 
 * Either `ogit/_id` or `ogit/_xid` must be present in each of the attribute dicts.
 
-* Attribute keys that start with `=`, `+` or `-` denote map value entries. These values have to be dicts in the correct
-  format, see https://developer.hiro.arago.co/7.0/documentation/api/list-api/.
+* Attribute keys that start with `=`, `+` or `-` denote map value entries. These values have to be in the correct
+  format according to https://developer.hiro.arago.co/7.0/documentation/api/list-api/.
 
 * Attributes of the format `"xid:[attribute_name]": "[ogit/_xid]"` are resolved to `"[attribute_name]": "[ogit/_id]"` by
   querying HIRO before executing the main command.
