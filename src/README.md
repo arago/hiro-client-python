@@ -160,8 +160,9 @@ The data format for input of `HiroGraphBatch.multi_command` is a list. This meth
 each dict it finds as a key-value-pair with the name of a command as key and either a single dict of attributes or a
 list of multiple attribute dicts as value(s) for this command.
 
-These commands are run in parallel across eight threads by default, so commands given in these command lists should
-never depend on each other. See the documentation on the constructor `HiroGraphBatch.__init__` for more information.
+These commands are run in parallel across eight threads by default, so their order is likely to change in the results.
+Commands given in these command lists should therefore never depend on each other. See the documentation on the
+constructor `HiroGraphBatch.__init__` for more information.
 
 The following two examples are equivalent:
 
@@ -215,7 +216,8 @@ commands: list = [
 
 ### Result data format
 
-Result values contain dicts that carry all information about the executed commands.
+Result values contain dicts that carry all information about the executed commands. The order of the results is
+independent of the order in which the input data has been submitted.
 
 One dict has the following structure:
 
@@ -336,6 +338,7 @@ query_results: list = [
 The following command keywords for the commands list structure are implemented in the HiroGraphBatch client:
 
 ---
+
 #### create_vertices
 
 Create a batch of vertices via
@@ -397,7 +400,9 @@ commands: list = [
     }
 ]
 ```
+
 ---
+
 #### update_vertices
 
 Update a batch of vertices via
@@ -447,6 +452,7 @@ commands: list = [
 `"/admin_contact": None` from above would remove this attribute from the found vertex.
 
 ---
+
 #### handle_vertices
 
 Create or update a batch of vertices depending on the data provided in their attributes.
@@ -495,6 +501,7 @@ commands: list = [
 `"/admin_contact": None` from above would remove this attribute from the found vertex.
 
 ---
+
 #### handle_vertices_combined
 
 Same as [handle_vertices](#handle_vertices) above, but also collect additional information about edge connections and
@@ -609,6 +616,7 @@ commands: list = [
 `FileIOCarrier` in the example above is a hypothetical class that derives from `AbstractIOCarrier`.
 
 ---
+
 #### delete_vertices
 
 Delete a batch of vertices via
@@ -640,6 +648,7 @@ commands: list = [
 ```
 
 ---
+
 #### create_edges
 
 Connect vertices via
@@ -688,6 +697,7 @@ commands: list = [
 ```
 
 ---
+
 #### delete_edges
 
 Delete connections between vertices via
@@ -732,6 +742,7 @@ commands: list = [
 ```
 
 ---
+
 #### add_timeseries
 
 Add timeseries data to a vertex via
@@ -782,6 +793,7 @@ commands: list = [
 ```
 
 ---
+
 #### add_attachments
 
 Add binary data to a vertex with "ogit/_type" of "ogit/Attachment" by using
