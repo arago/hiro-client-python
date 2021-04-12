@@ -357,14 +357,17 @@ class AbstractAPI(APIConfig):
                it will be removed from the headers.
         :return: A dict containing header values for requests.
         """
-        token = self._handle_token(token)
         headers = self._headers.copy()
-        headers.update(override)
 
+        if isinstance(override, dict):
+            headers.update(override)
+            headers = {k: v for k, v in headers.items() if v is not None}
+
+        token = self._handle_token(token)
         if token:
             headers['Authorization'] = "Bearer " + token
 
-        return {k: v for k, v in headers.items() if v is not None}
+        return headers
 
     @staticmethod
     def _get_query_part(params: dict) -> str:
