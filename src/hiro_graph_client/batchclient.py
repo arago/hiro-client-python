@@ -4,7 +4,8 @@ from abc import abstractmethod
 from enum import Enum
 from typing import Optional, Tuple, Any, Iterator, IO
 
-from hiro_graph_client.client import HiroGraph, TokenHandler, APIConfig
+from hiro_graph_client.client import HiroGraph
+from hiro_graph_client.clientlib import TokenHandler, APIConfig
 from requests.exceptions import RequestException
 
 
@@ -29,6 +30,10 @@ class Entity(Enum):
 
 
 class HiroResultCallback:
+    """
+    Abstract class for objects that receive each result of a command in its method *result(...)*.
+    Objects of this type are given to the *HiroGraphBatch* as parameter *callback=*.
+    """
 
     @abstractmethod
     def result(self, data: Any, code: int) -> None:
@@ -42,8 +47,9 @@ class HiroConnection:
 
     token: str = None
     """Set a predefined token for the hiro connection."""
+
     client: HiroGraph
-    """The python client for REST API"""
+    """The python client for HIRO REST Graph API"""
 
     def __init__(self, client: HiroGraph, token: str = None):
         """
@@ -388,7 +394,7 @@ class HiroBatchRunner:
         To be used with self.for_each_attribute()
 
         Try to resolve_ids keys that start with "id:" or "xid:". Try to find the
-        ogit/_id of a vertex by using the value for such a key in graphit. Return a tuple of (key, value) with the key
+        ogit/_id of a vertex by using the value for such a key in the graph. Return a tuple of (key, value) with the key
         without its prefix "id:" or "xid:" and the value resolved to a real "ogit/_id".
 
         :param key: Attribute key
@@ -827,7 +833,6 @@ class HiroGraphBatch:
                  client_id: str = None,
                  client_secret: str = None,
                  auth_endpoint: str = None,
-                 iam_endpoint: str = None,
                  use_xid_cache: bool = True,
                  proxies: dict = None,
                  parallel_workers: int = 8,
@@ -847,7 +852,6 @@ class HiroGraphBatch:
         :param client_id: optional, required if *hiro_token* is None: Id for Authentication (OAuth2).
         :param client_secret: optional, required if *hiro_token* is None: Secret for Authentication (OAuth2).
         :param auth_endpoint: optional, required if *hiro_token* is None: URL of the authentication API.
-        :param iam_endpoint: optional: URL of the IAM instance for accessing accounts. Default is None.
         :param use_xid_cache: Use xid caching. Default is True when omitted or set to None.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param parallel_workers: Amount of parallel workers for requests. Default is 8.
@@ -880,9 +884,8 @@ class HiroGraphBatch:
                                     password=password,
                                     client_id=client_id,
                                     client_secret=client_secret,
-                                    graph_endpoint=graph_endpoint,
+                                    endpoint=graph_endpoint,
                                     auth_endpoint=auth_endpoint,
-                                    iam_endpoint=iam_endpoint,
                                     raise_exceptions=True,
                                     proxies=proxies)
 
@@ -938,7 +941,7 @@ class HiroGraphBatch:
         """
         Update vertex from *attributes*.
 
-        Attributes needs at least a column "ogit/_id" or "ogit/_xid" to find the vertex to be updated.
+        Attributes needs at least a key "ogit/_id" or "ogit/_xid" to find the vertex to be updated.
         It then sanitizes the payload by ignoring every attribute starting with "ogit/_" (unless "ogit/_owner",
         "ogit/_content" or "ogit/_tags") of the dict before attempting to update.
 
@@ -953,7 +956,7 @@ class HiroGraphBatch:
         """
         Delete vertex given by *attributes*.
 
-        Attributes needs at least a column "ogit/_id" or "ogit/_xid" to find the vertex to be deleted.
+        Attributes needs at least a key "ogit/_id" or "ogit/_xid" to find the vertex to be deleted.
 
         :param attributes: Dict containing the attributes for the vertex.
         :param connection: optional: Connection to use. A new connection will be used if this is not set.
@@ -980,7 +983,7 @@ class HiroGraphBatch:
         """
         Create edge from *attributes*.
 
-        Attributes needs a column "from:ogit/_id" or "from:ogit/_xid" and
+        Attributes needs a key "from:ogit/_id" or "from:ogit/_xid" and
         "to:ogit/_id" or "to:ogit/_xid" as well as "verb" to be able to determine the vertices to connect.
 
         :param attributes: Dict containing the fields "from:...,verb,to:..." for the edge.
@@ -994,7 +997,7 @@ class HiroGraphBatch:
         """
         Delete edge given by *attributes*.
 
-        Attributes needs a column "from:ogit/_id" or "from:ogit/_xid" and
+        Attributes needs a key "from:ogit/_id" or "from:ogit/_xid" and
         "to:ogit/_id" or "to:ogit/_xid" as well as "verb" to be able to determine the edge between the vertices to
         delete.
 
@@ -1009,7 +1012,7 @@ class HiroGraphBatch:
         """
         Update vertices with timeseries data.
 
-        Attributes needs at least a column "ogit/_id" or "ogit/_xid" to find the vertex to be updated.
+        Attributes needs at least a key "ogit/_id" or "ogit/_xid" to find the vertex to be updated.
 
         :param attributes: Contains the timeseries items.
         :param connection: optional: Connection to use. A new connection will be used if this is not set.
@@ -1123,16 +1126,30 @@ class HiroGraphBatch:
         """
         Run a multi-command batch.
 
-        The command_iter iterates over a dict with pairs
+        The command_iter iterates over a list of dicts with pairs like
 
         ::
 
             {
-                "[command]": { "[key]": "[value]" }
+                "[command]": { "[key]": "[value]", ... }
             },
             {
-                "[command]": { "[key]": "[value]" }
-            }
+                "[command]": { "[key]": "[value]", ... }
+            },
+            ...
+
+        or
+
+        ::
+
+            {
+                "[command]": [
+                    { "[key]": "[value]", ... },
+                    { "[key]": "[value]", ... }
+                ]
+            },
+            ...
+
 
         with payload being a list of dict containing the attributes to run with that command.
 
@@ -1140,6 +1157,12 @@ class HiroGraphBatch:
         :return a list with results when no callback is set, None otherwise.
         """
         with concurrent.futures.ThreadPoolExecutor() as executor:
+
+            def _request_queue_put(_command: str, _attributes: dict) -> None:
+                if isinstance(_attributes, dict):
+                    self.request_queue.put((_command, _attributes))
+                else:
+                    raise SourceValueError("Found attributes that are not a dict.")
 
             session = self.__init_session()
 
@@ -1157,13 +1180,20 @@ class HiroGraphBatch:
                         command = "handle_vertices"
                         handle_session_data = True
 
-                    if command in self.commands:
-                        self.request_queue.put((command, attributes))
-                    else:
+                    try:
+                        if command in self.commands:
+                            if isinstance(attributes, list):
+                                for attribute_entry in attributes:
+                                    _request_queue_put(command, attribute_entry)
+                            else:
+                                _request_queue_put(command, attributes)
+                        else:
+                            raise SourceValueError("No such command \"{}\".".format(command))
+                    except SourceValueError as err:
                         sub_result, sub_code = HiroBatchRunner.error_message(
                             Entity.UNDEFINED,
                             Action.UNDEFINED,
-                            SourceValueError("No such command \"{}\".".format(command)),
+                            err,
                             attributes,
                             400), 400
 

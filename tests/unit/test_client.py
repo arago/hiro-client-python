@@ -47,7 +47,7 @@ class TestClient:
         #     password=self.PASSWORD,
         #     client_id=self.CLIENT_ID,
         #     client_secret=self.CLIENT_SECRET,
-        #     graph_endpoint=self.URL,
+        #     endpoint=self.URL,
         #     auth_endpoint=self.AUTH_URL
         # )
         #
@@ -65,7 +65,7 @@ class TestClient:
         #     password=self.PASSWORD,
         #     client_id=self.CLIENT_ID,
         #     client_secret=self.CLIENT_SECRET,
-        #     graph_endpoint=self.URL,
+        #     endpoint=self.URL,
         #     auth_endpoint=self.AUTH_URL
         # )
         #
@@ -92,7 +92,7 @@ class TestClient:
         pass
 
         # batch_runner: RunBatch = RunBatch(
-        #     graph_endpoint=self.URL,
+        #     endpoint=self.URL,
         #     auth_endpoint=self.AUTH_URL,
         #     username=self.USERNAME,
         #     password=self.PASSWORD,
