@@ -1,11 +1,12 @@
 import concurrent.futures
 import queue
+import threading
 from abc import abstractmethod
 from enum import Enum
 from typing import Optional, Tuple, Any, Iterator, IO
 
 from hiro_graph_client.client import HiroGraph
-from hiro_graph_client.clientlib import TokenHandler, APIConfig
+from hiro_graph_client.clientlib import AbstractTokenHandler, APIConfig
 from requests.exceptions import RequestException
 
 
@@ -38,55 +39,6 @@ class HiroResultCallback:
     @abstractmethod
     def result(self, data: Any, code: int) -> None:
         pass
-
-
-class HiroConnection:
-    """
-    Contains the HiroGraph Client and a possibly predefined token.
-    """
-
-    token: str = None
-    """Set a predefined token for the hiro connection."""
-
-    client: HiroGraph
-    """The python client for HIRO REST Graph API"""
-
-    def __init__(self, client: HiroGraph, token: str = None):
-        """
-        Contains the HiroGraph Client and a possibly predefined token.
-
-        :param client: Required: HiroGraph Client
-        :param token: Optional: Predefined token
-        """
-        self.client = client
-        self.token = token
-
-    def get_node(self, node_id: str, fields: str, meta: bool = None) -> dict:
-        return self.client.get_node(node_id, fields, meta, token=self.token)
-
-    def get_node_by_xid(self, node_id: str, fields: str, meta: bool = None) -> dict:
-        return self.client.get_node_by_xid(node_id, fields, meta, token=self.token)
-
-    def create_node(self, data: dict, obj_type: str) -> dict:
-        return self.client.create_node(data, obj_type, token=self.token)
-
-    def update_node(self, node_id: str, data: dict) -> dict:
-        return self.client.update_node(node_id, data, token=self.token)
-
-    def delete_node(self, node_id: str) -> dict:
-        return self.client.delete_node(node_id, token=self.token)
-
-    def connect_nodes(self, from_node_id: str, verb: str, to_node_id: str) -> dict:
-        return self.client.connect_nodes(from_node_id, verb, to_node_id, token=self.token)
-
-    def disconnect_nodes(self, from_node_id: str, verb: str, to_node_id: str):
-        return self.client.disconnect_nodes(from_node_id, verb, to_node_id, token=self.token)
-
-    def post_timeseries(self, node_id: str, items: list):
-        return self.client.post_timeseries(node_id, items, token=self.token)
-
-    def post_attachment(self, node_id: str, data: Any, content_type: str = None):
-        return self.client.post_attachment(node_id, data, content_type, token=self.token)
 
 
 class AbstractIOCarrier:
@@ -128,22 +80,17 @@ class SessionData:
     content_store: dict
     """Stores a copy of '_content_data' under the value of 'ogit/_id' as key."""
 
-    token_handler: TokenHandler
-    """Handles token requests"""
-
-    def __init__(self, api_config: APIConfig):
+    def __init__(self):
         """
-
-        :param api_config: Configuration for the API that the TokenHandler uses.
+        Constructor
         """
         self.xid_cache = {}
         self.edge_store = {}
         self.content_store = {}
-        self.token_handler = TokenHandler.new_from(api_config)
 
     @classmethod
-    def new_with_cache_disabled(cls, api_config: APIConfig):
-        new_cls = cls(api_config)
+    def new_with_cache_disabled(cls):
+        new_cls = cls()
         new_cls.xid_cache = None
         return new_cls
 
@@ -232,7 +179,7 @@ class HiroBatchRunner:
     entity: Entity
     action: Action
 
-    connection: HiroConnection
+    connection: HiroGraph
 
     session_data: SessionData
 
@@ -240,7 +187,7 @@ class HiroBatchRunner:
                  entity: Entity,
                  action: Action,
                  session_data: SessionData,
-                 connection: HiroConnection):
+                 connection: HiroGraph):
         """
         Constructor
 
@@ -555,7 +502,7 @@ class CreateVerticesRunner(HiroBatchRunner):
     Create vertices
     """
 
-    def __init__(self, session_data: SessionData, connection: HiroConnection):
+    def __init__(self, session_data: SessionData, connection: HiroGraph):
         """
         Create vertices
 
@@ -585,7 +532,7 @@ class UpdateVerticesRunner(HiroBatchRunner):
     Update vertices
     """
 
-    def __init__(self, session_data: SessionData, connection: HiroConnection):
+    def __init__(self, session_data: SessionData, connection: HiroGraph):
         """
         Update vertices
 
@@ -614,7 +561,7 @@ class DeleteVerticesRunner(HiroBatchRunner):
     Delete vertices
     """
 
-    def __init__(self, session_data: SessionData, connection: HiroConnection):
+    def __init__(self, session_data: SessionData, connection: HiroGraph):
         """
         Delete vertices
 
@@ -642,7 +589,7 @@ class HandleVerticesRunner(HiroBatchRunner):
     Handle vertices. Either update or create them based on incoming payload entries.
     """
 
-    def __init__(self, session_data: SessionData, connection: HiroConnection):
+    def __init__(self, session_data: SessionData, connection: HiroGraph):
         """
         Handle vertices. Either update or create them based on incoming payload entries.
 
@@ -683,7 +630,7 @@ class CreateEdgesRunner(HiroBatchRunner):
     Create edges between vertices
     """
 
-    def __init__(self, session_data: SessionData, connection: HiroConnection):
+    def __init__(self, session_data: SessionData, connection: HiroGraph):
         """
         Create edges between vertices
 
@@ -709,7 +656,7 @@ class DeleteEdgesRunner(HiroBatchRunner):
     Delete edges between vertices
     """
 
-    def __init__(self, session_data: SessionData, connection: HiroConnection):
+    def __init__(self, session_data: SessionData, connection: HiroGraph):
         """
         Delete edges between vertices
 
@@ -735,7 +682,7 @@ class AddTimeseriesRunner(HiroBatchRunner):
     Attach timeseries values to a vertex.
     """
 
-    def __init__(self, session_data: SessionData, connection: HiroConnection):
+    def __init__(self, session_data: SessionData, connection: HiroGraph):
         """
         Attach timeseries values to a vertex.
 
@@ -760,7 +707,7 @@ class AddAttachmentRunner(HiroBatchRunner):
     Attach an attachment to a vertex.
     """
 
-    def __init__(self, session_data: SessionData, connection: HiroConnection):
+    def __init__(self, session_data: SessionData, connection: HiroGraph):
         """
         Attach an attachment to a vertex.
 
@@ -796,17 +743,19 @@ class AddAttachmentRunner(HiroBatchRunner):
             raise SourceValueError('"data" not found or empty in "attributes._content_data".')
 
 
-class HiroGraphBatch:
+class HiroGraphBatch(APIConfig):
     """
     This class handles lists of vertex-, edge- or timeseries-data via HiroGraph.
     """
-
-    api_config: APIConfig
-
     request_queue: queue.Queue
     result_queue: queue.Queue
 
     callback: HiroResultCallback
+
+    _token_handler: AbstractTokenHandler
+
+    _token_handler_lock: threading.RLock
+    """Reentrant mutex for thread safety"""
 
     use_xid_cache: bool
     """Use xid caching. Default is True when omitted or set to None."""
@@ -825,14 +774,9 @@ class HiroGraphBatch:
     """This is the list of commands (method names) that HiroGraphBatch handles."""
 
     def __init__(self,
-                 graph_endpoint: str,
+                 endpoint: str,
+                 token_handler: AbstractTokenHandler,
                  callback: HiroResultCallback = None,
-                 hiro_token: str = None,
-                 username: str = None,
-                 password: str = None,
-                 client_id: str = None,
-                 client_secret: str = None,
-                 auth_endpoint: str = None,
                  use_xid_cache: bool = True,
                  proxies: dict = None,
                  parallel_workers: int = 8,
@@ -843,61 +787,43 @@ class HiroGraphBatch:
         Use the connection to HIRO HiroGraph either by giving a predefined *hiro_token* or by
         specifying all other parameters needed for authentication.
 
-        :param graph_endpoint: required: URL of the graph.
+        :param endpoint: required: URL of the graph.
+        :param token_handler: Supply a dedicated token_handler.
         :param callback: required when multi_command() is used, optional otherwise: Callback object for results.
-        :param hiro_token: optional, required if other authentication data is missing: Predefined token to authenticate
-                           against HIRO. Overrides all other authentication data.
-        :param username: optional, required if *hiro_token* is None: Username for HiroGraph .
-        :param password: optional, required if *hiro_token* is None: Password for HiroGraph.
-        :param client_id: optional, required if *hiro_token* is None: Id for Authentication (OAuth2).
-        :param client_secret: optional, required if *hiro_token* is None: Secret for Authentication (OAuth2).
-        :param auth_endpoint: optional, required if *hiro_token* is None: URL of the authentication API.
         :param use_xid_cache: Use xid caching. Default is True when omitted or set to None.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param parallel_workers: Amount of parallel workers for requests. Default is 8.
         :param queue_depth: Amount of entries the *self.request_queue* and *self.result_queue* can hold. Default is to
                             set it to the same value as *parallel_workers*.
         """
+        super().__init__(endpoint, True, proxies)
 
-        if not graph_endpoint:
-            raise ValueError('Required attribute "graph_endpoint" is not set.')
+        if not endpoint:
+            raise ValueError('Required attribute "endpoint" for HIRO Graph API is not set.')
 
-        if not (hiro_token or (username and password and client_id and client_secret and auth_endpoint)):
-            msg = ""
-            if username or password or client_id or client_secret or auth_endpoint:
-                if not username:
-                    msg = "Incomplete credentials: Username is missing"
-                if not password:
-                    msg = "Incomplete credentials: Password is missing"
-                if not client_id:
-                    msg = "Incomplete credentials: Client ID is missing"
-                if not client_secret:
-                    msg = "Incomplete credentials: Client Secret is missing"
-                if not auth_endpoint:
-                    msg = "Incomplete credentials: Auth endpoint url is missing"
-            else:
-                msg = "HIRO_TOKEN is missing"
+        if not token_handler:
+            raise ValueError("Cannot authenticate against HIRO without a TokenHandler")
 
-            raise ValueError("Cannot authenticate against HIRO without credentials or a HIRO_TOKEN. {}".format(msg))
-
-        self.api_config = APIConfig(username=username,
-                                    password=password,
-                                    client_id=client_id,
-                                    client_secret=client_secret,
-                                    endpoint=graph_endpoint,
-                                    auth_endpoint=auth_endpoint,
-                                    raise_exceptions=True,
-                                    proxies=proxies)
+        self._token_handler = token_handler
+        self._token_handler_lock = threading.RLock()
 
         self.request_queue = queue.Queue(maxsize=queue_depth or parallel_workers)
         self.result_queue = queue.Queue(maxsize=queue_depth or parallel_workers)
 
         self.callback = callback
-        self.hiro_token = hiro_token
 
         self.parallel_workers = parallel_workers
 
         self.use_xid_cache = False if use_xid_cache is False else True
+
+    def set_token_handler(self, token_handler: AbstractTokenHandler) -> None:
+        """
+        Replace the internal token handler with a new one. This is only needed when the TokenHandler cannot
+        refresh its token by himself. This new token_handler is used the next time a new session is started.
+        :param token_handler: The new token_handler
+        """
+        with self._token_handler_lock:
+            self._token_handler = token_handler
 
     def __init_session(self) -> SessionData:
         """
@@ -907,26 +833,27 @@ class HiroGraphBatch:
 
         :return: The initialized session.
         """
-        return SessionData(self.api_config) if self.use_xid_cache is True \
-            else SessionData.new_with_cache_disabled(self.api_config)
+        return SessionData() if self.use_xid_cache is True \
+            else SessionData.new_with_cache_disabled()
 
     def __prepare_session_and_connection(self,
                                          session: SessionData,
-                                         connection: HiroConnection) -> Tuple[SessionData, HiroConnection]:
+                                         connection: HiroGraph) -> Tuple[SessionData, HiroGraph]:
         """
         Initialize session and connection if either of them is unset.
 
         :param session: Predefined session - if any.
         :param connection:  Predefined connection - if any.
-        :return: A tuple of (SessionData, HiroConnection)
+        :return: A tuple of (SessionData, HiroGraph)
         """
         if not session:
             session = self.__init_session()
         if not connection:
-            connection = HiroConnection(HiroGraph.new_from(self.api_config, session.token_handler), self.hiro_token)
+            with self._token_handler_lock:
+                connection = HiroGraph.new_from(self, token_handler=self._token_handler)
         return session, connection
 
-    def create_vertices(self, attributes: dict, connection: HiroConnection = None, session: SessionData = None):
+    def create_vertices(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
         """
         Create vertex from *attributes*.
 
@@ -937,7 +864,7 @@ class HiroGraphBatch:
         session, connection = self.__prepare_session_and_connection(session, connection)
         return CreateVerticesRunner(session, connection).run(attributes, self.result_queue)
 
-    def update_vertices(self, attributes: dict, connection: HiroConnection = None, session: SessionData = None):
+    def update_vertices(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
         """
         Update vertex from *attributes*.
 
@@ -952,7 +879,7 @@ class HiroGraphBatch:
         session, connection = self.__prepare_session_and_connection(session, connection)
         return UpdateVerticesRunner(session, connection).run(attributes, self.result_queue)
 
-    def delete_vertices(self, attributes: dict, connection: HiroConnection, session: SessionData = None):
+    def delete_vertices(self, attributes: dict, connection: HiroGraph, session: SessionData = None):
         """
         Delete vertex given by *attributes*.
 
@@ -965,7 +892,7 @@ class HiroGraphBatch:
         session, connection = self.__prepare_session_and_connection(session, connection)
         return DeleteVerticesRunner(session, connection).run(attributes, self.result_queue)
 
-    def handle_vertices(self, attributes: dict, connection: HiroConnection = None, session: SessionData = None):
+    def handle_vertices(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
         """
         Handles vertex from *attributes*. Tries to update or create.
 
@@ -979,7 +906,7 @@ class HiroGraphBatch:
         session, connection = self.__prepare_session_and_connection(session, connection)
         return HandleVerticesRunner(session, connection).run(attributes, self.result_queue)
 
-    def create_edges(self, attributes: dict, connection: HiroConnection = None, session: SessionData = None):
+    def create_edges(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
         """
         Create edge from *attributes*.
 
@@ -993,7 +920,7 @@ class HiroGraphBatch:
         session, connection = self.__prepare_session_and_connection(session, connection)
         return CreateEdgesRunner(session, connection).run(attributes, self.result_queue)
 
-    def delete_edges(self, attributes: dict, connection: HiroConnection = None, session: SessionData = None):
+    def delete_edges(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
         """
         Delete edge given by *attributes*.
 
@@ -1008,7 +935,7 @@ class HiroGraphBatch:
         session, connection = self.__prepare_session_and_connection(session, connection)
         return DeleteEdgesRunner(session, connection).run(attributes, self.result_queue)
 
-    def add_timeseries(self, attributes: dict, connection: HiroConnection = None, session: SessionData = None):
+    def add_timeseries(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
         """
         Update vertices with timeseries data.
 
@@ -1021,7 +948,7 @@ class HiroGraphBatch:
         session, connection = self.__prepare_session_and_connection(session, connection)
         return AddTimeseriesRunner(session, connection).run(attributes, self.result_queue)
 
-    def add_attachments(self, attributes: dict, connection: HiroConnection = None, session: SessionData = None):
+    def add_attachments(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
         """
         Add attachment to vertex.
 
@@ -1105,16 +1032,18 @@ class HiroGraphBatch:
                 collected_results.append(result)
             self.result_queue.task_done()
 
-    def _worker(self, session: SessionData) -> None:
+    def _worker(self, token_handler: AbstractTokenHandler, session: SessionData) -> None:
         """
         Thread executor function. Create a connection, then read data from the *self.request_queue* and execute
         the command with the attributes and session the data from the queue provides.
 
         Thread exits when *self.request_queue.get()* reads None.
 
+        :param token_handler: The token_handler to use.
         :param session: The session object to share between all connections.
         """
-        connection = HiroConnection(HiroGraph.new_from(self.api_config, session.token_handler), self.hiro_token)
+
+        connection = HiroGraph.new_from(self, token_handler=token_handler)
 
         for command, attributes in iter(self.request_queue.get, None):
             func = getattr(self, command, None)
@@ -1169,8 +1098,9 @@ class HiroGraphBatch:
             collected_results = [] if self.callback is None else None
 
             executor.submit(HiroGraphBatch._reader, self, collected_results)
-            for _ in range(self.parallel_workers):
-                executor.submit(HiroGraphBatch._worker, self, session)
+            with self._token_handler_lock:
+                for _ in range(self.parallel_workers):
+                    executor.submit(HiroGraphBatch._worker, self, self._token_handler, session)
 
             handle_session_data = False
             for command_entry in command_iter:

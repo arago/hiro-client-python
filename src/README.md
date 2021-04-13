@@ -20,15 +20,17 @@ Most of the documentation is done in the sourcecode.
 Example to use the straightforward graph api client without any batch processing:
 
 ```python
-from hiro_graph_client import HiroGraph
+from hiro_graph_client import HiroGraph, PasswordAuthTokenHandler
 
-hiro_client = HiroGraph(
-    username='',
-    password='',
-    client_id='',
-    client_secret='',
-    graph_endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/
-    auth_endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
+hiro_client: HiroGraph = HiroGraph(
+    endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/,
+    token_handler=PasswordAuthTokenHandler(
+        username='',
+        password='',
+        client_id='',
+        client_secret='',
+        endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
+    )
 )
 
 # The commands of the Graph API are methods of the class HIROGraph.
@@ -45,15 +47,17 @@ print(query_result)
 Example to use the batch client to process a batch of requests:
 
 ```python
-from hiro_graph_client import HiroGraphBatch
+from hiro_graph_client import HiroGraphBatch, PasswordAuthTokenHandler
 
-hiro_batch_client = HiroGraphBatch(
-    username='',
-    password='',
-    client_id='',
-    client_secret='',
-    graph_endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/
-    auth_endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
+hiro_batch_client: HiroGraphBatch = HiroGraphBatch(
+    endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/,
+    token_handler=PasswordAuthTokenHandler(
+        username='',
+        password='',
+        client_id='',
+        client_secret='',
+        endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
+    )
 )
 
 # See code documentation about the possible commands and their attributes.
@@ -83,7 +87,7 @@ Example to use the batch client to process a batch of requests with callbacks fo
 ```python
 from typing import Any, Iterator
 
-from hiro_graph_client import HiroGraphBatch, HiroResultCallback
+from hiro_graph_client import HiroGraphBatch, HiroResultCallback, PasswordAuthTokenHandler
 
 
 class RunBatch(HiroResultCallback):
@@ -94,16 +98,17 @@ class RunBatch(HiroResultCallback):
                  password: str,
                  client_id: str,
                  client_secret: str,
-                 graph_endpoint: str,
+                 endpoint: str,
                  auth_endpoint: str):
-        self.hiro_batch_client = HiroGraphBatch(
-            callback=self,
-            graph_endpoint=graph_endpoint,
-            auth_endpoint=auth_endpoint,
-            username=username,
-            password=password,
-            client_id=client_id,
-            client_secret=client_secret
+        self.hiro_batch_client: HiroGraphBatch = HiroGraphBatch(
+            endpoint=endpoint,
+            token_handler=PasswordAuthTokenHandler(
+                username=username,
+                password=password,
+                client_id=client_id,
+                client_secret=client_secret,
+                endpoint=auth_endpoint
+            )
         )
 
     def result(self, data: Any, code: int) -> None:
@@ -122,7 +127,7 @@ batch_runner = RunBatch(
     password='',
     client_id='',
     client_secret='',
-    graph_endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/
+    endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/
     auth_endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
 )
 
@@ -142,6 +147,88 @@ commands: list = [
 ]
 
 batch_runner.run(commands)
+```
+
+## TokenHandler
+
+Authorization against the HIRO Graph is done via tokens. These tokens are handled by classes of
+type `AbstractTokenHandler` in this library. Each of the Hiro-Client-Object (`HiroGraph`, `HiroGraphBatch`
+, `HiroApp`, etc.) need to have some kind of TokenHandler at construction. It is also possible to replace a
+token_handler within a constructed Hiro-Client by using `set_token_handler(...)`. This should only be necessary when
+TokenHandlers with fixed tokens are used.
+
+This library supplies the following TokenHandler:
+
+---
+
+### FixedTokenHandler
+
+A simple TokenHandler that is generated with a preset-token at construction. Cannot update its token.
+
+---
+
+### EnvironmentTokenHandler
+
+A TokenHandler that reads an environment variable (default is `HIRO_TOKEN`) from the runtime environment. Will only
+update its token when the environment variable changes externally.
+
+---
+
+### PasswordAuthTokenHandler
+
+This TokenHandler logs into the HiroAuth backend and obtains a token from login credentials. This is also the only
+TokenHandler (so far) that automatically tries to renew a token from the backend when it has expired.
+
+---
+
+All code examples in this documentation can use these TokenHandlers interchangeably, depending on how such a token is
+provided.
+
+The HiroGraph example from above with another TokenHandler:
+
+```python
+from hiro_graph_client import HiroGraph, EnvironmentTokenHandler
+
+hiro_client: HiroGraph = HiroGraph(
+    endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/,
+    token_handler=EnvironmentTokenHandler()
+)
+
+# The commands of the Graph API are methods of the class HIROGraph.
+# The next line executes a vertex query for instance. 
+query_result = hiro_client.query('ogit\\/_type:"ogit/MARS/Machine"')
+
+print(query_result)
+```
+
+When you need to access multiple APIs, it is a good idea to share a TokenHandler between them. This avoids unnecessary
+token requests with the PasswordAuthTokenHandler for instance.
+
+```python
+from hiro_graph_client import HiroGraph, HiroGraphBatch, HiroApp, PasswordAuthTokenHandler
+
+token_handler = PasswordAuthTokenHandler(
+    username='',
+    password='',
+    client_id='',
+    client_secret='',
+    endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
+)
+
+hiro_client: HiroGraph = HiroGraph(
+    endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/,
+    token_handler=token_handler
+)
+
+hiro_batch_client: HiroGraphBatch = HiroGraphBatch(
+    endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/,
+    token_handler=token_handler
+)
+
+hiro_app_client: HiroApp = HiroApp(
+    endpoint='https://[server]:8443/api/app/7.0',  # see https://developer.hiro.arago.co/7.0/api/,
+    token_handler=token_handler
+)
 ```
 
 ## Graph Client "HiroGraph"

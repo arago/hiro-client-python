@@ -1,3 +1,10 @@
+# v4.0.0
+
+* Refactored for better token handling.
+* Better error messages.
+* Updated documentation.
+* Thread safety when swapping out TokenHandler.
+
 # v3.1.0
 
 * Separation of APIs in client libraries. Currently, supported APIs are:
