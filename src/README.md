@@ -144,7 +144,44 @@ commands: list = [
 batch_runner.run(commands)
 ```
 
-## Batch Client
+## Graph Client "HiroGraph"
+
+The Graph Client is mostly straightforward to use, since all public methods of this class represent an API call in the
+[Graph API](https://core.arago.co/help/specs/?url=definitions/graph.yaml). Documentation is available in source code as
+well. Some calls are a bit more complicated though and explained in more detail below:
+
+### Attachments
+
+Attachments are only available with vertices of type `ogit/_type: "ogit/Attachment"`.
+
+To upload data to such a vertex, use `HiroGraph.post_attachment(data=...)`. The parameter `data=` will be given directly
+to the call of the Python library `requests` as  `requests.post(data=...)`. To stream data, set `data` to an object of
+type `IO`. See the documentation of the Python library `requests` for more details.
+
+Downloading an attachment is done in chunks, so huge blobs of data in memory can be avoided when streaming this data.
+Each chunk is 64k by default.
+
+To stream such an attachment to a file, see the example below:
+
+```python
+ogit_id = '<ogit/_id of a vertex of type ogit/_type:"ogit/Attachment">'
+data_iter = hiro_client.get_attachment(ogit_id)
+
+with io.open("attachment.bin", "wb") as file:
+    for chunk in data_iter:
+        file.write(chunk)
+```
+
+To read the complete data in memory, see this example:
+
+```python
+ogit_id = '<ogit/_id of a vertex of type ogit/_type:"ogit/Attachment">'
+data_iter = hiro_client.get_attachment(ogit_id)
+
+attachment = b''.join(data_iter)
+```
+
+## Batch Client "HiroGraphBatch"
 
 It is recommended to use the included HiroGraphBatch client when uploading large quantities of data into the HIRO Graph.
 This client handles parallel upload of data and makes creating vertices with their edges and attachments easier.
@@ -346,8 +383,8 @@ https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/pos
 
 * `ogit/_type` must be present in each of the attribute dicts.
 
-* Attribute keys that start with `=`, `+` or `-` denote map value entries. These values have to be in the correct
-  format according to https://developer.hiro.arago.co/7.0/documentation/api/list-api/.
+* Attribute keys that start with `=`, `+` or `-` denote map value entries. These values have to be in the correct format
+  according to https://developer.hiro.arago.co/7.0/documentation/api/list-api/.
 
 * Attributes of the format `"xid:[attribute_name]": "[ogit/_xid]"` are resolved to `"[attribute_name]": "[ogit/_id]"` by
   querying HIRO before executing the main command.
@@ -410,8 +447,8 @@ https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/pos
 
 * Either `ogit/_id` or `ogit/_xid` must be present in each of the attribute dicts.
 
-* Attribute keys that start with `=`, `+` or `-` denote map value entries. These values have to be in the correct
-  format according to https://developer.hiro.arago.co/7.0/documentation/api/list-api/.
+* Attribute keys that start with `=`, `+` or `-` denote map value entries. These values have to be in the correct format
+  according to https://developer.hiro.arago.co/7.0/documentation/api/list-api/.
 
 * Attributes of the format `"xid:[attribute_name]": "[ogit/_xid]"` are resolved to `"[attribute_name]": "[ogit/_id]"` by
   querying HIRO before executing the main command.
