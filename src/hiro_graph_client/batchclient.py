@@ -46,24 +46,78 @@ class AbstractIOCarrier:
     Abstract class that handles IO. When a child of this class is encountered, its IO is opened and read,
     then closed.
     """
-    io_base: IO = None
+    __io_base: IO = None
+    """ Private reference to the IO object. Starts with value None and needs to be set in method *open()*. """
+
+    def __enter__(self) -> IO:
+        """ To be able to use *with <child of AbstractIOCarrier> as io_item:* """
+        return self.open()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """ To be able to use *with <child of AbstractIOCarrier> as io_item:* """
+        self.close()
+
+    @property
+    def io_base(self) -> IO:
+        """
+        Property reader io_base
+        :return: Value of *self.__io_base*.
+        """
+        return self.__io_base
+
+    @io_base.setter
+    def io_base(self, io_base: IO) -> None:
+        """
+        Property setter io_base. This property has to be set in *open()* by the child class.
+        """
+        self.__io_base = io_base
 
     @abstractmethod
     def open(self) -> IO:
         """
-        Abstract base class for opening IO
+        Abstract base class for opening IO. Needs to set *self.io_base* to the opened IO object.
 
         :return: The IO opened
         :raises IOError: Any IO Error
+        :raises RuntimeError: When this method is not overwritten by a child class and got called directly.
         """
-        pass
+        raise RuntimeError("Cannot execute method of abstract class.")
 
     def close(self) -> None:
         """
         Close the IO
         """
-        if self.io_base:
-            self.io_base.close()
+        if self.__io_base:
+            self.__io_base.close()
+
+
+class BasicFileIOCarrier(AbstractIOCarrier):
+    """
+    An IO Carrier for file operations.
+    """
+
+    filename: str
+    mode: str
+
+    def __init__(self, filename: str, mode: str = 'rb'):
+        """
+        Constructor
+
+        :param filename: Local filename to open
+        :param mode: Open mode. Default is 'rb'.
+        """
+        self.filename = filename
+        self.mode = mode
+
+    def open(self) -> IO:
+        """
+        Just open the included *self.filename* with *self.mode*.
+
+        :return: The IO handle after open.
+        :raises IOError: Any IO error open might raise.
+        """
+        self.io_base = open(self.filename, self.mode)
+        return self.io_base
 
 
 class SessionData:
@@ -728,13 +782,10 @@ class AddAttachmentRunner(HiroBatchRunner):
         data = content_data.get('data')
 
         if isinstance(data, AbstractIOCarrier):
-            io_item = data.open()
-            try:
+            with data as io_item:
                 return self.connection.post_attachment(node_id=node_id,
                                                        data=io_item,
                                                        content_type=mimetype)
-            finally:
-                data.close()
         elif data:
             return self.connection.post_attachment(node_id=node_id,
                                                    data=data,

@@ -338,6 +338,17 @@ commands: list = [
 ]
 ```
 
+#### IOCarrier
+
+When uploading attachments into the HIRO Graph, it is best practice streaming that data when possible. To avoid having
+many open IO connections when uploading many files for instance, children of the class `AbstractIOCarrier` can be
+implemented and used. Children that derive from this class open their IO just before the upload and close it immediately
+afterwards.
+
+This library provides a class `BasicFileIOCarrier` for file operations.
+
+See [Example for add_attachments](#add_attachments).
+
 ### Result data format
 
 Result values contain dicts that carry all information about the executed commands. The order of the results is
@@ -643,7 +654,7 @@ binary attachments that might be given in their attributes.
 * Content attributes are given as a dict with a key `_content_data` which contains:
     * `data`: Content to upload. This can be anything the Python library `requests` supports as attribute `data=`
       in  `requests.post(data=...)`. If you set an IO object as data, it will be streamed. Also take a look at the
-      class `AbstractIOCarrier` to transparently handle opening and closing of IO sources.
+      class `AbstractIOCarrier` to transparently handle opening and closing of IO sources - see [IOCarrier](#iocarrier).
     * `mimetype`: (optional) Content-Type of the content.
 
 Example for edge data:
@@ -729,15 +740,13 @@ commands: list = [
                 "ogit/type": "text",
                 "_content_data": {
                     "mimetype": "text/plain",
-                    "data": FileIOCarrier('<filename>')
+                    "data": BasicFileIOCarrier('<filename>')
                 }
             }
         ]
     }
 ]
 ```
-
-`FileIOCarrier` in the example above is a hypothetical class that derives from `AbstractIOCarrier`.
 
 ---
 
@@ -927,7 +936,7 @@ https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Storage]_Blob/pos
 * `_content_data`: A dict with the following keys:
     * `data`: Content to upload. This can be anything the Python library `requests` supports as attribute `data=`
       in  `requests.post(data=...)`. If you set an IO object as data, it will be streamed. Also take a look at the
-      class `AbstractIOCarrier` to transparently handle opening and closing of IO sources.
+      class `AbstractIOCarrier` to transparently handle opening and closing of IO sources - see [IOCarrier](#iocarrier).
     * `mimetype`: (optional) Content-Type of the content.
 
 Example:
@@ -947,15 +956,13 @@ commands: list = [
                 "ogit/_xid": "attachment:arago:test:1:lorem-ipsum",
                 "_content_data": {
                     "mimetype": "text/plain",
-                    "data": FileIOCarrier('<filename>')
+                    "data": BasicFileIOCarrier('<filename>')
                 }
             }
         ]
     }
 ]
 ```
-
-`FileIOCarrier` in the example above is a hypothetical class that derives from `AbstractIOCarrier`.
 
 ---
 (c) 2021 arago GmbH

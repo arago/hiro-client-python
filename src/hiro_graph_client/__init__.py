@@ -9,8 +9,8 @@ from hiro_graph_client.clientlib import PasswordAuthTokenHandler, FixedTokenHand
 from hiro_graph_client.client import HiroGraph
 from hiro_graph_client.authclient import HiroAuth
 from hiro_graph_client.appclient import HiroApp
-from hiro_graph_client.batchclient import HiroGraphBatch, SessionData, AbstractIOCarrier, SourceValueError,\
-    HiroResultCallback
+from hiro_graph_client.batchclient import HiroGraphBatch, SessionData, AbstractIOCarrier, BasicFileIOCarrier, \
+    SourceValueError, HiroResultCallback
 
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'VERSION'), encoding='utf-8') as f:
@@ -19,7 +19,7 @@ with open(path.join(this_directory, 'VERSION'), encoding='utf-8') as f:
 __all__ = [
     'HiroGraph', 'HiroAuth', 'HiroApp', 'HiroGraphBatch', 'SessionData', 'HiroResultCallback',
     'PasswordAuthTokenHandler', 'FixedTokenHandler', 'EnvironmentTokenHandler',
-    'AuthenticationTokenError', 'FixedTokenError', 'TokenUnauthorizedError', 'AbstractIOCarrier',
+    'AuthenticationTokenError', 'FixedTokenError', 'TokenUnauthorizedError', 'AbstractIOCarrier', 'BasicFileIOCarrier',
     'SourceValueError', 'accept_all_certs', '__version__'
 ]
 
