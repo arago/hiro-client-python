@@ -5,7 +5,7 @@ import site
 from os import path
 
 from hiro_graph_client.clientlib import PasswordAuthTokenHandler, FixedTokenHandler, EnvironmentTokenHandler,\
-    AuthenticationTokenError, FixedTokenError, TokenUnauthorizedError, accept_all_certs
+    AbstractTokenHandler, AuthenticationTokenError, FixedTokenError, TokenUnauthorizedError, accept_all_certs
 from hiro_graph_client.client import HiroGraph
 from hiro_graph_client.authclient import HiroAuth
 from hiro_graph_client.appclient import HiroApp
@@ -17,7 +17,7 @@ with open(path.join(this_directory, 'VERSION'), encoding='utf-8') as f:
     __version__ = f.read().strip()
 
 __all__ = [
-    'HiroGraph', 'HiroAuth', 'HiroApp', 'HiroGraphBatch', 'SessionData', 'HiroResultCallback',
+    'HiroGraph', 'HiroAuth', 'HiroApp', 'HiroGraphBatch', 'SessionData', 'HiroResultCallback', 'AbstractTokenHandler',
     'PasswordAuthTokenHandler', 'FixedTokenHandler', 'EnvironmentTokenHandler',
     'AuthenticationTokenError', 'FixedTokenError', 'TokenUnauthorizedError', 'AbstractIOCarrier', 'BasicFileIOCarrier',
     'SourceValueError', 'accept_all_certs', '__version__'
