@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 
 import json
+import logging
 import threading
 import time
 from abc import abstractmethod
-from typing import Optional, Any, Iterator
+from typing import Optional, Any, Iterator, MutableMapping
 from urllib.parse import quote, urlencode
 
 import backoff
 import requests
 import requests.packages.urllib3.exceptions
+from requests import PreparedRequest, Response
 
 BACKOFF_ARGS = [
     backoff.expo,
@@ -20,6 +22,146 @@ BACKOFF_KWARGS = {
     'jitter': backoff.random_jitter,
     'giveup': lambda e: e.response is not None and e.response.status_code < 500
 }
+
+logger = logging.getLogger(__name__)
+
+
+def http_debug(arg: requests.models.Response, title: str = None) -> str:
+    import json
+
+    def redact_authorization_req_data(data: MutableMapping[str, str]) -> None:
+        if all([v in data for v in [
+            'client_id',
+            'client_secret',
+            'username',
+            'password',
+        ]]):
+            data['client_secret'] = '[...]'
+            data['password'] = '[...]'
+
+    def redact_authorization_res_data(data: MutableMapping[str, str]) -> None:
+        if all([v in data for v in [
+            '_TOKEN',
+            '_APPLICATION',
+            '_IDENTITY',
+            '_IDENTITY_ID',
+            'expires-at',
+            'type',
+        ]]):
+            data['_TOKEN'] = '[...]'
+
+    def redact_authorization_token(value: str) -> str:
+        tokens = value.split(' ')
+        tokens[1] = '[...]'
+        tokens = tokens[0:2]
+        value = ' '.join(tokens)
+        return value
+
+    def curl_cmd(http_request, method, uri, headers, content_length, content_type):
+        result = 'curl'
+        if method != 'GET':
+            result += f' -X {method}'
+        for field, value in headers.items():
+            if field in [
+                'Content-Length',
+                'Cache-Control',
+                'Connection',
+                'Accept',
+                'Accept-Encoding',
+                'User-Agent',
+            ]:
+                continue
+            if field.lower() == 'authorization' and '[...]' in value:
+                value = value.replace('[...]', '$HIRO_TOKEN')
+            result += f' -H "{field}: {value}"'
+        if content_length and content_type:
+            if content_type.lower().startswith('application/json'):
+                body = json.loads(http_request.body)
+                redact_authorization_req_data(body)
+                body = json.dumps(body)
+                result += f" -d '{body}'"
+        result += f" '{uri}'"
+        result += '\n'
+        return result
+
+    def request(http_request: PreparedRequest) -> str:
+        method = http_request.method.upper()
+        uri = http_request.url
+
+        headers = http_request.headers.copy()
+        content_length = headers['content-length'] if 'content-length' in headers else None
+        content_type = headers['content-type'] if 'content-type' in headers else None
+        if 'authorization' in headers:
+            headers['Authorization'] = redact_authorization_token(headers['Authorization'])
+
+        result = '# ' + curl_cmd(http_request, method, uri, headers, content_length, content_type)
+
+        result += f'{method} {uri}\n'  # request line
+
+        field: str
+        value: str
+        for field, value in headers.items():
+            result += f'{field}: {value}\n'
+
+        result += '\n'  # separate header with body
+
+        if content_length:
+            if content_type:
+                if content_type.lower().startswith('application/json'):
+                    body = json.loads(http_request.body)
+                    redact_authorization_req_data(body)
+                    body = json.dumps(body, indent=2)
+                    result += body
+                    result += '\n'
+
+        return result
+
+    def response(http_response: Response) -> str:
+        headers = http_response.headers
+        content_length = headers['content-length'] if 'content-length' in headers else None
+        content_type = headers['content-type'] if 'content-type' in headers else None
+
+        result = ''
+
+        version = http_response.raw.version
+        if version == 10:
+            version = 'HTTP/1.0'
+        elif version == 11:
+            version = 'HTTP/1.1'
+
+        result += '%s %s %s\n' % (version, http_response.raw.status, http_response.raw.reason)
+
+        field: str
+        value: str
+        for field, value in headers.items():
+            result += '%s: %s\n' % (field, value)
+
+        result += '\n'  # separate header with body
+
+        if content_length:
+            if content_type:
+                if content_type.lower().startswith('application/json'):
+                    text = http_response.text
+                    if text:
+                        body = json.loads(text)
+                        redact_authorization_res_data(body)
+                        body = json.dumps(body, indent=2)
+                        result += body
+                        result += '\n'
+
+        return result
+
+    separator = '###'
+    if title is not None:
+        separator += ' ' + title
+    separator += '\n'
+
+    message = separator + '\n'
+    message += request(arg.request)
+    message += '### <>\n'
+    message += response(arg)
+
+    return message
 
 
 def accept_all_certs():
@@ -227,6 +369,10 @@ class AbstractAPI(APIConfig):
                           stream=True,
                           proxies=self._get_proxies()) as res:
             self._check_response(res, token)
+            if not res.ok:
+                logger.error(http_debug(res))
+            elif logger.isEnabledFor(logging.DEBUG):
+                logger.debug(http_debug(res))
 
             yield from res.iter_content(chunk_size=65536)
 
@@ -249,6 +395,10 @@ class AbstractAPI(APIConfig):
                             ),
                             verify=False,
                             proxies=self._get_proxies())
+        if not res.ok:
+            logger.error(http_debug(res))
+        elif logger.isEnabledFor(logging.DEBUG):
+            logger.debug(http_debug(res))
         return self._parse_json_response(res, token)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
@@ -270,6 +420,10 @@ class AbstractAPI(APIConfig):
                            ),
                            verify=False,
                            proxies=self._get_proxies())
+        if not res.ok:
+            logger.error(http_debug(res))
+        elif logger.isEnabledFor(logging.DEBUG):
+            logger.debug(http_debug(res))
         return self._parse_json_response(res, token)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
@@ -285,6 +439,10 @@ class AbstractAPI(APIConfig):
                            headers=self._get_headers(token, {"Content-Type": None}),
                            verify=False,
                            proxies=self._get_proxies())
+        if not res.ok:
+            logger.error(http_debug(res))
+        elif logger.isEnabledFor(logging.DEBUG):
+            logger.debug(http_debug(res))
         return self._parse_json_response(res, token)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
@@ -302,6 +460,10 @@ class AbstractAPI(APIConfig):
                             headers=self._get_headers(token),
                             verify=False,
                             proxies=self._get_proxies())
+        if not res.ok:
+            logger.error(http_debug(res))
+        elif logger.isEnabledFor(logging.DEBUG):
+            logger.debug(http_debug(res))
         return self._parse_json_response(res, token)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
@@ -319,6 +481,10 @@ class AbstractAPI(APIConfig):
                            headers=self._get_headers(token),
                            verify=False,
                            proxies=self._get_proxies())
+        if not res.ok:
+            logger.error(http_debug(res))
+        elif logger.isEnabledFor(logging.DEBUG):
+            logger.debug(http_debug(res))
         return self._parse_json_response(res, token)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
@@ -334,6 +500,10 @@ class AbstractAPI(APIConfig):
                               headers=self._get_headers(token, {"Content-Type": None}),
                               verify=False,
                               proxies=self._get_proxies())
+        if not res.ok:
+            logger.error(http_debug(res))
+        elif logger.isEnabledFor(logging.DEBUG):
+            logger.debug(http_debug(res))
         return self._parse_json_response(res, token)
 
     ###############################################################################################################
