@@ -170,13 +170,13 @@ class AbstractAPI(APIConfig):
         return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def post(self, url: str, data: Any, secure: bool = False) -> dict:
+    def post(self, url: str, data: Any, log_bodies: bool = True) -> dict:
         """
         Implementation of POST
 
         :param url: Url to use
         :param data: The payload to POST
-        :param secure: Avoids logging of body payloads. Default is False.
+        :param log_bodies: Avoids logging of body payloads. Default is False.
         :return: The payload of the response
         """
         res = requests.post(url,
@@ -184,7 +184,7 @@ class AbstractAPI(APIConfig):
                             headers=self._get_headers(),
                             verify=False,
                             proxies=self._get_proxies())
-        self._log_communication(res, request_body=not secure, response_body=not secure)
+        self._log_communication(res, request_body=log_bodies, response_body=log_bodies)
         return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
@@ -639,7 +639,7 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractAPI):
                 "password": self._password
             }
 
-            res = self.post(url, data, secure=not logging.root.isEnabledFor(logging.DEBUG))
+            res = self.post(url, data, log_bodies=logging.root.isEnabledFor(logging.DEBUG))
             self._token_info.parse_token_result(res, "{}.get_token".format(self.__class__.__name__))
 
     def refresh_token(self) -> None:
@@ -669,7 +669,7 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractAPI):
             }
 
             try:
-                res = self.post(url, data, secure=not logging.root.isEnabledFor(logging.DEBUG))
+                res = self.post(url, data, log_bodies=logging.root.isEnabledFor(logging.DEBUG))
                 self._token_info.parse_token_result(res, "{}.refresh_token".format(self.__class__.__name__))
             except AuthenticationTokenError:
                 self.get_token()
