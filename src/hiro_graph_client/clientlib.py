@@ -170,13 +170,12 @@ class AbstractAPI(APIConfig):
         return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def post(self, url: str, data: Any, log_bodies: bool = True) -> dict:
+    def post(self, url: str, data: Any) -> dict:
         """
         Implementation of POST
 
         :param url: Url to use
         :param data: The payload to POST
-        :param log_bodies: Avoids logging of body payloads. Default is False.
         :return: The payload of the response
         """
         res = requests.post(url,
@@ -184,7 +183,7 @@ class AbstractAPI(APIConfig):
                             headers=self._get_headers(),
                             verify=False,
                             proxies=self._get_proxies())
-        self._log_communication(res, request_body=log_bodies, response_body=log_bodies)
+        self._log_communication(res)
         return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
@@ -277,8 +276,7 @@ class AbstractAPI(APIConfig):
         except (json.JSONDecodeError, ValueError):
             return {"error": {"message": res.text, "code": 999}}
 
-    @staticmethod
-    def _log_communication(res: requests.Response, request_body: bool = True, response_body: bool = True) -> None:
+    def _log_communication(self, res: requests.Response, request_body: bool = True, response_body: bool = True) -> None:
         """
         Log communication that flows across requests' methods. Contains options to disable logging of the body portions
         of the requests to avoid dumping large amounts of data and breaking streaming of results.
@@ -319,7 +317,7 @@ class AbstractAPI(APIConfig):
 {_body_str(res.text, res.encoding, response_body)}
 '''
 
-            if res.status_code >= 400:
+            if not res.ok:
                 logging.error(log_message)
             else:
                 logging.debug(log_message)
@@ -607,6 +605,22 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractAPI):
 
             return self._token_info.token
 
+    def _log_communication(self, res: requests.Response, request_body: bool = True, response_body: bool = True) -> None:
+        """
+        Logging under a secure aspect. Hides sensitive information unless logging is enabled for level DEBUG.
+
+        :param res: The response of a request. Also contains the request.
+        :param request_body: Option to disable the logging of the request_body. If set to True, will only remain True
+               internally when logging is enabled for level *logging.DEBUG*.
+        :param response_body: Option to disable the logging of the response_body.  If set to True, will only remain True
+               internally when logging is enabled for level *logging.DEBUG* or *res.status_code* != 200.
+        """
+        log_request_body = logging.root.isEnabledFor(logging.DEBUG) and request_body is True
+        log_response_body = (res.status_code != 200 or logging.root.isEnabledFor(
+            logging.DEBUG)) and response_body is True
+
+        super()._log_communication(res, request_body=log_request_body, response_body=log_response_body)
+
     def get_token(self) -> None:
         """
         Construct a request to obtain a new token. API self._endpoint + '/app'
@@ -639,7 +653,7 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractAPI):
                 "password": self._password
             }
 
-            res = self.post(url, data, log_bodies=logging.root.isEnabledFor(logging.DEBUG))
+            res = self.post(url, data)
             self._token_info.parse_token_result(res, "{}.get_token".format(self.__class__.__name__))
 
     def refresh_token(self) -> None:
@@ -669,7 +683,7 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractAPI):
             }
 
             try:
-                res = self.post(url, data, log_bodies=logging.root.isEnabledFor(logging.DEBUG))
+                res = self.post(url, data)
                 self._token_info.parse_token_result(res, "{}.refresh_token".format(self.__class__.__name__))
             except AuthenticationTokenError:
                 self.get_token()
