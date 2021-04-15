@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
 import json
+import logging
 import os
 import threading
 import time
 from abc import abstractmethod
-from typing import Optional, Any, Iterator
+from typing import Optional, Any, Iterator, Union
 from urllib.parse import quote, urlencode
 
 import backoff
@@ -107,7 +108,9 @@ class AbstractAPI(APIConfig):
                           verify=False,
                           stream=True,
                           proxies=self._get_proxies()) as res:
+            self._log_communication(res, response_body=False)
             self._check_response(res)
+            self._check_status_error(res)
 
             yield from res.iter_content(chunk_size=65536)
 
@@ -128,6 +131,7 @@ class AbstractAPI(APIConfig):
                             ),
                             verify=False,
                             proxies=self._get_proxies())
+        self._log_communication(res, request_body=False)
         return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
@@ -147,6 +151,7 @@ class AbstractAPI(APIConfig):
                            ),
                            verify=False,
                            proxies=self._get_proxies())
+        self._log_communication(res, request_body=False)
         return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
@@ -161,15 +166,17 @@ class AbstractAPI(APIConfig):
                            headers=self._get_headers({"Content-Type": None}),
                            verify=False,
                            proxies=self._get_proxies())
+        self._log_communication(res)
         return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def post(self, url: str, data: Any) -> dict:
+    def post(self, url: str, data: Any, secure: bool = False) -> dict:
         """
         Implementation of POST
 
         :param url: Url to use
         :param data: The payload to POST
+        :param secure: Avoids logging of body payloads. Default is False.
         :return: The payload of the response
         """
         res = requests.post(url,
@@ -177,6 +184,7 @@ class AbstractAPI(APIConfig):
                             headers=self._get_headers(),
                             verify=False,
                             proxies=self._get_proxies())
+        self._log_communication(res, request_body=not secure, response_body=not secure)
         return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
@@ -193,6 +201,7 @@ class AbstractAPI(APIConfig):
                            headers=self._get_headers(),
                            verify=False,
                            proxies=self._get_proxies())
+        self._log_communication(res)
         return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
@@ -207,6 +216,7 @@ class AbstractAPI(APIConfig):
                               headers=self._get_headers({"Content-Type": None}),
                               verify=False,
                               proxies=self._get_proxies())
+        self._log_communication(res)
         return self._parse_json_response(res)
 
     ###############################################################################################################
@@ -266,6 +276,53 @@ class AbstractAPI(APIConfig):
             return res.json()
         except (json.JSONDecodeError, ValueError):
             return {"error": {"message": res.text, "code": 999}}
+
+    @staticmethod
+    def _log_communication(res: requests.Response, request_body: bool = True, response_body: bool = True) -> None:
+        """
+        Log communication that flows across requests' methods. Contains options to disable logging of the body portions
+        of the requests to avoid dumping large amounts of data and breaking streaming of results.
+
+        This log does not log an exact binary representation of the transmitted bodies but uses the encoding defined
+        in *res* to print it as strings.
+
+        :param res: The response of a request. Also contains the request.
+        :param request_body: Option to disable the logging of the request_body.
+        :param response_body: Option to disable the logging of the response_body.
+        :return:
+        """
+
+        def _log_headers(headers) -> Iterator[str]:
+            for k, v in headers.items():
+                if k == "Authorization" or k.find("Cookie") != -1:
+                    v = f"(shortened) ...{v[-6:]}"
+                yield f"{k}: {v}\n"
+
+        def _body_str(body: Union[str, bytes], encoding: str, allowed: bool) -> str:
+            if body is None:
+                return ""
+            if not allowed:
+                return "(body hidden)"
+            if isinstance(body, bytes):
+                body = str(body, encoding)
+            return body
+
+        if res.status_code >= 400 or logging.root.isEnabledFor(logging.DEBUG):
+            log_message = f'''
+---------------- request ----------------
+{res.request.method} {res.request.url}
+{"".join(_log_headers(res.request.headers))}
+{_body_str(res.request.body, res.encoding, request_body)}
+---------------- response ----------------
+{res.status_code} {res.reason} {res.url}
+{"".join(_log_headers(res.headers))}
+{_body_str(res.text, res.encoding, response_body)}
+'''
+
+            if res.status_code >= 400:
+                logging.error(log_message)
+            else:
+                logging.debug(log_message)
 
     def _check_status_error(self, res: requests.Response) -> None:
         """
@@ -582,7 +639,7 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractAPI):
                 "password": self._password
             }
 
-            res = self.post(url, data)
+            res = self.post(url, data, secure=not logging.root.isEnabledFor(logging.DEBUG))
             self._token_info.parse_token_result(res, "{}.get_token".format(self.__class__.__name__))
 
     def refresh_token(self) -> None:
@@ -612,7 +669,7 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractAPI):
             }
 
             try:
-                res = self.post(url, data)
+                res = self.post(url, data, secure=not logging.root.isEnabledFor(logging.DEBUG))
                 self._token_info.parse_token_result(res, "{}.refresh_token".format(self.__class__.__name__))
             except AuthenticationTokenError:
                 self.get_token()
