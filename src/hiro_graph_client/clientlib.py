@@ -552,6 +552,8 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractAPI):
     _client_id: str
     _client_secret: str
 
+    _secure_logging: bool = True
+
     def __init__(self,
                  username: str,
                  password: str,
@@ -559,7 +561,8 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractAPI):
                  client_secret: str,
                  endpoint: str,
                  raise_exceptions: bool = False,
-                 proxies: dict = None):
+                 proxies: dict = None,
+                 secure_logging: bool = True):
         """
         Constructor
 
@@ -570,6 +573,7 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractAPI):
         :param endpoint: Full url for auth API
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False.
         :param proxies: Proxy configuration for *requests*. Default is None.
+        :param secure_logging: If this is enabled, payloads that might contain sensitive information are not logged.
         """
         super().__init__(endpoint=endpoint,
                          raise_exceptions=raise_exceptions,
@@ -579,6 +583,9 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractAPI):
         self._password = password
         self._client_id = client_id
         self._client_secret = client_secret
+
+        self._secure_logging = secure_logging
+
         self._token_info = TokenInfo()
         self._lock = threading.RLock()
 
@@ -609,17 +616,16 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractAPI):
 
     def _log_communication(self, res: requests.Response, request_body: bool = True, response_body: bool = True) -> None:
         """
-        Logging under a secure aspect. Hides sensitive information unless logging is enabled for level DEBUG.
+        Logging under a secure aspect. Hides sensitive information unless *self._secure_logging* is set to False.
 
         :param res: The response of a request. Also contains the request.
         :param request_body: Option to disable the logging of the request_body. If set to True, will only remain True
-               internally when logging is enabled for level *logging.DEBUG*.
+               internally when *self._secure_logging* is set to False.
         :param response_body: Option to disable the logging of the response_body.  If set to True, will only remain True
-               internally when logging is enabled for level *logging.DEBUG* or *res.status_code* != 200.
+               internally when *self._secure_logging* is set to False or *res.status_code* != 200.
         """
-        log_request_body = logging.root.isEnabledFor(logging.DEBUG) and request_body is True
-        log_response_body = (res.status_code != 200 or logging.root.isEnabledFor(
-            logging.DEBUG)) and response_body is True
+        log_request_body = not self._secure_logging and request_body is True
+        log_response_body = (res.status_code != 200 or not self._secure_logging) and response_body is True
 
         super()._log_communication(res, request_body=log_request_body, response_body=log_response_body)
 
