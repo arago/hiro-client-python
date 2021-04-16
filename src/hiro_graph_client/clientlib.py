@@ -292,11 +292,13 @@ class AbstractAPI(APIConfig):
         :return:
         """
 
-        def _log_headers(headers) -> Iterator[str]:
+        def _log_headers(headers) -> str:
+            result: str = ""
             for k, v in headers.items():
                 if k == "Authorization" or k.find("Cookie") != -1:
                     v = f"(shortened) ...{v[-6:]}"
-                yield f"{k}: {v}\n"
+                result += f"{k}: {v}\n"
+            return result
 
         def _body_str(body: Union[str, bytes], encoding: str, allowed: bool) -> str:
             if body is None:
@@ -311,11 +313,11 @@ class AbstractAPI(APIConfig):
             log_message = f'''
 ---------------- request ----------------
 {res.request.method} {res.request.url}
-{"".join(_log_headers(res.request.headers))}
+{_log_headers(res.request.headers)}
 {_body_str(res.request.body, res.encoding, request_body)}
 ---------------- response ----------------
 {res.status_code} {res.reason} {res.url}
-{"".join(_log_headers(res.headers))}
+{_log_headers(res.headers)}
 {_body_str(res.text, res.encoding, response_body)}
 '''
 
