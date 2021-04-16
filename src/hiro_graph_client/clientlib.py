@@ -300,11 +300,9 @@ class AbstractAPI(APIConfig):
                 result += f"{k}: {v}\n"
             return result
 
-        def _body_str(body: Union[str, bytes], encoding: str, allowed: bool) -> str:
+        def _body_str(body: Union[str, bytes], encoding: str) -> str:
             if body is None:
                 return ""
-            if not allowed:
-                return "(body hidden)"
             if isinstance(body, bytes):
                 body = str(body, encoding)
             return body
@@ -314,11 +312,11 @@ class AbstractAPI(APIConfig):
 ---------------- request ----------------
 {res.request.method} {res.request.url}
 {_log_headers(res.request.headers)}
-{_body_str(res.request.body, res.encoding, request_body)}
+{_body_str(res.request.body, res.encoding) if request_body else "(body hidden)"}
 ---------------- response ----------------
 {res.status_code} {res.reason} {res.url}
 {_log_headers(res.headers)}
-{_body_str(res.text, res.encoding, response_body)}
+{_body_str(res.text, res.encoding) if response_body else "(body hidden)"}
 '''
 
             if not res.ok:
