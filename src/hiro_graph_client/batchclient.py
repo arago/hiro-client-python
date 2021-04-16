@@ -134,19 +134,15 @@ class SessionData:
     content_store: dict
     """Stores a copy of '_content_data' under the value of 'ogit/_id' as key."""
 
-    def __init__(self):
+    def __init__(self, enable_cache: bool = True):
         """
         Constructor
+
+        :param enable_cache: Enable or disable the xid_cache. Default is True.
         """
-        self.xid_cache = {}
+        self.xid_cache = {} if enable_cache else None
         self.edge_store = {}
         self.content_store = {}
-
-    @classmethod
-    def new_with_cache_disabled(cls):
-        new_cls = cls()
-        new_cls.xid_cache = None
-        return new_cls
 
     def get_id(self, ogit_xid: str) -> Optional[str]:
         """
@@ -847,7 +843,7 @@ class HiroGraphBatch(APIConfig):
         :param queue_depth: Amount of entries the *self.request_queue* and *self.result_queue* can hold. Default is to
                             set it to the same value as *parallel_workers*.
         """
-        super().__init__(endpoint, True, proxies)
+        super().__init__(endpoint, raise_exceptions=True, proxies=proxies)
 
         if not endpoint:
             raise ValueError('Required attribute "endpoint" for HIRO Graph API is not set.')

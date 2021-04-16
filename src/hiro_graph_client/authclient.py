@@ -46,10 +46,10 @@ class HiroAuth(AuthenticatedAPI):
         """
         HIRO REST query API: `GET self._auth_endpoint + '/me/avatar'`
 
-        :return: The result payload as Iterator over binary data. Complete binary payload is an image/png.
+        :return: The result payload yields over binary data. Complete binary payload is an image/png.
         """
         url = self._endpoint + '/me/avatar'
-        return self.get_binary(url, accept='image/png')
+        yield self.get_binary(url, accept='image/png')
 
     def put_avatar(self, data: Any) -> dict:
         """

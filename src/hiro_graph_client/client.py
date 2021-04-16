@@ -248,7 +248,7 @@ class HiroGraph(AuthenticatedAPI):
         :param node_id: Id of the attachment node
         :param content_id: Id of the content within the attachment node. Default is None.
         :param include_deleted: Whether to be able to access deleted content: Default is False
-        :return: An Iterator over byte chunks from the response body payload.
+        :return: Yields over byte chunks from the response body payload.
         """
         query = {
             "contentId": content_id,
@@ -256,7 +256,7 @@ class HiroGraph(AuthenticatedAPI):
         }
 
         url = self._endpoint + '/' + quote_plus(node_id) + '/content' + self._get_query_part(query)
-        return self.get_binary(url)
+        yield self.get_binary(url)
 
     def post_attachment(self,
                         node_id: str,

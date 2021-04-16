@@ -23,6 +23,9 @@ BACKOFF_KWARGS = {
     'giveup': lambda e: e.response is not None and e.response.status_code < 500
 }
 
+logger = logging.getLogger(__name__)
+""" The logger for this module """
+
 
 def accept_all_certs():
     """
@@ -99,7 +102,7 @@ class AbstractAPI(APIConfig):
 
         :param url: Url to use
         :param accept: Mimetype for accept. Will be set to */* if not given.
-        :return: Yields an iterator over raw chunks of the response payload.
+        :return: Yields over raw chunks of the response payload.
         """
         with requests.get(url,
                           headers=self._get_headers(
@@ -296,7 +299,7 @@ class AbstractAPI(APIConfig):
             result: str = ""
             for k, v in headers.items():
                 if k == "Authorization" or k.find("Cookie") != -1:
-                    v = f"(shortened) ...{v[-6:]}"
+                    v = f"{v[:6]}[{len(v) - 12} characters hidden]{v[-6:]}"
                 result += f"{k}: {v}\n"
             return result
 
@@ -307,22 +310,22 @@ class AbstractAPI(APIConfig):
                 body = str(body, encoding)
             return body
 
-        if res.status_code >= 400 or logging.root.isEnabledFor(logging.DEBUG):
+        if not res.ok or logger.isEnabledFor(logging.DEBUG):
             log_message = f'''
----------------- request ----------------
+################ request ################
 {res.request.method} {res.request.url}
 {_log_headers(res.request.headers)}
 {_body_str(res.request.body, res.encoding) if request_body else "(body hidden)"}
----------------- response ----------------
+################ response ################
 {res.status_code} {res.reason} {res.url}
 {_log_headers(res.headers)}
 {_body_str(res.text, res.encoding) if response_body else "(body hidden)"}
 '''
 
             if not res.ok:
-                logging.error(log_message)
+                logger.error(log_message)
             else:
-                logging.debug(log_message)
+                logger.debug(log_message)
 
     def _check_status_error(self, res: requests.Response) -> None:
         """
@@ -475,7 +478,7 @@ class TokenInfo:
         Get timestamp
         :return: Current epoch in milliseconds
         """
-        return int(round(time.time() * 1000))
+        return int(time.time_ns() / 1000000)
 
     def parse_token_result(self, res: dict, what: str) -> None:
         """
