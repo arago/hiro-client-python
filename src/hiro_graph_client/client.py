@@ -3,7 +3,7 @@
 from typing import Any, Iterator
 from urllib.parse import quote_plus
 
-from hiro_graph_client.clientlib import AuthenticatedAPI, AbstractTokenHandler
+from hiro_graph_client.clientlib import HiroApiHandler, AuthenticatedAPI, AbstractTokenHandler
 
 
 class HiroGraph(AuthenticatedAPI):
@@ -13,22 +13,26 @@ class HiroGraph(AuthenticatedAPI):
     """
 
     def __init__(self,
-                 endpoint: str,
-                 token_handler: AbstractTokenHandler,
+                 api_handler: HiroApiHandler = None,
+                 endpoint: str = None,
+                 token_handler: AbstractTokenHandler = None,
                  raise_exceptions: bool = False,
                  proxies: dict = None):
         """
         Constructor
 
-        :param endpoint: Full url for graph API
+        :param api_handler: Instance of a version handler that contains the current API endpoints.
+        :param endpoint: Full url for graph API. Overrides endpoints taken from *api_handler*.
         :param token_handler: External token handler. An internal one is created when this is unset.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False
         :param proxies: Proxy configuration for *requests*. Default is None.
         """
-        super().__init__(endpoint,
-                         token_handler,
-                         raise_exceptions,
-                         proxies)
+        super().__init__(api_name='graph',
+                         api_handler=api_handler,
+                         endpoint=endpoint,
+                         token_handler=token_handler,
+                         raise_exceptions=raise_exceptions,
+                         proxies=proxies)
 
     ###############################################################################################################
     # REST API operations

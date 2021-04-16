@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Optional, Tuple, Any, Iterator, IO
 
 from hiro_graph_client.client import HiroGraph
-from hiro_graph_client.clientlib import AbstractTokenHandler, APIConfig
+from hiro_graph_client.clientlib import AbstractTokenHandler, APIConfig, HiroApiHandler
 from requests.exceptions import RequestException
 
 
@@ -821,8 +821,9 @@ class HiroGraphBatch(APIConfig):
     """This is the list of commands (method names) that HiroGraphBatch handles."""
 
     def __init__(self,
-                 endpoint: str,
-                 token_handler: AbstractTokenHandler,
+                 api_handler: HiroApiHandler = None,
+                 endpoint: str = None,
+                 token_handler: AbstractTokenHandler = None,
                  callback: HiroResultCallback = None,
                  use_xid_cache: bool = True,
                  proxies: dict = None,
@@ -843,10 +844,12 @@ class HiroGraphBatch(APIConfig):
         :param queue_depth: Amount of entries the *self.request_queue* and *self.result_queue* can hold. Default is to
                             set it to the same value as *parallel_workers*.
         """
-        super().__init__(endpoint, raise_exceptions=True, proxies=proxies)
+        if not endpoint and not api_handler:
+            raise ValueError('Need either attribute "endpoint" for HIRO Graph API or "api_handler".')
 
-        if not endpoint:
-            raise ValueError('Required attribute "endpoint" for HIRO Graph API is not set.')
+        super().__init__(endpoint=endpoint if endpoint else api_handler.get_api_endpoint_of('graph'),
+                         raise_exceptions=True,
+                         proxies=proxies)
 
         if not token_handler:
             raise ValueError("Cannot authenticate against HIRO without a TokenHandler")
@@ -872,17 +875,6 @@ class HiroGraphBatch(APIConfig):
         with self._token_handler_lock:
             self._token_handler = token_handler
 
-    def __init_session(self) -> SessionData:
-        """
-        Initialize session.
-
-        This session uses a cache with ogit/_xid : ogit/_id mappings when *use_xid_cache* is true.
-
-        :return: The initialized session.
-        """
-        return SessionData() if self.use_xid_cache is True \
-            else SessionData.new_with_cache_disabled()
-
     def __prepare_session_and_connection(self,
                                          session: SessionData,
                                          connection: HiroGraph) -> Tuple[SessionData, HiroGraph]:
@@ -894,10 +886,15 @@ class HiroGraphBatch(APIConfig):
         :return: A tuple of (SessionData, HiroGraph)
         """
         if not session:
-            session = self.__init_session()
+            session = SessionData(self.use_xid_cache)
         if not connection:
             with self._token_handler_lock:
-                connection = HiroGraph.new_from(self, token_handler=self._token_handler)
+                connection = HiroGraph(
+                    endpoint=self._endpoint,
+                    token_handler=self._token_handler,
+                    raise_exceptions=self._raise_exceptions,
+                    proxies=self._proxies
+                )
         return session, connection
 
     def create_vertices(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
@@ -1090,7 +1087,12 @@ class HiroGraphBatch(APIConfig):
         :param session: The session object to share between all connections.
         """
 
-        connection = HiroGraph.new_from(self, token_handler=token_handler)
+        connection = HiroGraph(
+            endpoint=self._endpoint,
+            token_handler=token_handler,
+            raise_exceptions=self._raise_exceptions,
+            proxies=self._proxies
+        )
 
         for command, attributes in iter(self.request_queue.get, None):
             func = getattr(self, command, None)
@@ -1140,7 +1142,7 @@ class HiroGraphBatch(APIConfig):
                 else:
                     raise SourceValueError("Found attributes that are not a dict.")
 
-            session = self.__init_session()
+            session = SessionData(self.use_xid_cache)
 
             collected_results = [] if self.callback is None else None
 

@@ -20,16 +20,18 @@ Most of the documentation is done in the sourcecode.
 Example to use the straightforward graph api client without any batch processing:
 
 ```python
-from hiro_graph_client import HiroGraph, PasswordAuthTokenHandler
+from hiro_graph_client import HiroApiHandler, HiroGraph, PasswordAuthTokenHandler
+
+hiro_api_handler = HiroApiHandler("https://[server]:8443")
 
 hiro_client: HiroGraph = HiroGraph(
-    endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/,
+    api_handler=hiro_api_handler,
     token_handler=PasswordAuthTokenHandler(
         username='',
         password='',
         client_id='',
         client_secret='',
-        endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
+        api_handler=hiro_api_handler
     )
 )
 
@@ -47,16 +49,18 @@ print(query_result)
 Example to use the batch client to process a batch of requests:
 
 ```python
-from hiro_graph_client import HiroGraphBatch, PasswordAuthTokenHandler
+from hiro_graph_client import HiroApiHandler, HiroGraphBatch, PasswordAuthTokenHandler
+
+hiro_api_handler = HiroApiHandler("https://[server]:8443")
 
 hiro_batch_client: HiroGraphBatch = HiroGraphBatch(
-    endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/,
+    api_handler=hiro_api_handler,
     token_handler=PasswordAuthTokenHandler(
         username='',
         password='',
         client_id='',
         client_secret='',
-        endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
+        api_handler=hiro_api_handler
     )
 )
 
@@ -87,29 +91,23 @@ Example to use the batch client to process a batch of requests with callbacks fo
 ```python
 from typing import Any, Iterator
 
-from hiro_graph_client import HiroGraphBatch, HiroResultCallback, PasswordAuthTokenHandler
+from hiro_graph_client import HiroApiHandler, HiroGraphBatch, HiroResultCallback, AbstractTokenHandler,
+
+PasswordAuthTokenHandler
+
+hiro_api_handler = HiroApiHandler("https://[server]:8443")
 
 
 class RunBatch(HiroResultCallback):
     hiro_batch_client: HiroGraphBatch
 
     def __init__(self,
-                 username: str,
-                 password: str,
-                 client_id: str,
-                 client_secret: str,
-                 endpoint: str,
-                 auth_endpoint: str):
-        self.hiro_batch_client: HiroGraphBatch = HiroGraphBatch(
-            endpoint=endpoint,
-            token_handler=PasswordAuthTokenHandler(
-                username=username,
-                password=password,
-                client_id=client_id,
-                client_secret=client_secret,
-                endpoint=auth_endpoint
-            )
-        )
+                 api_handler: HiroApiHandler,
+                 token_handler: AbstractTokenHandler):
+        self.hiro_batch_client = HiroGraphBatch(
+            callback=self,
+            api_handler=api_handler,
+            token_handler=token_handler)
 
     def result(self, data: Any, code: int) -> None:
         """
@@ -122,13 +120,15 @@ class RunBatch(HiroResultCallback):
         self.hiro_batch_client.multi_command(command_iter)
 
 
-batch_runner = RunBatch(
-    username='',
-    password='',
-    client_id='',
-    client_secret='',
-    endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/
-    auth_endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
+batch_runner: RunBatch = RunBatch(
+    api_handler=hiro_api_handler,
+    token_handler=PasswordAuthTokenHandler(
+        username='',
+        password='',
+        client_id='',
+        client_secret='',
+        api_handler=hiro_api_handler
+    )
 )
 
 # See code documentation about the possible commands and their attributes. This is a more compact notation of the
@@ -187,10 +187,12 @@ provided.
 The HiroGraph example from above with another TokenHandler:
 
 ```python
-from hiro_graph_client import HiroGraph, EnvironmentTokenHandler
+from hiro_graph_client import HiroApiHandler, HiroGraph, EnvironmentTokenHandler
+
+hiro_api_handler = HiroApiHandler("https://[server]:8443")
 
 hiro_client: HiroGraph = HiroGraph(
-    endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/,
+    api_handler=hiro_api_handler,
     token_handler=EnvironmentTokenHandler()
 )
 
@@ -201,32 +203,37 @@ query_result = hiro_client.query('ogit\\/_type:"ogit/MARS/Machine"')
 print(query_result)
 ```
 
-When you need to access multiple APIs, it is a good idea to share a TokenHandler between them. This avoids unnecessary
-token requests with the PasswordAuthTokenHandler for instance.
+## Handler sharing
+
+When you need to access multiple APIs, it is a good idea to share the TokenHandler and the HiroApiHandler between them.
+This avoids unnecessary api version requests and unnecessary token requests with the PasswordAuthTokenHandler for
+instance.
 
 ```python
-from hiro_graph_client import HiroGraph, HiroGraphBatch, HiroApp, PasswordAuthTokenHandler
+from hiro_graph_client import HiroApiHandler, HiroGraph, HiroGraphBatch, HiroApp, PasswordAuthTokenHandler
+
+hiro_api_handler = HiroApiHandler("https://[server]:8443")
 
 token_handler = PasswordAuthTokenHandler(
     username='',
     password='',
     client_id='',
     client_secret='',
-    endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
+    api_handler=hiro_api_handler
 )
 
 hiro_client: HiroGraph = HiroGraph(
-    endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/,
+    api_handler=hiro_api_handler,
     token_handler=token_handler
 )
 
 hiro_batch_client: HiroGraphBatch = HiroGraphBatch(
-    endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/,
+    api_handler=hiro_api_handler,
     token_handler=token_handler
 )
 
 hiro_app_client: HiroApp = HiroApp(
-    endpoint='https://[server]:8443/api/app/7.0',  # see https://developer.hiro.arago.co/7.0/api/,
+    api_handler=hiro_api_handler,
     token_handler=token_handler
 )
 ```
