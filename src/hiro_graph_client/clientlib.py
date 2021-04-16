@@ -284,6 +284,8 @@ class AbstractAPI(APIConfig):
         This log does not log an exact binary representation of the transmitted bodies but uses the encoding defined
         in *res* to print it as strings.
 
+        Authorization and cookie headers will be obscured by only displaying the last six characters of their values.
+
         :param res: The response of a request. Also contains the request.
         :param request_body: Option to disable the logging of the request_body.
         :param response_body: Option to disable the logging of the response_body.
