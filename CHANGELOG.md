@@ -1,9 +1,25 @@
 # v4.0.0
 
-* Refactored for better token handling.
+* `AbstractTokenApiHandler`
+  * Better token handling.
+  * Resolve graph api endpoints via calling /api/version.
+    * Ability to customize headers. Headers are handled 
+      case-insensitively and are submitted to requests capitalized.
+    * Ability to override internal endpoints.
+
+  
+* AbstractIOCarrier works with `with` statements now.
+* Added `BasicFileIOCarrier`.  
+
+
+* Removed `ApiConfig`.
+* Renamed several internal classes.
 * Better error messages.
-* Updated documentation.
-* Thread safety when swapping out TokenHandler.
+* HTTP secure protocol logging.
+* Fixed timestamp creation for tokens.
+
+
+* Joe's suggestions - thanks Joe!
 
 # v3.1.0
 

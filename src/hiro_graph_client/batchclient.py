@@ -1,12 +1,11 @@
 import concurrent.futures
 import queue
-import threading
 from abc import abstractmethod
 from enum import Enum
 from typing import Optional, Tuple, Any, Iterator, IO
 
 from hiro_graph_client.client import HiroGraph
-from hiro_graph_client.clientlib import AbstractTokenHandler, APIConfig, HiroApiHandler
+from hiro_graph_client.clientlib import AbstractTokenApiHandler
 from requests.exceptions import RequestException
 
 
@@ -790,7 +789,7 @@ class AddAttachmentRunner(HiroBatchRunner):
             raise SourceValueError('"data" not found or empty in "attributes._content_data".')
 
 
-class HiroGraphBatch(APIConfig):
+class HiroGraphBatch:
     """
     This class handles lists of vertex-, edge- or timeseries-data via HiroGraph.
     """
@@ -799,10 +798,7 @@ class HiroGraphBatch(APIConfig):
 
     callback: HiroResultCallback
 
-    _token_handler: AbstractTokenHandler
-
-    _token_handler_lock: threading.RLock
-    """Reentrant mutex for thread safety"""
+    _api_handler: AbstractTokenApiHandler
 
     use_xid_cache: bool
     """Use xid caching. Default is True when omitted or set to None."""
@@ -821,13 +817,10 @@ class HiroGraphBatch(APIConfig):
     """This is the list of commands (method names) that HiroGraphBatch handles."""
 
     def __init__(self,
-                 api_handler: HiroApiHandler = None,
-                 endpoint: str = None,
-                 token_handler: AbstractTokenHandler = None,
+                 api_handler: AbstractTokenApiHandler,
                  callback: HiroResultCallback = None,
                  use_xid_cache: bool = True,
-                 proxies: dict = None,
-                 parallel_workers: int = 8,
+                 max_parallel_workers: int = 8,
                  queue_depth: int = None):
         """
         Constructor
@@ -835,45 +828,26 @@ class HiroGraphBatch(APIConfig):
         Use the connection to HIRO HiroGraph either by giving a predefined *hiro_token* or by
         specifying all other parameters needed for authentication.
 
-        :param endpoint: required: URL of the graph.
-        :param token_handler: Supply a dedicated token_handler.
+        :param api_handler: External API handler.
         :param callback: required when multi_command() is used, optional otherwise: Callback object for results.
         :param use_xid_cache: Use xid caching. Default is True when omitted or set to None.
-        :param proxies: Proxy configuration for *requests*. Default is None.
-        :param parallel_workers: Amount of parallel workers for requests. Default is 8.
+        :param max_parallel_workers: Amount of maximum parallel workers for requests. Default is 8.
         :param queue_depth: Amount of entries the *self.request_queue* and *self.result_queue* can hold. Default is to
                             set it to the same value as *parallel_workers*.
         """
-        if not endpoint and not api_handler:
-            raise ValueError('Need either attribute "endpoint" for HIRO Graph API or "api_handler".')
+        if not api_handler:
+            raise ValueError('Need attribute "api_handler" for HIRO Graph API.')
 
-        super().__init__(endpoint=endpoint if endpoint else api_handler.get_api_endpoint_of('graph'),
-                         raise_exceptions=True,
-                         proxies=proxies)
+        self._api_handler = api_handler
 
-        if not token_handler:
-            raise ValueError("Cannot authenticate against HIRO without a TokenHandler")
-
-        self._token_handler = token_handler
-        self._token_handler_lock = threading.RLock()
-
-        self.request_queue = queue.Queue(maxsize=queue_depth or parallel_workers)
-        self.result_queue = queue.Queue(maxsize=queue_depth or parallel_workers)
+        self.request_queue = queue.Queue(maxsize=queue_depth or max_parallel_workers)
+        self.result_queue = queue.Queue(maxsize=queue_depth or max_parallel_workers)
 
         self.callback = callback
 
-        self.parallel_workers = parallel_workers
+        self.max_parallel_workers = max_parallel_workers
 
         self.use_xid_cache = False if use_xid_cache is False else True
-
-    def set_token_handler(self, token_handler: AbstractTokenHandler) -> None:
-        """
-        Replace the internal token handler with a new one. This is only needed when the TokenHandler cannot
-        refresh its token by himself. This new token_handler is used the next time a new session is started.
-        :param token_handler: The new token_handler
-        """
-        with self._token_handler_lock:
-            self._token_handler = token_handler
 
     def __prepare_session_and_connection(self,
                                          session: SessionData,
@@ -888,13 +862,7 @@ class HiroGraphBatch(APIConfig):
         if not session:
             session = SessionData(self.use_xid_cache)
         if not connection:
-            with self._token_handler_lock:
-                connection = HiroGraph(
-                    endpoint=self._endpoint,
-                    token_handler=self._token_handler,
-                    raise_exceptions=self._raise_exceptions,
-                    proxies=self._proxies
-                )
+            connection = HiroGraph(api_handler=self._api_handler)
         return session, connection
 
     def create_vertices(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
@@ -1076,23 +1044,17 @@ class HiroGraphBatch(APIConfig):
                 collected_results.append(result)
             self.result_queue.task_done()
 
-    def _worker(self, token_handler: AbstractTokenHandler, session: SessionData) -> None:
+    def _worker(self, session: SessionData) -> None:
         """
         Thread executor function. Create a connection, then read data from the *self.request_queue* and execute
         the command with the attributes and session the data from the queue provides.
 
         Thread exits when *self.request_queue.get()* reads None.
 
-        :param token_handler: The token_handler to use.
         :param session: The session object to share between all connections.
         """
 
-        connection = HiroGraph(
-            endpoint=self._endpoint,
-            token_handler=token_handler,
-            raise_exceptions=self._raise_exceptions,
-            proxies=self._proxies
-        )
+        connection = HiroGraph(self._api_handler)
 
         for command, attributes in iter(self.request_queue.get, None):
             func = getattr(self, command, None)
@@ -1136,20 +1098,28 @@ class HiroGraphBatch(APIConfig):
         """
         with concurrent.futures.ThreadPoolExecutor() as executor:
 
-            def _request_queue_put(_command: str, _attributes: dict) -> None:
-                if isinstance(_attributes, dict):
-                    self.request_queue.put((_command, _attributes))
-                else:
+            def _request_queue_put(_command: str,
+                                   _attributes: dict,
+                                   _parallel_workers: int) -> int:
+
+                if not isinstance(_attributes, dict):
                     raise SourceValueError("Found attributes that are not a dict.")
+
+                if _parallel_workers < self.max_parallel_workers:
+                    executor.submit(HiroGraphBatch._worker, self, session)
+                    _parallel_workers += 1
+
+                self.request_queue.put((_command, _attributes))
+                return _parallel_workers
 
             session = SessionData(self.use_xid_cache)
 
             collected_results = [] if self.callback is None else None
 
+            parallel_workers = 1
+
             executor.submit(HiroGraphBatch._reader, self, collected_results)
-            with self._token_handler_lock:
-                for _ in range(self.parallel_workers):
-                    executor.submit(HiroGraphBatch._worker, self, self._token_handler, session)
+            executor.submit(HiroGraphBatch._worker, self, session)
 
             handle_session_data = False
             for command_entry in command_iter:
@@ -1163,9 +1133,15 @@ class HiroGraphBatch(APIConfig):
                         if command in self.commands:
                             if isinstance(attributes, list):
                                 for attribute_entry in attributes:
-                                    _request_queue_put(command, attribute_entry)
+                                    parallel_workers = _request_queue_put(
+                                        command,
+                                        attribute_entry,
+                                        parallel_workers)
                             else:
-                                _request_queue_put(command, attributes)
+                                parallel_workers = _request_queue_put(
+                                    command,
+                                    attributes,
+                                    parallel_workers)
                         else:
                             raise SourceValueError("No such command \"{}\".".format(command))
                     except SourceValueError as err:
@@ -1186,7 +1162,7 @@ class HiroGraphBatch(APIConfig):
             self.request_queue.join()
             self.result_queue.join()
 
-            for _ in range(self.parallel_workers):
+            for _ in range(parallel_workers):
                 self.request_queue.put(None)
 
             self.result_queue.put(None)

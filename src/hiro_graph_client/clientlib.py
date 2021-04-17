@@ -10,6 +10,7 @@ from typing import Optional, Any, Iterator, Union
 from urllib.parse import quote, urlencode
 
 import backoff
+import hiro_graph_client
 import requests
 import requests.packages.urllib3.exceptions
 
@@ -38,58 +39,45 @@ def accept_all_certs():
 # Root classes for API
 ###################################################################################################################
 
-class APIConfig:
-    """
-    This is just a collection of common configuration values for accessing REST APIs.
-    """
-
-    def __init__(self,
-                 endpoint: str = None,
-                 raise_exceptions: bool = False,
-                 proxies: dict = None):
-        """
-        Constructor
-
-        :param endpoint: Full url for service API
-        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False.
-        :param proxies: Proxy configuration for *requests*. Default is None.
-        """
-        self._endpoint = endpoint
-        self._proxies = proxies
-        self._raise_exceptions = raise_exceptions
-
-
-class AbstractAPI(APIConfig):
+class AbstractAPI:
     """
     This abstract root class contains the methods for HTTP requests used by all API classes. Also contains several
     tool methods for handling headers, url query parts and response error checking.
     """
 
     def __init__(self,
-                 endpoint: str,
-                 raise_exceptions: bool = False,
-                 proxies: dict = None):
+                 root_url: str,
+                 raise_exceptions: bool = True,
+                 proxies: dict = None,
+                 headers: dict = None):
         """
         Constructor
 
-        :param endpoint: Full url for service API
-        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False.
+        :param root_url: Root uri of the HIRO API, like *https://core.arago.co*.
+        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
+        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         """
 
-        super().__init__(endpoint,
-                         raise_exceptions,
-                         proxies)
+        if not root_url:
+            raise ValueError("'root_url' must not be empty.")
 
-        self._headers = {'Content-type': 'application/json',
-                         'Accept': 'text/plain, application/json'
-                         }
+        self._root_url = root_url
+        self._proxies = proxies
+        self._raise_exceptions = raise_exceptions
 
-    @classmethod
-    def new_from(cls, other: APIConfig):
-        return cls(other._endpoint,
-                   other._raise_exceptions,
-                   other._proxies)
+        self._headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'text/plain, application/json',
+            'User-Agent': "python-hiro-client {}".format(hiro_graph_client.__version__)
+        }
+
+        if headers:
+            self._headers.update({self._capitalize_header(k): v for k, v in headers.items()})
+
+    @staticmethod
+    def _capitalize_header(name: str) -> str:
+        return "-".join([n.capitalize() for n in name.split('-')])
 
     ###############################################################################################################
     # Basic requests
@@ -244,7 +232,7 @@ class AbstractAPI(APIConfig):
         headers = self._headers.copy()
 
         if isinstance(override, dict):
-            headers.update(override)
+            headers.update({self._capitalize_header(k): v for k, v in override.items()})
             headers = {k: v for k, v in headers.items() if v is not None}
 
         token = self._handle_token()
@@ -298,7 +286,8 @@ class AbstractAPI(APIConfig):
         def _log_headers(headers) -> str:
             result: str = ""
             for k, v in headers.items():
-                if k == "Authorization" or k.find("Cookie") != -1:
+                cap_key: str = self._capitalize_header(k)
+                if cap_key == "Authorization" or cap_key.find("Cookie") != -1:
                     v = f"{v[:6]}[{len(v) - 12} characters hidden]{v[-6:]}"
                 result += f"{k}: {v}\n"
             return result
@@ -358,95 +347,12 @@ class AbstractAPI(APIConfig):
 
     ###############################################################################################################
     # Response and token handling
-    # Abstract methods
-    ###############################################################################################################
-
-    @abstractmethod
-    def _check_response(self, res: requests.Response) -> None:
-        """
-        Abstract base function for response checking. Might check for authentication errors depending on the context.
-
-        :param res: The result payload
-        """
-        raise RuntimeError('Cannot use _check_response of this abstract class.')
-
-    @abstractmethod
-    def _handle_token(self) -> Optional[str]:
-        """
-        Abstract base function for token handling.
-
-        :return: A valid token that might have been fetched automatically depending on the context.
-        """
-        raise RuntimeError('Cannot use _handle_token of this abstract class.')
-
-
-###################################################################################################################
-# API Version handler class
-###################################################################################################################
-
-class HiroApiHandler(AbstractAPI):
-    """
-    Python implementation for accessing the HIRO API Versions at /api/versions.
-    """
-
-    def __init__(self,
-                 endpoint: str,
-                 raise_exceptions: bool = False,
-                 proxies: dict = None):
-        """
-        Constructor
-
-        :param endpoint: Root url for HIRO, like https://core.arago.co.
-        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False
-        :param proxies: Proxy configuration for *requests*. Default is None.
-        """
-        super().__init__(endpoint,
-                         raise_exceptions,
-                         proxies)
-
-        self._version_info = None
-
-    ###############################################################################################################
-    # Public methods
-    ###############################################################################################################
-
-    def get_api_endpoint_of(self, api_name: str) -> str:
-        """
-        Determines endpoints of the api names. Loads and caches the current API information if necessary.
-
-        :param api_name: Name of the HIRO API
-        :return: endpoint for this API
-        """
-        if not self._version_info:
-            self._version_info = self.get_version()
-
-        if not self._version_info[api_name]:
-            raise ValueError("No API named '{}' found.".format(api_name))
-
-        endpoint = self._endpoint + self._version_info[api_name]['endpoint']
-
-        return endpoint[:-1] if endpoint[-1] == '/' else endpoint
-
-    ###############################################################################################################
-    # REST API operations
-    ###############################################################################################################
-
-    def get_version(self) -> dict:
-        """
-        HIRO REST query API: `GET self._endpoint + '/api/version'`
-
-        :return: The result payload
-        """
-        url = self._endpoint + '/api/version'
-        return self.get(url)
-
-    ###############################################################################################################
-    # Response and token handling
+    # Child classes have to override those classes for special handling like token and header handling.
     ###############################################################################################################
 
     def _check_response(self, res: requests.Response) -> None:
         """
-        This is a dummy method. No response checking here.
+        Root method. No response checking here.
 
         :param res: The result payload
         """
@@ -459,58 +365,92 @@ class HiroApiHandler(AbstractAPI):
 
         Does *not* try to obtain or refresh a token.
 
-        :return: *token* given.
+        :return: Always None here, derived classes should return a token string.
         """
         return None
 
 
-class AbstractNamedAPI(AbstractAPI):
+###################################################################################################################
+# TokenApiHandler classes
+###################################################################################################################
+
+
+class AbstractTokenApiHandler(AbstractAPI):
     """
-    This API uses an HiroApiHandler object to automatically detect the api endpoint to use.
+    Root class for all TokenApiHandler classes. This class also handles resolving the current api endpoints.
     """
 
     def __init__(self,
-                 api_name: str = None,
-                 api_handler: HiroApiHandler = None,
-                 endpoint: str = None,
-                 raise_exceptions: bool = False,
-                 proxies: dict = None):
+                 root_url: str,
+                 raise_exceptions: bool = True,
+                 proxies: dict = None,
+                 headers: dict = None,
+                 custom_endpoints: dict = None):
         """
         Constructor
 
-        :param api_name: Name of the api in the api_handler. Needed for api_handler.
-        :param api_handler: Api version handler to determine the api endpoint by name. Needs api_name.
-        :param endpoint: Sets the endpoint to use overriding api_handler. Default is None,
-        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False
+        :param root_url: Root url for HIRO, like https://core.arago.co.
+        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
+        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
+               from /api/version.
+               Example: {"graph": "/api/graph/7.2", "auth": "/api/auth/6.2"}
         """
-        if not (api_handler or api_name) and not endpoint:
-            raise ValueError('Need either attributes "api_handler" with "api_name" or an "endpoint".')
+        super().__init__(root_url=root_url,
+                         raise_exceptions=raise_exceptions,
+                         proxies=proxies,
+                         headers=headers)
 
-        super().__init__(endpoint if endpoint else api_handler.get_api_endpoint_of(api_name),
-                         raise_exceptions,
-                         proxies)
+        self._version_info = None
+        self.custom_endpoints = custom_endpoints
 
     ###############################################################################################################
-    # Response and token handling
+    # Public methods
     ###############################################################################################################
 
-    def _check_response(self, res: requests.Response) -> None:
-        super()._check_response(res)
+    def get_api_endpoint_of(self, api_name: str) -> str:
+        """
+        Determines endpoints of the API names. Loads and caches the current API information if necessary.
 
-    def _handle_token(self) -> Optional[str]:
-        return super()._handle_token()
+        :param api_name: Name of the HIRO API
+        :return: endpoint for this API
+        """
 
+        def _remove_slash(_endpoint: str) -> str:
+            return _endpoint[:-1] if _endpoint[-1] == '/' else _endpoint
 
-###################################################################################################################
-# TokenHandler classes
-###################################################################################################################
+        if self.custom_endpoints:
+            endpoint = self.custom_endpoints.get(api_name)
+            if endpoint:
+                return _remove_slash(self._root_url + endpoint)
 
+        if not self._version_info:
+            self._version_info = self.get_version()
 
-class AbstractTokenHandler:
-    """
-    Interface for all TokenHandler classes.
-    """
+        api_entry: dict = self._version_info.get(api_name)
+
+        if not api_entry:
+            raise ValueError("No API named '{}' found.".format(api_name))
+
+        return _remove_slash(self._root_url + api_entry.get('endpoint'))
+
+    ###############################################################################################################
+    # REST API operations
+    ###############################################################################################################
+
+    def get_version(self) -> dict:
+        """
+        HIRO REST query API: `GET self._endpoint + '/api/version'`
+
+        :return: The result payload
+        """
+        url = self._root_url + '/api/version'
+        return self.get(url)
+
+    ###############################################################################################################
+    # Token handling
+    ###############################################################################################################
 
     @property
     def token(self) -> str:
@@ -518,7 +458,7 @@ class AbstractTokenHandler:
         Return the current token.
         :return: The current token
         """
-        raise RuntimeError('Cannot use method of this abstract class.')
+        raise RuntimeError('Cannot use property of this abstract class.')
 
     @abstractmethod
     def refresh_token(self) -> None:
@@ -528,14 +468,39 @@ class AbstractTokenHandler:
         raise RuntimeError('Cannot use method of this abstract class.')
 
 
-class FixedTokenHandler(AbstractTokenHandler):
+class FixedTokenApiHandler(AbstractTokenApiHandler):
     """
-    TokenHandler for a fixed token.
+    TokenApiHandler for a fixed token.
     """
 
     _token: str
 
-    def __init__(self, token: str):
+    def __init__(self,
+                 root_url: str,
+                 token: str,
+                 raise_exceptions: bool = True,
+                 proxies: dict = None,
+                 headers: dict = None,
+                 custom_endpoints: dict = None):
+        """
+        Constructor
+
+        :param root_url: Root url for HIRO, like https://core.arago.co.
+        :param token: The fixed token to use.
+        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
+        :param proxies: Proxy configuration for *requests*. Default is None.
+        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
+               /api/version.
+        """
+        super().__init__(
+            root_url=root_url,
+            raise_exceptions=raise_exceptions,
+            proxies=proxies,
+            headers=headers,
+            custom_endpoints=custom_endpoints
+        )
+
         self._token = token
 
     @property
@@ -546,16 +511,40 @@ class FixedTokenHandler(AbstractTokenHandler):
         raise FixedTokenError('Token is invalid and cannot be changed because it has been given externally.')
 
 
-class EnvironmentTokenHandler(AbstractTokenHandler):
+class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
     """
-    TokenHandler for a fixed token given as an environment variable.
+    TokenApiHandler for a fixed token given as an environment variable.
     """
 
     _env_var: str
 
-    def __init__(self, env_var: str = 'HIRO_TOKEN'):
+    def __init__(self,
+                 root_url: str,
+                 env_var: str = 'HIRO_TOKEN',
+                 raise_exceptions: bool = True,
+                 proxies: dict = None,
+                 headers: dict = None,
+                 custom_endpoints: dict = None):
+        """
+        Constructor
+
+        :param root_url: Root url for HIRO, like https://core.arago.co.
+        :param env_var: Name of the environment variable to read for the token. Default is *HIRO_TOKEN*.
+        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
+        :param proxies: Proxy configuration for *requests*. Default is None.
+        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
+               /api/version.
+        """
+        super().__init__(
+            root_url=root_url,
+            raise_exceptions=raise_exceptions,
+            proxies=proxies,
+            headers=headers,
+            custom_endpoints=custom_endpoints
+        )
+
         self._env_var = env_var
-        self._token = None
 
     @property
     def token(self) -> str:
@@ -656,7 +645,7 @@ class TokenInfo:
         return (self.get_epoch_millis() - self.last_update) < span
 
 
-class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractNamedAPI):
+class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
     """
     API Tokens will be fetched using this class. It does not handle any automatic token fetching, refresh or token
     expiry. This has to be checked and triggered by the *caller*.
@@ -679,37 +668,38 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractNamedAPI):
 
     _secure_logging: bool = True
 
-    _api_handler: HiroApiHandler
-
     def __init__(self,
+                 root_url: str,
                  username: str,
                  password: str,
                  client_id: str,
                  client_secret: str,
-                 endpoint: str = None,
-                 api_handler: HiroApiHandler = None,
-                 raise_exceptions: bool = False,
+                 secure_logging: bool = True,
+                 raise_exceptions: bool = True,
                  proxies: dict = None,
-                 secure_logging: bool = True):
+                 headers: dict = None,
+                 custom_endpoints: dict = None):
         """
         Constructor
 
+        :param root_url: Root url for HIRO, like https://core.arago.co.
         :param username: Username for authentication
         :param password: Password for authentication
         :param client_id: OAuth client_id for authentication
         :param client_secret: OAuth client_secret for authentication
-        :param endpoint: Full url for auth API. Overrides endpoints taken from *api_handler*.
-        :param api_handler: Instance of a version handler that contains the current API endpoints.
-        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False.
-        :param proxies: Proxy configuration for *requests*. Default is None.
         :param secure_logging: If this is enabled, payloads that might contain sensitive information are not logged.
+        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
+        :param proxies: Proxy configuration for *requests*. Default is None.
+        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
+               /api/version.
         """
         super().__init__(
-            api_name='auth',
-            api_handler=api_handler,
-            endpoint=endpoint,
+            root_url=root_url,
             raise_exceptions=raise_exceptions,
-            proxies=proxies
+            proxies=proxies,
+            headers=headers,
+            custom_endpoints=custom_endpoints
         )
 
         self._username = username
@@ -721,6 +711,10 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractNamedAPI):
 
         self._token_info = TokenInfo()
         self._lock = threading.RLock()
+
+    @property
+    def endpoint(self):
+        return self.get_api_endpoint_of('auth')
 
     @property
     def token(self) -> str:
@@ -754,7 +748,7 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractNamedAPI):
         :raises AuthenticationTokenError: When no auth_endpoint is set.
         """
         with self._lock:
-            if not self._endpoint:
+            if not self.endpoint:
                 raise AuthenticationTokenError(
                     'Token is invalid and endpoint (auth_endpoint) for obtaining is not set.')
 
@@ -771,7 +765,7 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractNamedAPI):
                 raise AuthenticationTokenError(
                     "{} is missing required parameter(s) {}.".format(self.__class__.__name__, msg))
 
-            url = self._endpoint + '/app'
+            url = self.endpoint + '/app'
             data = {
                 "client_id": self._client_id,
                 "client_secret": self._client_secret,
@@ -790,7 +784,7 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractNamedAPI):
         :raises AuthenticationTokenError: When no auth_endpoint is set.
         """
         with self._lock:
-            if not self._endpoint:
+            if not self.endpoint:
                 raise AuthenticationTokenError(
                     'Token is invalid and endpoint (auth_endpoint) for refresh is not set.')
 
@@ -801,7 +795,7 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractNamedAPI):
                 self.get_token()
                 return
 
-            url = self._endpoint + '/refresh'
+            url = self.endpoint + '/refresh'
             data = {
                 "client_id": self._client_id,
                 "client_secret": self._client_secret,
@@ -839,55 +833,44 @@ class PasswordAuthTokenHandler(AbstractTokenHandler, AbstractNamedAPI):
 
 
 ###################################################################################################################
-# Root class for Authenticated APIs
+# Root class for different API groups
 ###################################################################################################################
 
-class AuthenticatedAPI(AbstractNamedAPI):
+class AbstractHandledAPI(AbstractAPI):
     """
     Python implementation for accessing a REST API with authentication.
     """
 
-    _token_handler: AbstractTokenHandler
+    _api_handler: AbstractTokenApiHandler
+    _api_name: str
 
     def __init__(self,
-                 api_name: str = None,
-                 api_handler: HiroApiHandler = None,
-                 endpoint: str = None,
-                 token_handler: AbstractTokenHandler = None,
-                 raise_exceptions: bool = False,
-                 proxies: dict = None):
+                 api_handler: AbstractTokenApiHandler,
+                 api_name: str):
         """
         Constructor
 
-        :param api_name: Name of the api in the api_handler. Needed for api_handler.
-        :param api_handler: Instance of a version handler that contains the current API endpoints.
-        :param endpoint: Full url for auth API. Overrides endpoints taken from *api_handler*.
-        :param token_handler: External token handler.
-        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False
-        :param proxies: Proxy configuration for *requests*. Default is None.
+        :param api_name: Name of the API to use.
+        :param api_handler: External API handler.
         """
-        super().__init__(api_name=api_name,
-                         api_handler=api_handler,
-                         endpoint=endpoint,
-                         raise_exceptions=raise_exceptions,
-                         proxies=proxies)
+        if not api_handler or not api_name:
+            raise ValueError("Cannot authenticate against HIRO without *api_handler* and *api_name*.")
 
-        if not token_handler:
-            raise ValueError("Cannot authenticate against HIRO without a TokenHandler.")
+        super().__init__(root_url=api_handler._root_url,
+                         raise_exceptions=api_handler._raise_exceptions,
+                         proxies=api_handler._proxies,
+                         headers=api_handler._headers)
 
-        self._token_handler = token_handler
+        self._api_handler = api_handler
+        self._api_name = api_name
+
+    @property
+    def endpoint(self) -> str:
+        return self._api_handler.get_api_endpoint_of(self._api_name)
 
     ###############################################################################################################
     # Response and token handling
     ###############################################################################################################
-
-    def set_token_handler(self, token_handler: AbstractTokenHandler) -> None:
-        """
-        Replace the internal token handler with a new one. This is only needed when the TokenHandler cannot
-        refresh its token by himself.
-        :param token_handler: The new token_handler
-        """
-        self._token_handler = token_handler
 
     def _check_response(self, res: requests.Response) -> None:
         """
@@ -898,7 +881,7 @@ class AuthenticatedAPI(AbstractNamedAPI):
         :raises requests.exceptions.RequestException: When an error 401 occurred and the token has been refreshed.
         """
         if res.status_code == 401:
-            self._token_handler.refresh_token()
+            self._api_handler.refresh_token()
 
             # Raise this exception to trigger retry with backoff
             raise requests.exceptions.RequestException
@@ -909,7 +892,7 @@ class AuthenticatedAPI(AbstractNamedAPI):
 
         :return: A valid token.
         """
-        return self._token_handler.token
+        return self._api_handler.token
 
 
 ###################################################################################################################
@@ -944,6 +927,6 @@ class TokenUnauthorizedError(AuthenticationTokenError):
 
 class FixedTokenError(AuthenticationTokenError):
     """
-    Child of *AuthenticationTokenErrors*. Used when are fixed and cannot be refreshed.
+    Child of *AuthenticationTokenErrors*. Used when tokens are fixed and cannot be refreshed.
     """
     pass

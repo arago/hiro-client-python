@@ -1,21 +1,16 @@
 # from typing import Any, Iterator
 #
-# from hiro_graph_client import HiroApiHandler, HiroGraph, HiroGraphBatch, HiroResultCallback, \
-#     PasswordAuthTokenHandler, AbstractTokenHandler
+# from hiro_graph_client import PasswordAuthTokenApiHandler, AbstractTokenApiHandler, HiroGraph
+# from hiro_graph_client.batchclient import HiroResultCallback, HiroGraphBatch
 #
-# hiro_api_handler = HiroApiHandler("https://ec2-52-213-82-23.eu-west-1.compute.amazonaws.com:8443")
-
-
+#
 # class RunBatch(HiroResultCallback):
 #     hiro_batch_client: HiroGraphBatch
 #
-#     def __init__(self,
-#                  api_handler: HiroApiHandler,
-#                  token_handler: AbstractTokenHandler):
+#     def __init__(self, api_handler: AbstractTokenApiHandler):
 #         self.hiro_batch_client = HiroGraphBatch(
 #             callback=self,
-#             api_handler=api_handler,
-#             token_handler=token_handler)
+#             api_handler=api_handler)
 #
 #     def result(self, data: Any, code: int) -> None:
 #         print('Data: ' + str(data))
@@ -23,24 +18,27 @@
 #
 #     def run(self, commands: Iterator[dict]):
 #         self.hiro_batch_client.multi_command(commands)
-
-
+#
+#
 class TestClient:
-    # token_handler = PasswordAuthTokenHandler(
+    # hiro_api_handler = PasswordAuthTokenApiHandler(
+    #     root_url='',
     #     username='',
     #     password='',
     #     client_id='',
     #     client_secret='',
-    #     api_handler=hiro_api_handler,
-    #     secure_logging=False
+    #     secure_logging=False,
+    #     custom_endpoints={
+    #         'graph': '/api/graph/7.2'
+    #     },
+    #     headers={
+    #         'user-agent': 'TestClient'
+    #     }
     # )
-
+    #
     def test_simple_query(self):
         pass
-
-        # hiro_client: HiroGraph = HiroGraph(
-        #     api_handler=hiro_api_handler,
-        #     token_handler=self.token_handler)
+        # hiro_client: HiroGraph = HiroGraph(api_handler=self.hiro_api_handler)
         #
         # query_result: dict = hiro_client.query('ogit\\/_type:"ogit/MARS/Machine"', limit=1, meta=True)
         #
@@ -50,10 +48,7 @@ class TestClient:
 
     def test_batch_command(self):
         pass
-
-        # hiro_batch_client: HiroGraphBatch = HiroGraphBatch(
-        #     api_handler=hiro_api_handler,
-        #     token_handler=self.token_handler)
+        # hiro_batch_client: HiroGraphBatch = HiroGraphBatch(api_handler=self.hiro_api_handler)
         #
         # commands: list = [
         #     {
@@ -76,11 +71,7 @@ class TestClient:
 
     def test_batch_command_callback(self):
         pass
-
-        # batch_runner: RunBatch = RunBatch(
-        #     api_handler=hiro_api_handler,
-        #     token_handler=self.token_handler
-        # )
+        # batch_runner: RunBatch = RunBatch(api_handler=self.hiro_api_handler)
         #
         # commands: list = [
         #     {

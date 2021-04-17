@@ -3,36 +3,23 @@
 from typing import Any, Iterator
 from urllib.parse import quote_plus
 
-from hiro_graph_client.clientlib import HiroApiHandler, AuthenticatedAPI, AbstractTokenHandler
+from hiro_graph_client.clientlib import AbstractHandledAPI, AbstractTokenApiHandler
 
 
-class HiroGraph(AuthenticatedAPI):
+class HiroGraph(AbstractHandledAPI):
     """
     Python implementation for accessing the HIRO HIRO REST API.
     See https://core.arago.co/help/specs/?url=definitions/graph.yaml
     """
 
-    def __init__(self,
-                 api_handler: HiroApiHandler = None,
-                 endpoint: str = None,
-                 token_handler: AbstractTokenHandler = None,
-                 raise_exceptions: bool = False,
-                 proxies: dict = None):
+    def __init__(self, api_handler: AbstractTokenApiHandler):
         """
         Constructor
 
-        :param api_handler: Instance of a version handler that contains the current API endpoints.
-        :param endpoint: Full url for graph API. Overrides endpoints taken from *api_handler*.
-        :param token_handler: External token handler. An internal one is created when this is unset.
-        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False
-        :param proxies: Proxy configuration for *requests*. Default is None.
+        :param api_handler: External API handler.
         """
         super().__init__(api_name='graph',
-                         api_handler=api_handler,
-                         endpoint=endpoint,
-                         token_handler=token_handler,
-                         raise_exceptions=raise_exceptions,
-                         proxies=proxies)
+                         api_handler=api_handler)
 
     ###############################################################################################################
     # REST API operations
@@ -56,7 +43,7 @@ class HiroGraph(AuthenticatedAPI):
         :param meta: List detailed metainformations in result payload
         :return: Result payload
         """
-        url = self._endpoint + '/query/vertices'
+        url = self.endpoint + '/query/vertices'
         data = {"query": str(query),
                 "limit": limit,
                 "fields": (quote_plus(fields.replace(" ", ""), safe="/,") if fields else ""),
@@ -83,7 +70,7 @@ class HiroGraph(AuthenticatedAPI):
         :param meta: List detailed metainformations in result payload
         :return: Result payload
         """
-        url = self._endpoint + '/query/gremlin'
+        url = self.endpoint + '/query/gremlin'
         data = {"query": str(query),
                 "root": root,
                 "fields": (quote_plus(fields.replace(" ", ""), safe="/,") if fields else ""),
@@ -100,7 +87,7 @@ class HiroGraph(AuthenticatedAPI):
         :param return_id: Return only the ogit/_id. Default is False to return everything.
         :return: The result payload
         """
-        url = self._endpoint + '/new/' + quote_plus(obj_type)
+        url = self.endpoint + '/new/' + quote_plus(obj_type)
         res = self.post(url, data)
         return res['ogit/_id'] if return_id and 'error' not in res else res
 
@@ -112,7 +99,7 @@ class HiroGraph(AuthenticatedAPI):
         :param node_id: ogit/_id of the node/vertex
         :return: The result payload
         """
-        url = self._endpoint + '/' + quote_plus(node_id)
+        url = self.endpoint + '/' + quote_plus(node_id)
         return self.post(url, data)
 
     def delete_node(self, node_id: str) -> dict:
@@ -122,7 +109,7 @@ class HiroGraph(AuthenticatedAPI):
         :param node_id: ogit/_id of the node/vertex
         :return: The result payload
         """
-        url = self._endpoint + '/' + quote_plus(node_id)
+        url = self.endpoint + '/' + quote_plus(node_id)
         return self.delete(url)
 
     def connect_nodes(self, from_node_id: str, verb: str, to_node_id: str) -> dict:
@@ -134,7 +121,7 @@ class HiroGraph(AuthenticatedAPI):
         :param to_node_id: ogit/_id of the target node/vertex
         :return: The result payload
         """
-        url = self._endpoint + '/connect/' + quote_plus(verb)
+        url = self.endpoint + '/connect/' + quote_plus(verb)
         data = {"out": from_node_id, "in": to_node_id}
         return self.post(url, data)
 
@@ -147,7 +134,7 @@ class HiroGraph(AuthenticatedAPI):
         :param to_node_id: ogit/_id of the target node/vertex
         :return: The result payload
         """
-        url = self._endpoint + '/' + quote_plus(
+        url = self.endpoint + '/' + quote_plus(
             from_node_id
         ) + "$$" + quote_plus(
             verb
@@ -170,7 +157,7 @@ class HiroGraph(AuthenticatedAPI):
             "listMeta": "true" if meta else None
         }
 
-        url = self._endpoint + '/' + quote_plus(node_id) + self._get_query_part(query)
+        url = self.endpoint + '/' + quote_plus(node_id) + self._get_query_part(query)
         return self.get(url)
 
     def get_nodes(self, node_ids: list, fields: str = None, meta: bool = None) -> dict:
@@ -188,7 +175,7 @@ class HiroGraph(AuthenticatedAPI):
             "listMeta": "true" if meta else None
         }
 
-        url = self._endpoint + '/query/ids' + self._get_query_part(query)
+        url = self.endpoint + '/query/ids' + self._get_query_part(query)
         return self.get(url)
 
     def get_node_by_xid(self, node_id: str, fields: str = None, meta: bool = None) -> dict:
@@ -205,7 +192,7 @@ class HiroGraph(AuthenticatedAPI):
             "listMeta": "true" if meta else None
         }
 
-        url = self._endpoint + '/xid/' + quote_plus(node_id) + self._get_query_part(query)
+        url = self.endpoint + '/xid/' + quote_plus(node_id) + self._get_query_part(query)
         return self.get(url)
 
     def get_timeseries(self, node_id: str, starttime: str = None, endtime: str = None) -> dict:
@@ -222,7 +209,7 @@ class HiroGraph(AuthenticatedAPI):
             "to": endtime
         }
 
-        url = self._endpoint + '/' + quote_plus(node_id) + '/values' + self._get_query_part(query)
+        url = self.endpoint + '/' + quote_plus(node_id) + '/values' + self._get_query_part(query)
         res = self.get(url)
         if 'error' in res:
             return res
@@ -238,7 +225,7 @@ class HiroGraph(AuthenticatedAPI):
         :param items: list of timeseries values [{timestamp: (ms since epoch), value: ...},...]
         :return: The result payload
         """
-        url = self._endpoint + '/' + quote_plus(node_id) + '/values?synchronous=true'
+        url = self.endpoint + '/' + quote_plus(node_id) + '/values?synchronous=true'
         data = {"items": items}
         return self.post(url, data)
 
@@ -259,7 +246,7 @@ class HiroGraph(AuthenticatedAPI):
             "includeDeleted": "true" if include_deleted else None
         }
 
-        url = self._endpoint + '/' + quote_plus(node_id) + '/content' + self._get_query_part(query)
+        url = self.endpoint + '/' + quote_plus(node_id) + '/content' + self._get_query_part(query)
         yield self.get_binary(url)
 
     def post_attachment(self,
@@ -274,5 +261,5 @@ class HiroGraph(AuthenticatedAPI):
         :param content_type: Content-Type for *data*. Defaults to 'application/octet-stream' if left unset.
         :return: The result payload
         """
-        url = self._endpoint + '/' + quote_plus(node_id) + '/content'
+        url = self.endpoint + '/' + quote_plus(node_id) + '/content'
         return self.post_binary(url, data, content_type=content_type)

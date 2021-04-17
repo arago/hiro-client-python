@@ -3,36 +3,23 @@
 from typing import Iterator
 from urllib.parse import quote_plus
 
-from hiro_graph_client.clientlib import HiroApiHandler, AuthenticatedAPI, AbstractTokenHandler
+from hiro_graph_client.clientlib import AbstractHandledAPI, AbstractTokenApiHandler
 
 
-class HiroApp(AuthenticatedAPI):
+class HiroApp(AbstractHandledAPI):
     """
     Python implementation for accessing the HIRO App REST API.
     See https://core.arago.co/help/specs/?url=definitions/app.yaml
     """
 
-    def __init__(self,
-                 endpoint: str = None,
-                 api_handler: HiroApiHandler = None,
-                 token_handler: AbstractTokenHandler = None,
-                 raise_exceptions: bool = False,
-                 proxies: dict = None):
+    def __init__(self, api_handler: AbstractTokenApiHandler):
         """
         Constructor
 
-        :param api_handler: Instance of a version handler that contains the current API endpoints.
-        :param endpoint: Full url for app API. Overrides endpoints taken from *api_handler*.
-        :param token_handler: External token handler. An internal one is created when this is unset.
-        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False
-        :param proxies: Proxy configuration for *requests*. Default is None.
+        :param api_handler: External API handler.
         """
         super().__init__(api_name='app',
-                         api_handler=api_handler,
-                         endpoint=endpoint,
-                         token_handler=token_handler,
-                         raise_exceptions=raise_exceptions,
-                         proxies=proxies)
+                         api_handler=api_handler)
 
     ###############################################################################################################
     # REST API operations
@@ -45,7 +32,7 @@ class HiroApp(AuthenticatedAPI):
         :param node_id: ogit/_id of the node/vertex or edge.
         :return: The result payload
         """
-        url = self._endpoint + '/' + quote_plus(node_id)
+        url = self.endpoint + '/' + quote_plus(node_id)
         return self.get(url)
 
     def get_config(self) -> dict:
@@ -55,7 +42,7 @@ class HiroApp(AuthenticatedAPI):
 
         :return: The result payload
         """
-        url = self._endpoint + '/config'
+        url = self.endpoint + '/config'
         return self.get(url)
 
     def get_content(self, node_id, path) -> Iterator[bytes]:
@@ -66,7 +53,7 @@ class HiroApp(AuthenticatedAPI):
         :param path: filename / path of the desired content.
         :return: The result payload yields over binary data.
         """
-        url = self._endpoint + '/' + quote_plus(node_id) + '/content/' + quote_plus(path)
+        url = self.endpoint + '/' + quote_plus(node_id) + '/content/' + quote_plus(path)
         yield self.get_binary(url)
 
     def get_manifest(self, node_id) -> dict:
@@ -76,7 +63,7 @@ class HiroApp(AuthenticatedAPI):
         :param node_id: ogit/_id of the node/vertex or edge.
         :return: The result payload - usually with a binary content.
         """
-        url = self._endpoint + '/' + quote_plus(node_id) + '/manifest'
+        url = self.endpoint + '/' + quote_plus(node_id) + '/manifest'
         return self.get(url)
 
     def get_desktop(self) -> dict:
@@ -85,5 +72,5 @@ class HiroApp(AuthenticatedAPI):
 
         :return: The result payload - usually with a binary content.
         """
-        url = self._endpoint + '/desktop'
+        url = self.endpoint + '/desktop'
         return self.get(url)

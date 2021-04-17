@@ -20,18 +20,15 @@ Most of the documentation is done in the sourcecode.
 Example to use the straightforward graph api client without any batch processing:
 
 ```python
-from hiro_graph_client import HiroApiHandler, HiroGraph, PasswordAuthTokenHandler
-
-hiro_api_handler = HiroApiHandler("https://[server]:8443")
+from hiro_graph_client import PasswordAuthTokenApiHandler, HiroGraph
 
 hiro_client: HiroGraph = HiroGraph(
-    api_handler=hiro_api_handler,
-    token_handler=PasswordAuthTokenHandler(
+    api_handler=PasswordAuthTokenApiHandler(
+        root_url="https://[server]:8443",
         username='',
         password='',
         client_id='',
-        client_secret='',
-        api_handler=hiro_api_handler
+        client_secret=''
     )
 )
 
@@ -49,18 +46,15 @@ print(query_result)
 Example to use the batch client to process a batch of requests:
 
 ```python
-from hiro_graph_client import HiroApiHandler, HiroGraphBatch, PasswordAuthTokenHandler
-
-hiro_api_handler = HiroApiHandler("https://[server]:8443")
+from hiro_graph_client import PasswordAuthTokenApiHandler, HiroGraphBatch
 
 hiro_batch_client: HiroGraphBatch = HiroGraphBatch(
-    api_handler=hiro_api_handler,
-    token_handler=PasswordAuthTokenHandler(
+    api_handler=PasswordAuthTokenApiHandler(
+        root_url="https://[server]:8443",
         username='',
         password='',
         client_id='',
-        client_secret='',
-        api_handler=hiro_api_handler
+        client_secret=''
     )
 )
 
@@ -91,23 +85,16 @@ Example to use the batch client to process a batch of requests with callbacks fo
 ```python
 from typing import Any, Iterator
 
-from hiro_graph_client import HiroApiHandler, HiroGraphBatch, HiroResultCallback, AbstractTokenHandler,
-
-PasswordAuthTokenHandler
-
-hiro_api_handler = HiroApiHandler("https://[server]:8443")
+from hiro_graph_client import AbstractTokenApiHandler, PasswordAuthTokenApiHandler, HiroGraphBatch, HiroResultCallback
 
 
 class RunBatch(HiroResultCallback):
     hiro_batch_client: HiroGraphBatch
 
-    def __init__(self,
-                 api_handler: HiroApiHandler,
-                 token_handler: AbstractTokenHandler):
+    def __init__(self, api_handler: AbstractTokenApiHandler):
         self.hiro_batch_client = HiroGraphBatch(
             callback=self,
-            api_handler=api_handler,
-            token_handler=token_handler)
+            api_handler=api_handler)
 
     def result(self, data: Any, code: int) -> None:
         """
@@ -121,13 +108,12 @@ class RunBatch(HiroResultCallback):
 
 
 batch_runner: RunBatch = RunBatch(
-    api_handler=hiro_api_handler,
-    token_handler=PasswordAuthTokenHandler(
+    api_handler=PasswordAuthTokenApiHandler(
+        root_url="https://[server]:8443",
         username='',
         password='',
         client_id='',
-        client_secret='',
-        api_handler=hiro_api_handler
+        client_secret=''
     )
 )
 
@@ -149,51 +135,62 @@ commands: list = [
 batch_runner.run(commands)
 ```
 
-## TokenHandler
+## TokenApiHandler
 
 Authorization against the HIRO Graph is done via tokens. These tokens are handled by classes of
-type `AbstractTokenHandler` in this library. Each of the Hiro-Client-Object (`HiroGraph`, `HiroGraphBatch`
-, `HiroApp`, etc.) need to have some kind of TokenHandler at construction. It is also possible to replace a
-token_handler within a constructed Hiro-Client by using `set_token_handler(...)`. This should only be necessary when
-TokenHandlers with fixed tokens are used.
+type `AbstractTokenApiHandler` in this library. Each of the Hiro-Client-Object (`HiroGraph`, `HiroGraphBatch`
+, `HiroApp`, etc.) need to have some kind of TokenApiHandler at construction.
 
-This library supplies the following TokenHandler:
+This TokenApiHandler is also responsible to determine the most up-to-date endpoints for the API calls. You can supply a
+custom list of endpoints by using the dict parameter `custom_endpoints=` on construction.
 
----
+A custom list of headers can also be set via the dict parameter `headers=` in the constructor. These would update the
+internal headers. Header names can be supplied in any upper/lower-case.
 
-### FixedTokenHandler
-
-A simple TokenHandler that is generated with a preset-token at construction. Cannot update its token.
+This library supplies the following TokenApiHandlers:
 
 ---
 
-### EnvironmentTokenHandler
+### FixedTokenApiHandler
 
-A TokenHandler that reads an environment variable (default is `HIRO_TOKEN`) from the runtime environment. Will only
+A simple TokenApiHandler that is generated with a preset-token at construction. Cannot update its token.
+
+---
+
+### EnvironmentTokenApiHandler
+
+A TokenApiHandler that reads an environment variable (default is `HIRO_TOKEN`) from the runtime environment. Will only
 update its token when the environment variable changes externally.
 
 ---
 
-### PasswordAuthTokenHandler
+### PasswordAuthTokenApiHandler
 
-This TokenHandler logs into the HiroAuth backend and obtains a token from login credentials. This is also the only
-TokenHandler (so far) that automatically tries to renew a token from the backend when it has expired.
+This TokenApiHandler logs into the HiroAuth backend and obtains a token from login credentials. This is also the only
+TokenApiHandler (so far) that automatically tries to renew a token from the backend when it has expired.
 
 ---
 
-All code examples in this documentation can use these TokenHandlers interchangeably, depending on how such a token is
+All code examples in this documentation can use these TokenApiHandlers interchangeably, depending on how such a token is
 provided.
 
-The HiroGraph example from above with another TokenHandler:
+The HiroGraph example from above with another customized TokenApiHandler:
 
 ```python
-from hiro_graph_client import HiroApiHandler, HiroGraph, EnvironmentTokenHandler
-
-hiro_api_handler = HiroApiHandler("https://[server]:8443")
+from hiro_graph_client import EnvironmentTokenApiHandler, HiroGraph
 
 hiro_client: HiroGraph = HiroGraph(
-    api_handler=hiro_api_handler,
-    token_handler=EnvironmentTokenHandler()
+    api_handler=EnvironmentTokenApiHandler(
+        root_url="https://[server]:8443",
+        env_var='HIRO_TOKEN',  # optional,
+        headers={
+            'User-Agent': 'My special user agent'
+        },
+        custom_endpoints={
+            "graph": "/api/graph/7.2",
+            "auth": "/api/auth/6.2"
+        }
+    )
 )
 
 # The commands of the Graph API are methods of the class HIROGraph.
@@ -205,36 +202,30 @@ print(query_result)
 
 ## Handler sharing
 
-When you need to access multiple APIs, it is a good idea to share the TokenHandler and the HiroApiHandler between them.
-This avoids unnecessary api version requests and unnecessary token requests with the PasswordAuthTokenHandler for
-instance.
+When you need to access multiple APIs, it is a good idea to share the TokenApiHandler between them. This avoids
+unnecessary api version requests and unnecessary token requests with the PasswordAuthTokenApiHandler for instance.
 
 ```python
-from hiro_graph_client import HiroApiHandler, HiroGraph, HiroGraphBatch, HiroApp, PasswordAuthTokenHandler
+from hiro_graph_client import HiroGraph, HiroGraphBatch, HiroApp, PasswordAuthTokenApiHandler
 
-hiro_api_handler = HiroApiHandler("https://[server]:8443")
-
-token_handler = PasswordAuthTokenHandler(
+hiro_api_handler = PasswordAuthTokenApiHandler(
+    root_url="https://[server]:8443",
     username='',
     password='',
     client_id='',
-    client_secret='',
-    api_handler=hiro_api_handler
+    client_secret=''
 )
 
 hiro_client: HiroGraph = HiroGraph(
-    api_handler=hiro_api_handler,
-    token_handler=token_handler
+    api_handler=hiro_api_handler
 )
 
 hiro_batch_client: HiroGraphBatch = HiroGraphBatch(
-    api_handler=hiro_api_handler,
-    token_handler=token_handler
+    api_handler=hiro_api_handler
 )
 
 hiro_app_client: HiroApp = HiroApp(
-    api_handler=hiro_api_handler,
-    token_handler=token_handler
+    api_handler=hiro_api_handler
 )
 ```
 
@@ -288,25 +279,30 @@ See examples from [HiroGraphBatch](#hirographbatch) above.
 ### Input data format
 
 The data format for input of `HiroGraphBatch.multi_command` is a list. This method iterates over this list and treats
-each dict it finds as a key-value-pair with the name of a command as key and either a single dict of attributes or a
+each dict it finds as a key-value-pair with the name of a command as key and either a single dict of attributes, or a
 list of multiple attribute dicts as value(s) for this command.
 
-These commands are run in parallel across eight threads by default, so their order is likely to change in the results.
-Commands given in these command lists should therefore never depend on each other. See the documentation on the
+These commands are run in parallel across up to eight threads by default, so their order is likely to change in the
+results. Commands given in these command lists should therefore never depend on each other. See the documentation on the
 constructor `HiroGraphBatch.__init__` for more information.
 
-The following two examples are equivalent:
+The following two (bad!) examples are equivalent:
 
 ```python
 commands: list = [
     {
-        "handle_vertices": {
+        "create_vertices": {
             "ogit/_xid": "haas1000:connector1:machine1"
         }
     },
     {
         "handle_vertices": {
             "ogit/_xid": "haas1000:connector2:machine2"
+        }
+    },
+    {
+        "handle_vertices": {
+            "ogit/_xid": "haas1000:connector3:machine3"
         }
     },
     {
@@ -317,6 +313,11 @@ commands: list = [
     {
         "delete_vertices": {
             "ogit/_xid": "haas1000:connector2:machine2"
+        }
+    },
+    {
+        "delete_vertices": {
+            "ogit/_xid": "haas1000:connector3:machine3"
         }
     }
 ]
@@ -325,12 +326,17 @@ commands: list = [
 ```python
 commands: list = [
     {
-        "handle_vertices": [
+        "create_vertices": [
             {
                 "ogit/_xid": "haas1000:connector1:machine1"
-            },
+            }
+        ],
+        "handle_vertices": [
             {
                 "ogit/_xid": "haas1000:connector2:machine2"
+            },
+            {
+                "ogit/_xid": "haas1000:connector3:machine3"
             }
         ],
         "delete_vertices": [
@@ -339,10 +345,57 @@ commands: list = [
             },
             {
                 "ogit/_xid": "haas1000:connector2:machine2"
+            },
+            {
+                "ogit/_xid": "haas1000:connector3:machine3"
             }
         ]
     }
 ]
+```
+
+These examples are bad, because delete_vertices depends on create/handle_vertices (there has to be a vertex first before
+it can be deleted). You should call `HiroGraphBatch.multi_command` twice in this case:
+
+```python
+commands1: list = [
+    {
+        "create_vertices": [
+            {
+                "ogit/_xid": "haas1000:connector1:machine1"
+            }
+        ],
+        "handle_vertices": [
+            {
+                "ogit/_xid": "haas1000:connector2:machine2"
+            },
+            {
+                "ogit/_xid": "haas1000:connector3:machine3"
+            }
+        ]
+    }
+]
+
+commands2: list = [
+    {
+        "delete_vertices": [
+            {
+                "ogit/_xid": "haas1000:connector1:machine1"
+            },
+            {
+                "ogit/_xid": "haas1000:connector2:machine2"
+            },
+            {
+                "ogit/_xid": "haas1000:connector3:machine3"
+            }
+        ]
+    }
+]
+
+query_results = []
+
+query_results.extend(hiro_batch_client.multi_command(commands1))
+query_results.extend(hiro_batch_client.multi_command(commands2))
 ```
 
 #### IOCarrier

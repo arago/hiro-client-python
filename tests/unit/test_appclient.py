@@ -1,25 +1,21 @@
 # from hiro_graph_client import HiroApp
-# from hiro_graph_client.clientlib import HiroApiHandler, PasswordAuthTokenHandler
-
-# hiro_api_handler = HiroApiHandler("https://[server]:8443")
-
-
+# from hiro_graph_client.clientlib import PasswordAuthTokenApiHandler
+#
+#
 class TestAppClient:
-    # token_handler = PasswordAuthTokenHandler(
+    # api_handler = PasswordAuthTokenApiHandler(
+    #     root_url='',
     #     username='',
     #     password='',
     #     client_id='',
     #     client_secret='',
-    #     api_handler=hiro_api_handler,
     #     secure_logging=False
     # )
-
+    #
     def test_app_config(self):
         pass
-
         # hiro_client: HiroApp = HiroApp(
-        #     api_handler=hiro_api_handler,
-        #     token_handler=self.token_handler
+        #     api_handler=self.api_handler
         # )
         #
         # query_result: dict = hiro_client.get_config()
