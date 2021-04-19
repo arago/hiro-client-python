@@ -24,7 +24,7 @@ from hiro_graph_client import PasswordAuthTokenApiHandler, HiroGraph
 
 hiro_client: HiroGraph = HiroGraph(
     api_handler=PasswordAuthTokenApiHandler(
-        root_url="https://[server]:8443",
+        root_url="https://core.arago.co",
         username='',
         password='',
         client_id='',
@@ -50,7 +50,7 @@ from hiro_graph_client import PasswordAuthTokenApiHandler, HiroGraphBatch
 
 hiro_batch_client: HiroGraphBatch = HiroGraphBatch(
     api_handler=PasswordAuthTokenApiHandler(
-        root_url="https://[server]:8443",
+        root_url="https://core.arago.co",
         username='',
         password='',
         client_id='',
@@ -109,7 +109,7 @@ class RunBatch(HiroResultCallback):
 
 batch_runner: RunBatch = RunBatch(
     api_handler=PasswordAuthTokenApiHandler(
-        root_url="https://[server]:8443",
+        root_url="https://core.arago.co",
         username='',
         password='',
         client_id='',
@@ -181,7 +181,7 @@ from hiro_graph_client import EnvironmentTokenApiHandler, HiroGraph
 
 hiro_client: HiroGraph = HiroGraph(
     api_handler=EnvironmentTokenApiHandler(
-        root_url="https://[server]:8443",
+        root_url="https://core.arago.co",
         env_var='HIRO_TOKEN',  # optional,
         headers={
             'User-Agent': 'My special user agent'
@@ -209,7 +209,7 @@ unnecessary api version requests and unnecessary token requests with the Passwor
 from hiro_graph_client import HiroGraph, HiroGraphBatch, HiroApp, PasswordAuthTokenApiHandler
 
 hiro_api_handler = PasswordAuthTokenApiHandler(
-    root_url="https://[server]:8443",
+    root_url="https://core.arago.co",
     username='',
     password='',
     client_id='',
