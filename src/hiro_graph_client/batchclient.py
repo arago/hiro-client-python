@@ -1116,10 +1116,9 @@ class HiroGraphBatch:
 
             collected_results = [] if self.callback is None else None
 
-            parallel_workers = 1
+            parallel_workers = 0
 
             executor.submit(HiroGraphBatch._reader, self, collected_results)
-            executor.submit(HiroGraphBatch._worker, self, session)
 
             handle_session_data = False
             for command_entry in command_iter:
