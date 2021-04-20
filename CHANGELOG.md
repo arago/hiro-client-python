@@ -1,3 +1,7 @@
+# v4.1.0
+
+* Added timeseries handling to command `handle_vertices_combined`
+
 # v4.0.0
 
 * `AbstractTokenApiHandler`

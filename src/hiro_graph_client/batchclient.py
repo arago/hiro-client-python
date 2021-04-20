@@ -130,6 +130,9 @@ class SessionData:
     edge_store: dict
     """Stores a copy of '_edge_data' under the value of 'ogit/_id' as key."""
 
+    timeseries_store: dict
+    """Stores a copy of '_timeseries_data' under the value of 'ogit/_id' as key."""
+
     content_store: dict
     """Stores a copy of '_content_data' under the value of 'ogit/_id' as key."""
 
@@ -142,6 +145,7 @@ class SessionData:
         self.xid_cache = {} if enable_cache else None
         self.edge_store = {}
         self.content_store = {}
+        self.timeseries_store = {}
 
     def get_id(self, ogit_xid: str) -> Optional[str]:
         """
@@ -177,7 +181,8 @@ class SessionData:
 
         Registers a new xid:id mapping in the *xid_cache* unless it or any params are None.
 
-        Saves any edge data and content data from the attributes under the ogit/_id given by the response.
+        Saves any edge data, content data and timeseries data from the attributes under the ogit/_id given by the
+        response.
 
         :param attributes: Original attributes from the Runner command
         :param response: Response from the backend after the Runner command ran.
@@ -185,12 +190,16 @@ class SessionData:
         ogit_id = response.get("ogit/_id")
         ogit_xid = response.get("ogit/_xid")
         edge_data = attributes.get("_edge_data")
+        timeseries_data = attributes.get("_timeseries_data")
         content_data = attributes.get("_content_data")
 
         self.register_xid(ogit_id, ogit_xid)
 
         if None not in [self.edge_store, ogit_id, edge_data]:
             self.edge_store[ogit_id] = edge_data.copy()
+
+        if None not in [self.timeseries_store, ogit_id, timeseries_data]:
+            self.timeseries_store[ogit_id] = timeseries_data.copy()
 
         if None not in [self.content_store, ogit_id, content_data]:
             self.content_store[ogit_id] = content_data.copy()
@@ -205,11 +214,14 @@ class SessionData:
         if not ogit_id:
             return
 
-        if self.edge_store and ogit_id in self.edge_store.keys():
-            del self.edge_store[ogit_id]
+        if self.edge_store:
+            self.edge_store.pop(ogit_id, None)
 
-        if self.content_store and ogit_id in self.content_store.keys():
-            del self.content_store[ogit_id]
+        if self.timeseries_store:
+            self.timeseries_store.pop(ogit_id, None)
+
+        if self.content_store:
+            self.content_store.pop(ogit_id, None)
 
         if self.xid_cache:
             for k, v in self.xid_cache.items():
@@ -1017,6 +1029,20 @@ class HiroGraphBatch:
 
                 self.request_queue.put(('create_edges', attributes))
 
+    def _timeseries_from_session(self, session: SessionData) -> None:
+        """
+        Recreate attributes to create timeseries saved in a session.
+
+        :param session: The session with the timeseries data.
+        """
+        for ogit_id, timeseries_data in session.timeseries_store.items():
+            attributes = {
+                'ogit/_id': ogit_id,
+                'items': timeseries_data
+            }
+
+            self.request_queue.put(('add_timeseries', attributes))
+
     def _attachments_from_session(self, session: SessionData) -> None:
         """
         Recreate attributes to create attachments saved in a session.
@@ -1156,6 +1182,7 @@ class HiroGraphBatch:
             if handle_session_data:
                 self.request_queue.join()
                 self._edges_from_session(session)
+                self._timeseries_from_session(session)
                 self._attachments_from_session(session)
 
             self.request_queue.join()

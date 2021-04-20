@@ -699,8 +699,21 @@ commands: list = [
 
 #### handle_vertices_combined
 
-Same as [handle_vertices](#handle_vertices) above, but also collect additional information about edge connections and
-binary attachments that might be given in their attributes.
+Same as [handle_vertices](#handle_vertices) above, but also collect additional information about edge connections,
+timeseries and data attachments that might be given in their attributes.
+
+The execution of this command has two stages:
+
+1) Use the vertex attributes and execute [handle_vertices](#handle_vertices) on _all_ vertices given, ignoring all
+   attributes that start with `_`. Store the `ogit/_id`s of the created vertices for stage two.
+2) When stage one is finished, take those remaining attributes, reformat them if necessary and
+   execute [create_edges](#create_edges),   [add_timeseries](#add_timeseries) or [add_attachments](#add_attachments)
+   with them, using the `ogit/_id`s of the associated vertices from stage one.
+
+Each stage executes its activities in parallel, so what has been written about dependencies
+at [Input Data Format](#input-data-format) still applies for each stage.
+
+The following additional attributes are supported:
 
 * Edge attributes are given as a list with a key `_edge_data`. This list contains dicts with the following attributes:
     * `verb`: (required) Verb for that edge for the vertex of the current row.
@@ -710,12 +723,44 @@ binary attachments that might be given in their attributes.
         * `vertex_id`: ogit/_id of the other vertex.
         * `vertex_xid`: ogit/_xid of the other vertex.
 
+  See also [create_edges](#create_edges), but take note, that the structure of `_edge_data` is reformatted internally to
+  match the data needed for create_edges.
+
+
+* Timeseries attributes are given as a list with a key `_timeseries_data`. This list contains dicts of
+    * `timestamp` for epoch in ms.
+    * `value` for the timeseries value.
+
+  See also [add_timeseries](#add_timeseries), but take note, that the key of the list is called just `items` there.
+
 
 * Content attributes are given as a dict with a key `_content_data` which contains:
     * `data`: Content to upload. This can be anything the Python library `requests` supports as attribute `data=`
       in  `requests.post(data=...)`. If you set an IO object as data, it will be streamed. Also take a look at the
       class `AbstractIOCarrier` to transparently handle opening and closing of IO sources - see [IOCarrier](#iocarrier).
     * `mimetype`: (optional) Content-Type of the content.
+
+  See also [add_attachments](#add_attachments)
+
+General structure:
+
+```python
+commands: list = [
+    {
+        "handle_vertices_combined": [
+            {
+                "<vertex attribute>": "<some value>",
+                "_edge_data": {
+                },
+                "_timeseries_data": {
+                },
+                "_content_data": {
+                }
+            }
+        ]
+    }
+]
+```
 
 Example for edge data:
 
@@ -769,6 +814,49 @@ commands: list = [
                         "verb": "ogit/subscribes",
                         "direction": "in",
                         "vertex_xid": "crew:NCC-1701-D:worf"
+                    }
+                ]
+            }
+        ]
+    }
+]
+```
+
+Example for timeseries data:
+
+```python
+commands: list = [
+    {
+        "handle_vertices_combined": [
+            {
+                "ogit/_xid": "crew:NCC-1701-D:picard",
+                "ogit/_type": "ogit/Forum/Profile",
+                "ogit/name": "Jean-Luc Picard",
+                "ogit/Forum/username": "Picard",
+                "_timeseries_data": [
+                    {
+                        "timestamp": "1440035678000",
+                        "value": "Sighs"
+                    },
+                    {
+                        "timestamp": "1440035944000",
+                        "value": "Make it so!"
+                    }
+                ]
+            },
+            {
+                "ogit/_xid": "crew:NCC-1701-D:worf",
+                "ogit/_type": "ogit/Forum/Profile",
+                "ogit/name": "Worf",
+                "ogit/Forum/username": "Worf",
+                "_timeseries_data": [
+                    {
+                        "timestamp": "1440035678000",
+                        "value": "Grunts"
+                    },
+                    {
+                        "timestamp": "1440035944000",
+                        "value": "Aye captain"
                     }
                 ]
             }
@@ -938,7 +1026,7 @@ commands: list = [
 
 #### add_timeseries
 
-Add timeseries data to a vertex via
+Add timeseries data to a vertex with "ogit/_type" of "ogit/Timeseries" via
 https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Storage]_Timeseries/post__id__values
 
 Each attribute dict needs the following keys:
