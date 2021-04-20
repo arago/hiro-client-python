@@ -705,7 +705,7 @@ timeseries and data attachments that might be given in their attributes.
 The execution of this command has two stages:
 
 1) Use the vertex attributes and execute [handle_vertices](#handle_vertices) on _all_ vertices given, ignoring all
-   attributes that start with `_`. Store the `ogit/_id`s of the created vertices for stage two.
+   attributes that start with `_`. Store the `ogit/_id`s of the handled vertices for stage two.
 2) When stage one is finished, take those remaining attributes, reformat them if necessary and
    execute [create_edges](#create_edges),   [add_timeseries](#add_timeseries) or [add_attachments](#add_attachments)
    with them, using the `ogit/_id`s of the associated vertices from stage one.
