@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 
 import json
+import logging
+import os
 import threading
 import time
 from abc import abstractmethod
-from typing import Optional, Any, Iterator
+from typing import Optional, Any, Iterator, Union
 from urllib.parse import quote, urlencode
 
 import backoff
+import hiro_graph_client
 import requests
 import requests.packages.urllib3.exceptions
 
@@ -21,6 +24,9 @@ BACKOFF_KWARGS = {
     'giveup': lambda e: e.response is not None and e.response.status_code < 500
 }
 
+logger = logging.getLogger(__name__)
+""" The logger for this module """
+
 
 def accept_all_certs():
     """
@@ -29,312 +35,179 @@ def accept_all_certs():
     requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
 
-class TokenInfo:
-    """
-    This class stores token information
-    """
+###################################################################################################################
+# Root classes for API
+###################################################################################################################
 
-    token: str = None
-    """ The token string """
-    expires_at = -1
-    """ Token expiration in ms since epoch"""
-    refresh_token: str = None
-    """ The refresh token to use - if any."""
-    last_update = 0
-    """ Timestamp of when the token has been fetched in ms."""
-
-    def __init__(self, token: str = None, refresh_token: str = None, expires_at: int = -1):
-        """
-        Constructor
-
-        :param token: The token string
-        :param refresh_token: A refresh token
-        :param expires_at: Token expiration in ms since epoch
-        """
-        self.token = token
-        self.expires_at = expires_at
-        self.refresh_token = refresh_token
-        self.last_update = self.get_epoch_millis() if token else 0
-
-    @staticmethod
-    def get_epoch_millis() -> int:
-        """
-        Get timestamp
-        :return: Current epoch in milliseconds
-        """
-        return int(round(time.time() * 1000))
-
-    def parse_token_result(self, res: dict, what: str) -> None:
-        """
-        Parse the result payload and extract token information.
-
-        :param res: The result payload from the backend.
-        :param what: What token command has been issued (for error messages).
-        :raises AuthenticationTokenError: When the token request returned an error.
-        """
-        if 'error' in res:
-            message: str = '{}: {}'.format(what, res['error'].get('message'))
-            code: int = int(res['error'].get('code'))
-
-            if code == 401:
-                raise TokenExpiredError(message, code)
-            else:
-                raise AuthenticationTokenError(message, code)
-
-        self.token = res.get('_TOKEN')
-
-        expires_at = res.get('expires-at')
-        if expires_at:
-            self.expires_at = int(expires_at)
-        else:
-            expires_in = res.get('expires_in')
-            if expires_in:
-                self.expires_at = self.get_epoch_millis() + int(expires_in) * 1000
-
-        refresh_token = res.get('refresh_token')
-        if refresh_token:
-            self.refresh_token = refresh_token
-
-        self.last_update = self.get_epoch_millis()
-
-    def expired(self) -> bool:
-        """
-        Check token expiration
-
-        :return: True when the token has been expired (expires_at <= get_epoch_mills())
-        """
-        return self.expires_at <= self.get_epoch_millis()
-
-    def fresh(self, span: int = 30000) -> bool:
-        """
-        Check, whether the last token fetched is younger than span ms.
-
-        :param span: Timespan in ms in which a token is considered fresh. Default is 30 sec (30000ms).
-        :return: True when the last update was less than span ms.
-        """
-
-        return (self.get_epoch_millis() - self.last_update) < span
-
-
-class APIConfig:
-    """
-    This is just a collection of common configuration values for accessing REST APIs.
-    """
-
-    def __init__(self,
-                 username: str,
-                 password: str,
-                 client_id: str,
-                 client_secret: str,
-                 endpoint: str,
-                 auth_endpoint: str = None,
-                 raise_exceptions: bool = False,
-                 proxies: dict = None):
-        """
-        Constructor
-
-        :param username: Username for authentication
-        :param password: Password for authentication
-        :param client_id: OAuth client_id for authentication
-        :param client_secret: OAuth client_secret for authentication
-        :param endpoint: Full url for service API
-        :param auth_endpoint: Full url for auth
-        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False.
-        :param proxies: Proxy configuration for *requests*. Default is None.
-        """
-        self._username = username
-        self._password = password
-        self._client_id = client_id
-        self._client_secret = client_secret
-        self._endpoint = endpoint
-        self._auth_endpoint = auth_endpoint
-        self._proxies = proxies
-        self._raise_exceptions = raise_exceptions
-
-
-class AbstractAPI(APIConfig):
+class AbstractAPI:
     """
     This abstract root class contains the methods for HTTP requests used by all API classes. Also contains several
     tool methods for handling headers, url query parts and response error checking.
     """
 
     def __init__(self,
-                 username: str,
-                 password: str,
-                 client_id: str,
-                 client_secret: str,
-                 endpoint: str,
-                 auth_endpoint: str = None,
-                 raise_exceptions: bool = False,
-                 proxies: dict = None):
+                 root_url: str,
+                 raise_exceptions: bool = True,
+                 proxies: dict = None,
+                 headers: dict = None):
         """
         Constructor
 
-        :param username: Username for authentication
-        :param password: Password for authentication
-        :param client_id: OAuth client_id for authentication
-        :param client_secret: OAuth client_secret for authentication
-        :param endpoint: Full url for service API
-        :param auth_endpoint: Full url for auth
-        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False.
+        :param root_url: Root uri of the HIRO API, like *https://core.arago.co*.
+        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
+        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         """
 
-        super().__init__(username,
-                         password,
-                         client_id,
-                         client_secret,
-                         endpoint,
-                         auth_endpoint,
-                         raise_exceptions,
-                         proxies)
+        if not root_url:
+            raise ValueError("'root_url' must not be empty.")
 
-        self._headers = {'Content-type': 'application/json',
-                         'Accept': 'text/plain, application/json'
-                         }
+        self._root_url = root_url
+        self._proxies = proxies
+        self._raise_exceptions = raise_exceptions
 
-    @classmethod
-    def new_from(cls, other: APIConfig):
-        return cls(other._username,
-                   other._password,
-                   other._client_id,
-                   other._client_secret,
-                   other._endpoint,
-                   other._auth_endpoint,
-                   other._raise_exceptions,
-                   other._proxies)
+        self._headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'text/plain, application/json',
+            'User-Agent': "python-hiro-client {}".format(hiro_graph_client.__version__)
+        }
+
+        if headers:
+            self._headers.update({self._capitalize_header(k): v for k, v in headers.items()})
+
+    @staticmethod
+    def _capitalize_header(name: str) -> str:
+        return "-".join([n.capitalize() for n in name.split('-')])
 
     ###############################################################################################################
     # Basic requests
     ###############################################################################################################
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def get_binary(self, url: str, accept: str = None, token: str = None) -> Iterator[bytes]:
+    def get_binary(self, url: str, accept: str = None) -> Iterator[bytes]:
         """
         Implementation of GET for binary data.
 
         :param url: Url to use
         :param accept: Mimetype for accept. Will be set to */* if not given.
-        :param token: External token to use. Default is False to handle token internally.
-        :return: Yields an iterator over raw chunks of the response payload.
+        :return: Yields over raw chunks of the response payload.
         """
         with requests.get(url,
                           headers=self._get_headers(
-                              token,
                               {"Content-Type": None, "Accept": (accept or "*/*")}
                           ),
                           verify=False,
                           stream=True,
                           proxies=self._get_proxies()) as res:
-            self._check_response(res, token)
+            self._log_communication(res, response_body=False)
+            self._check_response(res)
+            self._check_status_error(res)
 
             yield from res.iter_content(chunk_size=65536)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def post_binary(self, url: str, data: Any, content_type: str = None, token: str = None) -> dict:
+    def post_binary(self, url: str, data: Any, content_type: str = None) -> dict:
         """
         Implementation of POST for binary data.
 
         :param url: Url to use
         :param data: The payload to POST. This can be anything 'requests.post(data=...)' supports.
         :param content_type: The content type of the data. Defaults to "application/octet-stream" internally if unset.
-        :param token: External token to use. Default is False to handle token internally.
         :return: The payload of the response
         """
         res = requests.post(url,
                             data=data,
                             headers=self._get_headers(
-                                token,
                                 {"Content-Type": (content_type or "application/octet-stream")}
                             ),
                             verify=False,
                             proxies=self._get_proxies())
-        return self._parse_json_response(res, token)
+        self._log_communication(res, request_body=False)
+        return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def put_binary(self, url: str, data: Any, content_type: str = None, token: str = None) -> dict:
+    def put_binary(self, url: str, data: Any, content_type: str = None) -> dict:
         """
         Implementation of PUT for binary data.
 
         :param url: Url to use
         :param data: The payload to PUT. This can be anything 'requests.put(data=...)' supports.
         :param content_type: The content type of the data. Defaults to "application/octet-stream" internally if unset.
-        :param token: External token to use. Default is False to handle token internally.
         :return: The payload of the response
         """
         res = requests.put(url,
                            data=data,
                            headers=self._get_headers(
-                               token,
                                {"Content-Type": (content_type or "application/octet-stream")}
                            ),
                            verify=False,
                            proxies=self._get_proxies())
-        return self._parse_json_response(res, token)
+        self._log_communication(res, request_body=False)
+        return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def get(self, url: str, token: str = None) -> dict:
+    def get(self, url: str) -> dict:
         """
         Implementation of GET
 
         :param url: Url to use
-        :param token: External token to use. Default is False to handle token internally.
         :return: The payload of the response
         """
         res = requests.get(url,
-                           headers=self._get_headers(token, {"Content-Type": None}),
+                           headers=self._get_headers({"Content-Type": None}),
                            verify=False,
                            proxies=self._get_proxies())
-        return self._parse_json_response(res, token)
+        self._log_communication(res)
+        return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def post(self, url: str, data: Any, token: str = None) -> dict:
+    def post(self, url: str, data: Any) -> dict:
         """
         Implementation of POST
 
         :param url: Url to use
         :param data: The payload to POST
-        :param token: External token to use. Default is False to handle token internally.
         :return: The payload of the response
         """
         res = requests.post(url,
                             json=data,
-                            headers=self._get_headers(token),
+                            headers=self._get_headers(),
                             verify=False,
                             proxies=self._get_proxies())
-        return self._parse_json_response(res, token)
+        self._log_communication(res)
+        return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def put(self, url: str, data: Any, token: str = None) -> dict:
+    def put(self, url: str, data: Any) -> dict:
         """
         Implementation of PUT
 
         :param url: Url to use
         :param data: The payload to PUT
-        :param token: External token to use. Default is False to handle token internally.
         :return: The payload of the response
         """
         res = requests.put(url,
                            json=data,
-                           headers=self._get_headers(token),
+                           headers=self._get_headers(),
                            verify=False,
                            proxies=self._get_proxies())
-        return self._parse_json_response(res, token)
+        self._log_communication(res)
+        return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def delete(self, url: str, token: str = None) -> dict:
+    def delete(self, url: str) -> dict:
         """
         Implementation of DELETE
 
         :param url: Url to use
-        :param token: External token to use. Default is False to handle token internally.
         :return: The payload of the response
         """
         res = requests.delete(url,
-                              headers=self._get_headers(token, {"Content-Type": None}),
+                              headers=self._get_headers({"Content-Type": None}),
                               verify=False,
                               proxies=self._get_proxies())
-        return self._parse_json_response(res, token)
+        self._log_communication(res)
+        return self._parse_json_response(res)
 
     ###############################################################################################################
     # Tool methods for requests
@@ -348,11 +221,10 @@ class AbstractAPI(APIConfig):
         """
         return self._proxies.copy() if self._proxies else None
 
-    def _get_headers(self, token: str, override: dict = None) -> dict:
+    def _get_headers(self, override: dict = None) -> dict:
         """
         Create a header dict for requests. Uses abstract method *self._handle_token()*.
 
-        :param token: An external token that gets passed through if it is not None.
         :param override: Dict of headers that override the internal headers. If a header key is set to value None,
                it will be removed from the headers.
         :return: A dict containing header values for requests.
@@ -360,10 +232,10 @@ class AbstractAPI(APIConfig):
         headers = self._headers.copy()
 
         if isinstance(override, dict):
-            headers.update(override)
+            headers.update({self._capitalize_header(k): v for k, v in override.items()})
             headers = {k: v for k, v in headers.items() if v is not None}
 
-        token = self._handle_token(token)
+        token = self._handle_token()
         if token:
             headers['Authorization'] = "Bearer " + token
 
@@ -380,21 +252,69 @@ class AbstractAPI(APIConfig):
         params_cleaned = {k: v for k, v in params.items() if v is not None}
         return ('?' + urlencode(params_cleaned, quote_via=quote, safe="/,")) if params_cleaned else ""
 
-    def _parse_json_response(self, res: requests.Response, token: str = None) -> dict:
+    def _parse_json_response(self, res: requests.Response) -> dict:
         """
         Parse the response of the backend.
 
         :param res: The result payload
-        :param token: The external token if provided
         :return: The result payload
         :raises RequestException: On HTTP errors.
         """
         try:
-            self._check_response(res, token)
+            self._check_response(res)
             self._check_status_error(res)
             return res.json()
         except (json.JSONDecodeError, ValueError):
             return {"error": {"message": res.text, "code": 999}}
+
+    def _log_communication(self, res: requests.Response, request_body: bool = True, response_body: bool = True) -> None:
+        """
+        Log communication that flows across requests' methods. Contains options to disable logging of the body portions
+        of the requests to avoid dumping large amounts of data and breaking streaming of results.
+
+        This log does not log an exact binary representation of the transmitted bodies but uses the encoding defined
+        in *res* to print it as strings.
+
+        Authorization and cookie headers will be obscured by only displaying the last six characters of their values.
+
+        :param res: The response of a request. Also contains the request.
+        :param request_body: Option to disable the logging of the request_body.
+        :param response_body: Option to disable the logging of the response_body.
+        :return:
+        """
+
+        def _log_headers(headers) -> str:
+            result: str = ""
+            for k, v in headers.items():
+                cap_key: str = self._capitalize_header(k)
+                if cap_key == "Authorization" or cap_key.find("Cookie") != -1:
+                    v = f"{v[:6]}[{len(v) - 12} characters hidden]{v[-6:]}"
+                result += f"{k}: {v}\n"
+            return result
+
+        def _body_str(body: Union[str, bytes], encoding: str) -> str:
+            if body is None:
+                return ""
+            if isinstance(body, bytes):
+                body = str(body, encoding)
+            return body
+
+        if not res.ok or logger.isEnabledFor(logging.DEBUG):
+            log_message = f'''
+################ request ################
+{res.request.method} {res.request.url}
+{_log_headers(res.request.headers)}
+{_body_str(res.request.body, res.encoding) if request_body else "(body hidden)"}
+################ response ################
+{res.status_code} {res.reason} {res.url}
+{_log_headers(res.headers)}
+{_body_str(res.text, res.encoding) if response_body else "(body hidden)"}
+'''
+
+            if not res.ok:
+                logger.error(log_message)
+            else:
+                logger.debug(log_message)
 
     def _check_status_error(self, res: requests.Response) -> None:
         """
@@ -427,31 +347,305 @@ class AbstractAPI(APIConfig):
 
     ###############################################################################################################
     # Response and token handling
-    # Abstract methods
+    # Child classes have to override those classes for special handling like token and header handling.
     ###############################################################################################################
 
-    @abstractmethod
-    def _check_response(self, res: requests.Response, token: str) -> None:
+    def _check_response(self, res: requests.Response) -> None:
         """
-        Abstract base function for response checking. Might check for authentication errors depending on the context.
+        Root method. No response checking here.
 
         :param res: The result payload
-        :param token: The external token if provided
         """
-        raise RuntimeError('Cannot use _check_response of this abstract class.')
+        return
+
+    def _handle_token(self) -> Optional[str]:
+        """
+        Just return None, therefore a header without Authorization
+        will be created in *self._get_headers()*.
+
+        Does *not* try to obtain or refresh a token.
+
+        :return: Always None here, derived classes should return a token string.
+        """
+        return None
+
+
+###################################################################################################################
+# TokenApiHandler classes
+###################################################################################################################
+
+
+class AbstractTokenApiHandler(AbstractAPI):
+    """
+    Root class for all TokenApiHandler classes. This class also handles resolving the current api endpoints.
+    """
+
+    def __init__(self,
+                 root_url: str,
+                 raise_exceptions: bool = True,
+                 proxies: dict = None,
+                 headers: dict = None,
+                 custom_endpoints: dict = None):
+        """
+        Constructor
+
+        :param root_url: Root url for HIRO, like https://core.arago.co.
+        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
+        :param proxies: Proxy configuration for *requests*. Default is None.
+        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
+               from /api/version.
+               Example: {"graph": "/api/graph/7.2", "auth": "/api/auth/6.2"}
+        """
+        super().__init__(root_url=root_url,
+                         raise_exceptions=raise_exceptions,
+                         proxies=proxies,
+                         headers=headers)
+
+        self._version_info = None
+        self.custom_endpoints = custom_endpoints
+
+    ###############################################################################################################
+    # Public methods
+    ###############################################################################################################
+
+    def get_api_endpoint_of(self, api_name: str) -> str:
+        """
+        Determines endpoints of the API names. Loads and caches the current API information if necessary.
+
+        :param api_name: Name of the HIRO API
+        :return: endpoint for this API
+        """
+
+        def _remove_slash(_endpoint: str) -> str:
+            return _endpoint[:-1] if _endpoint[-1] == '/' else _endpoint
+
+        if self.custom_endpoints:
+            endpoint = self.custom_endpoints.get(api_name)
+            if endpoint:
+                return _remove_slash(self._root_url + endpoint)
+
+        if not self._version_info:
+            self._version_info = self.get_version()
+
+        api_entry: dict = self._version_info.get(api_name)
+
+        if not api_entry:
+            raise ValueError("No API named '{}' found.".format(api_name))
+
+        return _remove_slash(self._root_url + api_entry.get('endpoint'))
+
+    ###############################################################################################################
+    # REST API operations
+    ###############################################################################################################
+
+    def get_version(self) -> dict:
+        """
+        HIRO REST query API: `GET self._endpoint + '/api/version'`
+
+        :return: The result payload
+        """
+        url = self._root_url + '/api/version'
+        return self.get(url)
+
+    ###############################################################################################################
+    # Token handling
+    ###############################################################################################################
+
+    @property
+    def token(self) -> str:
+        """
+        Return the current token.
+        :return: The current token
+        """
+        raise RuntimeError('Cannot use property of this abstract class.')
 
     @abstractmethod
-    def _handle_token(self, token: str) -> Optional[str]:
+    def refresh_token(self) -> None:
         """
-        Abstract base function for token handling.
-
-        :param token: An external token.
-        :return: A valid token that might have been fetched automatically depending on the context.
+        Refresh the current token.
         """
-        raise RuntimeError('Cannot use _handle_token of this abstract class.')
+        raise RuntimeError('Cannot use method of this abstract class.')
 
 
-class TokenHandler(AbstractAPI):
+class FixedTokenApiHandler(AbstractTokenApiHandler):
+    """
+    TokenApiHandler for a fixed token.
+    """
+
+    _token: str
+
+    def __init__(self,
+                 root_url: str,
+                 token: str,
+                 raise_exceptions: bool = True,
+                 proxies: dict = None,
+                 headers: dict = None,
+                 custom_endpoints: dict = None):
+        """
+        Constructor
+
+        :param root_url: Root url for HIRO, like https://core.arago.co.
+        :param token: The fixed token to use.
+        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
+        :param proxies: Proxy configuration for *requests*. Default is None.
+        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
+               /api/version.
+        """
+        super().__init__(
+            root_url=root_url,
+            raise_exceptions=raise_exceptions,
+            proxies=proxies,
+            headers=headers,
+            custom_endpoints=custom_endpoints
+        )
+
+        self._token = token
+
+    @property
+    def token(self) -> str:
+        return self._token
+
+    def refresh_token(self) -> None:
+        raise FixedTokenError('Token is invalid and cannot be changed because it has been given externally.')
+
+
+class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
+    """
+    TokenApiHandler for a fixed token given as an environment variable.
+    """
+
+    _env_var: str
+
+    def __init__(self,
+                 root_url: str,
+                 env_var: str = 'HIRO_TOKEN',
+                 raise_exceptions: bool = True,
+                 proxies: dict = None,
+                 headers: dict = None,
+                 custom_endpoints: dict = None):
+        """
+        Constructor
+
+        :param root_url: Root url for HIRO, like https://core.arago.co.
+        :param env_var: Name of the environment variable to read for the token. Default is *HIRO_TOKEN*.
+        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
+        :param proxies: Proxy configuration for *requests*. Default is None.
+        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
+               /api/version.
+        """
+        super().__init__(
+            root_url=root_url,
+            raise_exceptions=raise_exceptions,
+            proxies=proxies,
+            headers=headers,
+            custom_endpoints=custom_endpoints
+        )
+
+        self._env_var = env_var
+
+    @property
+    def token(self) -> str:
+        return os.environ[self._env_var]
+
+    def refresh_token(self) -> None:
+        raise FixedTokenError(
+            "Token is invalid and cannot be changed because it has been given as environment variable '{}'"
+            " externally.".format(self._env_var))
+
+
+class TokenInfo:
+    """
+    This class stores token information from the auth api.
+    """
+
+    token: str = None
+    """ The token string """
+    expires_at = -1
+    """ Token expiration in ms since epoch"""
+    refresh_token: str = None
+    """ The refresh token to use - if any."""
+    last_update = 0
+    """ Timestamp of when the token has been fetched in ms."""
+
+    def __init__(self, token: str = None, refresh_token: str = None, expires_at: int = -1):
+        """
+        Constructor
+
+        :param token: The token string
+        :param refresh_token: A refresh token
+        :param expires_at: Token expiration in ms since epoch
+        """
+        self.token = token
+        self.expires_at = expires_at
+        self.refresh_token = refresh_token
+        self.last_update = self.get_epoch_millis() if token else 0
+
+    @staticmethod
+    def get_epoch_millis() -> int:
+        """
+        Get timestamp
+        :return: Current epoch in milliseconds
+        """
+        return int(time.time_ns() / 1000000)
+
+    def parse_token_result(self, res: dict, what: str) -> None:
+        """
+        Parse the result payload and extract token information.
+
+        :param res: The result payload from the backend.
+        :param what: What token command has been issued (for error messages).
+        :raises TokenUnauthorizedError: When the token request returned error 401. This usually means, that this token
+                has expired.
+        :raises AuthenticationTokenError: When the token request returned any other error.
+        """
+        if 'error' in res:
+            message: str = '{}: {}'.format(what, res['error'].get('message'))
+            code: int = int(res['error'].get('code'))
+
+            if code == 401:
+                raise TokenUnauthorizedError(message, code)
+            else:
+                raise AuthenticationTokenError(message, code)
+
+        self.last_update = self.get_epoch_millis()
+
+        self.token = res.get('_TOKEN')
+
+        expires_at = res.get('expires-at')
+        if expires_at:
+            self.expires_at = int(expires_at)
+        else:
+            expires_in = res.get('expires_in')
+            if expires_in:
+                self.expires_at = self.last_update + int(expires_in) * 1000
+
+        refresh_token = res.get('refresh_token')
+        if refresh_token:
+            self.refresh_token = refresh_token
+
+    def expired(self) -> bool:
+        """
+        Check token expiration
+
+        :return: True when the token has been expired (expires_at <= get_epoch_mills())
+        """
+        return self.expires_at <= self.get_epoch_millis()
+
+    def fresh(self, span: int = 30000) -> bool:
+        """
+        Check, whether the last token fetched is younger than span ms.
+
+        :param span: Timespan in ms in which a token is considered fresh. Default is 30 sec (30000ms).
+        :return: True when the last update was less than span ms.
+        """
+
+        return (self.get_epoch_millis() - self.last_update) < span
+
+
+class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
     """
     API Tokens will be fetched using this class. It does not handle any automatic token fetching, refresh or token
     expiry. This has to be checked and triggered by the *caller*.
@@ -464,48 +658,63 @@ class TokenHandler(AbstractAPI):
     _token_info: TokenInfo = None
     """Contains all token information"""
 
-    _lock: threading.RLock = None
+    _lock: threading.RLock
     """Reentrant mutex for thread safety"""
 
+    _username: str
+    _password: str
+    _client_id: str
+    _client_secret: str
+
+    _secure_logging: bool = True
+
     def __init__(self,
+                 root_url: str,
                  username: str,
                  password: str,
                  client_id: str,
                  client_secret: str,
-                 endpoint: str,
-                 raise_exceptions: bool = False,
-                 proxies: dict = None):
+                 secure_logging: bool = True,
+                 raise_exceptions: bool = True,
+                 proxies: dict = None,
+                 headers: dict = None,
+                 custom_endpoints: dict = None):
         """
         Constructor
 
+        :param root_url: Root url for HIRO, like https://core.arago.co.
         :param username: Username for authentication
         :param password: Password for authentication
         :param client_id: OAuth client_id for authentication
         :param client_secret: OAuth client_secret for authentication
-        :param endpoint: Full url for auth API
-        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False.
+        :param secure_logging: If this is enabled, payloads that might contain sensitive information are not logged.
+        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
+        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
+               /api/version.
         """
-        super().__init__(username=username,
-                         password=password,
-                         client_id=client_id,
-                         client_secret=client_secret,
-                         endpoint=endpoint,
-                         raise_exceptions=raise_exceptions,
-                         proxies=proxies)
+        super().__init__(
+            root_url=root_url,
+            raise_exceptions=raise_exceptions,
+            proxies=proxies,
+            headers=headers,
+            custom_endpoints=custom_endpoints
+        )
+
+        self._username = username
+        self._password = password
+        self._client_id = client_id
+        self._client_secret = client_secret
+
+        self._secure_logging = secure_logging
 
         self._token_info = TokenInfo()
         self._lock = threading.RLock()
 
-    @classmethod
-    def new_from(cls, other: APIConfig):
-        return cls(other._username,
-                   other._password,
-                   other._client_id,
-                   other._client_secret,
-                   other._auth_endpoint,
-                   other._raise_exceptions,
-                   other._proxies)
+    @property
+    def endpoint(self):
+        return self.get_api_endpoint_of('auth')
 
     @property
     def token(self) -> str:
@@ -517,6 +726,21 @@ class TokenHandler(AbstractAPI):
 
             return self._token_info.token
 
+    def _log_communication(self, res: requests.Response, request_body: bool = True, response_body: bool = True) -> None:
+        """
+        Logging under a secure aspect. Hides sensitive information unless *self._secure_logging* is set to False.
+
+        :param res: The response of a request. Also contains the request.
+        :param request_body: Option to disable the logging of the request_body. If set to True, will only remain True
+               internally when *self._secure_logging* is set to False.
+        :param response_body: Option to disable the logging of the response_body.  If set to True, will only remain True
+               internally when *self._secure_logging* is set to False or *res.status_code* != 200.
+        """
+        log_request_body = not self._secure_logging and request_body is True
+        log_response_body = (res.status_code != 200 or not self._secure_logging) and response_body is True
+
+        super()._log_communication(res, request_body=log_request_body, response_body=log_response_body)
+
     def get_token(self) -> None:
         """
         Construct a request to obtain a new token. API self._endpoint + '/app'
@@ -524,11 +748,24 @@ class TokenHandler(AbstractAPI):
         :raises AuthenticationTokenError: When no auth_endpoint is set.
         """
         with self._lock:
-            if not self._endpoint:
+            if not self.endpoint:
                 raise AuthenticationTokenError(
                     'Token is invalid and endpoint (auth_endpoint) for obtaining is not set.')
 
-            url = self._endpoint + '/app'
+            if not self._username or not self._password or not self._client_id or not self._client_secret:
+                msg = ""
+                if not self._username:
+                    msg += "'username'"
+                if not self._password:
+                    msg += (", " if msg else "") + "'password'"
+                if not self._client_id:
+                    msg += (", " if msg else "") + "'client_id'"
+                if not self._client_secret:
+                    msg += (", " if msg else "") + "'client_secret'"
+                raise AuthenticationTokenError(
+                    "{} is missing required parameter(s) {}.".format(self.__class__.__name__, msg))
+
+            url = self.endpoint + '/app'
             data = {
                 "client_id": self._client_id,
                 "client_secret": self._client_secret,
@@ -537,7 +774,7 @@ class TokenHandler(AbstractAPI):
             }
 
             res = self.post(url, data)
-            self._token_info.parse_token_result(res, 'Get token')
+            self._token_info.parse_token_result(res, "{}.get_token".format(self.__class__.__name__))
 
     def refresh_token(self) -> None:
         """
@@ -547,7 +784,7 @@ class TokenHandler(AbstractAPI):
         :raises AuthenticationTokenError: When no auth_endpoint is set.
         """
         with self._lock:
-            if not self._endpoint:
+            if not self.endpoint:
                 raise AuthenticationTokenError(
                     'Token is invalid and endpoint (auth_endpoint) for refresh is not set.')
 
@@ -558,7 +795,7 @@ class TokenHandler(AbstractAPI):
                 self.get_token()
                 return
 
-            url = self._endpoint + '/refresh'
+            url = self.endpoint + '/refresh'
             data = {
                 "client_id": self._client_id,
                 "client_secret": self._client_secret,
@@ -567,123 +804,100 @@ class TokenHandler(AbstractAPI):
 
             try:
                 res = self.post(url, data)
-                self._token_info.parse_token_result(res, 'Refresh token')
-            except TokenExpiredError:
+                self._token_info.parse_token_result(res, "{}.refresh_token".format(self.__class__.__name__))
+            except AuthenticationTokenError:
                 self.get_token()
 
     ###############################################################################################################
     # Response and token handling
     ###############################################################################################################
 
-    def _check_response(self, res: requests.Response, token: str) -> None:
+    def _check_response(self, res: requests.Response) -> None:
         """
         This is a dummy method. No response checking here.
 
         :param res: The result payload
-        :param token: The external token if provided
         """
         return
 
-    def _handle_token(self, token: str) -> Optional[str]:
+    def _handle_token(self) -> Optional[str]:
         """
-        Just return *token*. This *token* is usually None in this context, therefore a header without Authorization
+        Just return None, therefore a header without Authorization
         will be created in *self._get_headers()*.
 
         Does *not* try to obtain or refresh a token.
 
-        :param token: An external token that gets passed through - usually None in this context here.
         :return: *token* given.
         """
-        return token
+        return None
 
 
-class AuthenticatedAPI(AbstractAPI):
+###################################################################################################################
+# Root class for different API groups
+###################################################################################################################
+
+class AbstractHandledAPI(AbstractAPI):
     """
     Python implementation for accessing a REST API with authentication.
     """
 
-    _token_handler: TokenHandler = None
+    _api_handler: AbstractTokenApiHandler
+    _api_name: str
 
     def __init__(self,
-                 username: str,
-                 password: str,
-                 client_id: str,
-                 client_secret: str,
-                 endpoint: str,
-                 auth_endpoint: str,
-                 raise_exceptions: bool = False,
-                 proxies: dict = None,
-                 token_handler: TokenHandler = None):
+                 api_handler: AbstractTokenApiHandler,
+                 api_name: str):
         """
         Constructor
 
-        :param username: Username for authentication
-        :param password: Password for authentication
-        :param client_id: OAuth client_id for authentication
-        :param client_secret: OAuth client_secret for authentication
-        :param endpoint: Full url for IAM API
-        :param auth_endpoint: Full url for auth
-        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is False
-        :param proxies: Proxy configuration for *requests*. Default is None.
-        :param token_handler: External token handler. An internal one is created when this is unset.
+        :param api_name: Name of the API to use.
+        :param api_handler: External API handler.
         """
-        super().__init__(username,
-                         password,
-                         client_id,
-                         client_secret,
-                         endpoint,
-                         auth_endpoint,
-                         raise_exceptions,
-                         proxies)
+        if not api_handler or not api_name:
+            raise ValueError("Cannot authenticate against HIRO without *api_handler* and *api_name*.")
 
-        self._token_handler = token_handler or TokenHandler.new_from(self)
+        super().__init__(root_url=api_handler._root_url,
+                         raise_exceptions=api_handler._raise_exceptions,
+                         proxies=api_handler._proxies,
+                         headers=api_handler._headers)
 
-    @classmethod
-    def new_from(cls, other: APIConfig, token_handler: TokenHandler = None):
-        return cls(other._username,
-                   other._password,
-                   other._client_id,
-                   other._client_secret,
-                   other._endpoint,
-                   other._auth_endpoint,
-                   other._raise_exceptions,
-                   other._proxies,
-                   token_handler)
+        self._api_handler = api_handler
+        self._api_name = api_name
+
+    @property
+    def endpoint(self) -> str:
+        return self._api_handler.get_api_endpoint_of(self._api_name)
 
     ###############################################################################################################
     # Response and token handling
     ###############################################################################################################
 
-    def _check_response(self, res: requests.Response, token: str) -> None:
+    def _check_response(self, res: requests.Response) -> None:
         """
         Response checking. Tries to refresh the token on status_code 401, then raises RequestException to try
         again using backoff.
 
         :param res: The result payload
-        :param token: The external token if provided
         :raises requests.exceptions.RequestException: When an error 401 occurred and the token has been refreshed.
-        :raises AuthenticationTokenError: When an external token has been provided but code 401 has been returned
-                                          from the backend.
         """
         if res.status_code == 401:
-            if token:
-                raise AuthenticationTokenError(
-                    'Cannot refresh invalid token that was given externally.')
-
-            self._token_handler.refresh_token()
+            self._api_handler.refresh_token()
 
             # Raise this exception to trigger retry with backoff
             raise requests.exceptions.RequestException
 
-    def _handle_token(self, token: str) -> Optional[str]:
+    def _handle_token(self) -> Optional[str]:
         """
-        Try to return a valid token by passing it, or obtaining or refreshing it.
+        Try to return a valid token by obtaining or refreshing it.
 
-        :param token: An external token that gets passed through if it is not None.
         :return: A valid token.
         """
-        return token or self._token_handler.token
+        return self._api_handler.token
 
+
+###################################################################################################################
+# Exceptions
+###################################################################################################################
 
 class AuthenticationTokenError(Exception):
     """
@@ -704,8 +918,15 @@ class AuthenticationTokenError(Exception):
             return "{}: {} ({})".format(self.__class__.__name__, self.message, self.code)
 
 
-class TokenExpiredError(AuthenticationTokenError):
+class TokenUnauthorizedError(AuthenticationTokenError):
     """
-    Child of *AuthenticationTokenErrors*. Used when tokens expire.
+    Child of *AuthenticationTokenErrors*. Used when tokens expire with error 401.
+    """
+    pass
+
+
+class FixedTokenError(AuthenticationTokenError):
+    """
+    Child of *AuthenticationTokenErrors*. Used when tokens are fixed and cannot be refreshed.
     """
     pass

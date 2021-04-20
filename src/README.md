@@ -20,15 +20,16 @@ Most of the documentation is done in the sourcecode.
 Example to use the straightforward graph api client without any batch processing:
 
 ```python
-from hiro_graph_client import HiroGraph
+from hiro_graph_client import PasswordAuthTokenApiHandler, HiroGraph
 
-hiro_client = HiroGraph(
-    username='',
-    password='',
-    client_id='',
-    client_secret='',
-    graph_endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/
-    auth_endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
+hiro_client: HiroGraph = HiroGraph(
+    api_handler=PasswordAuthTokenApiHandler(
+        root_url="https://core.arago.co",
+        username='',
+        password='',
+        client_id='',
+        client_secret=''
+    )
 )
 
 # The commands of the Graph API are methods of the class HIROGraph.
@@ -45,15 +46,16 @@ print(query_result)
 Example to use the batch client to process a batch of requests:
 
 ```python
-from hiro_graph_client import HiroGraphBatch
+from hiro_graph_client import PasswordAuthTokenApiHandler, HiroGraphBatch
 
-hiro_batch_client = HiroGraphBatch(
-    username='',
-    password='',
-    client_id='',
-    client_secret='',
-    graph_endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/
-    auth_endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
+hiro_batch_client: HiroGraphBatch = HiroGraphBatch(
+    api_handler=PasswordAuthTokenApiHandler(
+        root_url="https://core.arago.co",
+        username='',
+        password='',
+        client_id='',
+        client_secret=''
+    )
 )
 
 # See code documentation about the possible commands and their attributes.
@@ -83,28 +85,16 @@ Example to use the batch client to process a batch of requests with callbacks fo
 ```python
 from typing import Any, Iterator
 
-from hiro_graph_client import HiroGraphBatch, HiroResultCallback
+from hiro_graph_client import AbstractTokenApiHandler, PasswordAuthTokenApiHandler, HiroGraphBatch, HiroResultCallback
 
 
 class RunBatch(HiroResultCallback):
     hiro_batch_client: HiroGraphBatch
 
-    def __init__(self,
-                 username: str,
-                 password: str,
-                 client_id: str,
-                 client_secret: str,
-                 graph_endpoint: str,
-                 auth_endpoint: str):
+    def __init__(self, api_handler: AbstractTokenApiHandler):
         self.hiro_batch_client = HiroGraphBatch(
             callback=self,
-            graph_endpoint=graph_endpoint,
-            auth_endpoint=auth_endpoint,
-            username=username,
-            password=password,
-            client_id=client_id,
-            client_secret=client_secret
-        )
+            api_handler=api_handler)
 
     def result(self, data: Any, code: int) -> None:
         """
@@ -117,13 +107,14 @@ class RunBatch(HiroResultCallback):
         self.hiro_batch_client.multi_command(command_iter)
 
 
-batch_runner = RunBatch(
-    username='',
-    password='',
-    client_id='',
-    client_secret='',
-    graph_endpoint='https://[server]:8443/api/graph/7.4',  # see https://developer.hiro.arago.co/7.0/api/
-    auth_endpoint='https://[server]:8443/api/auth/6'  # see https://developer.hiro.arago.co/7.0/api/
+batch_runner: RunBatch = RunBatch(
+    api_handler=PasswordAuthTokenApiHandler(
+        root_url="https://core.arago.co",
+        username='',
+        password='',
+        client_id='',
+        client_secret=''
+    )
 )
 
 # See code documentation about the possible commands and their attributes. This is a more compact notation of the
@@ -142,6 +133,100 @@ commands: list = [
 ]
 
 batch_runner.run(commands)
+```
+
+## TokenApiHandler
+
+Authorization against the HIRO Graph is done via tokens. These tokens are handled by classes of
+type `AbstractTokenApiHandler` in this library. Each of the Hiro-Client-Object (`HiroGraph`, `HiroGraphBatch`
+, `HiroApp`, etc.) need to have some kind of TokenApiHandler at construction.
+
+This TokenApiHandler is also responsible to determine the most up-to-date endpoints for the API calls. You can supply a
+custom list of endpoints by using the dict parameter `custom_endpoints=` on construction.
+
+A custom list of headers can also be set via the dict parameter `headers=` in the constructor. These would update the
+internal headers. Header names can be supplied in any upper/lower-case.
+
+This library supplies the following TokenApiHandlers:
+
+---
+
+### FixedTokenApiHandler
+
+A simple TokenApiHandler that is generated with a preset-token at construction. Cannot update its token.
+
+---
+
+### EnvironmentTokenApiHandler
+
+A TokenApiHandler that reads an environment variable (default is `HIRO_TOKEN`) from the runtime environment. Will only
+update its token when the environment variable changes externally.
+
+---
+
+### PasswordAuthTokenApiHandler
+
+This TokenApiHandler logs into the HiroAuth backend and obtains a token from login credentials. This is also the only
+TokenApiHandler (so far) that automatically tries to renew a token from the backend when it has expired.
+
+---
+
+All code examples in this documentation can use these TokenApiHandlers interchangeably, depending on how such a token is
+provided.
+
+The HiroGraph example from above with another customized TokenApiHandler:
+
+```python
+from hiro_graph_client import EnvironmentTokenApiHandler, HiroGraph
+
+hiro_client: HiroGraph = HiroGraph(
+    api_handler=EnvironmentTokenApiHandler(
+        root_url="https://core.arago.co",
+        env_var='HIRO_TOKEN',  # optional,
+        headers={
+            'User-Agent': 'My special user agent'
+        },
+        custom_endpoints={
+            "graph": "/api/graph/7.2",
+            "auth": "/api/auth/6.2"
+        }
+    )
+)
+
+# The commands of the Graph API are methods of the class HIROGraph.
+# The next line executes a vertex query for instance. 
+query_result = hiro_client.query('ogit\\/_type:"ogit/MARS/Machine"')
+
+print(query_result)
+```
+
+## Handler sharing
+
+When you need to access multiple APIs, it is a good idea to share the TokenApiHandler between them. This avoids
+unnecessary api version requests and unnecessary token requests with the PasswordAuthTokenApiHandler for instance.
+
+```python
+from hiro_graph_client import HiroGraph, HiroGraphBatch, HiroApp, PasswordAuthTokenApiHandler
+
+hiro_api_handler = PasswordAuthTokenApiHandler(
+    root_url="https://core.arago.co",
+    username='',
+    password='',
+    client_id='',
+    client_secret=''
+)
+
+hiro_client: HiroGraph = HiroGraph(
+    api_handler=hiro_api_handler
+)
+
+hiro_batch_client: HiroGraphBatch = HiroGraphBatch(
+    api_handler=hiro_api_handler
+)
+
+hiro_app_client: HiroApp = HiroApp(
+    api_handler=hiro_api_handler
+)
 ```
 
 ## Graph Client "HiroGraph"
@@ -194,25 +279,30 @@ See examples from [HiroGraphBatch](#hirographbatch) above.
 ### Input data format
 
 The data format for input of `HiroGraphBatch.multi_command` is a list. This method iterates over this list and treats
-each dict it finds as a key-value-pair with the name of a command as key and either a single dict of attributes or a
+each dict it finds as a key-value-pair with the name of a command as key and either a single dict of attributes, or a
 list of multiple attribute dicts as value(s) for this command.
 
-These commands are run in parallel across eight threads by default, so their order is likely to change in the results.
-Commands given in these command lists should therefore never depend on each other. See the documentation on the
+These commands are run in parallel across up to eight threads by default, so their order is likely to change in the
+results. Commands given in these command lists should therefore never depend on each other. See the documentation on the
 constructor `HiroGraphBatch.__init__` for more information.
 
-The following two examples are equivalent:
+The following two (bad!) examples are equivalent:
 
 ```python
 commands: list = [
     {
-        "handle_vertices": {
+        "create_vertices": {
             "ogit/_xid": "haas1000:connector1:machine1"
         }
     },
     {
         "handle_vertices": {
             "ogit/_xid": "haas1000:connector2:machine2"
+        }
+    },
+    {
+        "handle_vertices": {
+            "ogit/_xid": "haas1000:connector3:machine3"
         }
     },
     {
@@ -223,6 +313,11 @@ commands: list = [
     {
         "delete_vertices": {
             "ogit/_xid": "haas1000:connector2:machine2"
+        }
+    },
+    {
+        "delete_vertices": {
+            "ogit/_xid": "haas1000:connector3:machine3"
         }
     }
 ]
@@ -231,12 +326,17 @@ commands: list = [
 ```python
 commands: list = [
     {
-        "handle_vertices": [
+        "create_vertices": [
             {
                 "ogit/_xid": "haas1000:connector1:machine1"
-            },
+            }
+        ],
+        "handle_vertices": [
             {
                 "ogit/_xid": "haas1000:connector2:machine2"
+            },
+            {
+                "ogit/_xid": "haas1000:connector3:machine3"
             }
         ],
         "delete_vertices": [
@@ -245,11 +345,69 @@ commands: list = [
             },
             {
                 "ogit/_xid": "haas1000:connector2:machine2"
+            },
+            {
+                "ogit/_xid": "haas1000:connector3:machine3"
             }
         ]
     }
 ]
 ```
+
+These examples are bad, because delete_vertices depends on create/handle_vertices (there has to be a vertex first before
+it can be deleted). You should call `HiroGraphBatch.multi_command` twice in this case:
+
+```python
+commands1: list = [
+    {
+        "create_vertices": [
+            {
+                "ogit/_xid": "haas1000:connector1:machine1"
+            }
+        ],
+        "handle_vertices": [
+            {
+                "ogit/_xid": "haas1000:connector2:machine2"
+            },
+            {
+                "ogit/_xid": "haas1000:connector3:machine3"
+            }
+        ]
+    }
+]
+
+commands2: list = [
+    {
+        "delete_vertices": [
+            {
+                "ogit/_xid": "haas1000:connector1:machine1"
+            },
+            {
+                "ogit/_xid": "haas1000:connector2:machine2"
+            },
+            {
+                "ogit/_xid": "haas1000:connector3:machine3"
+            }
+        ]
+    }
+]
+
+query_results = []
+
+query_results.extend(hiro_batch_client.multi_command(commands1))
+query_results.extend(hiro_batch_client.multi_command(commands2))
+```
+
+#### IOCarrier
+
+When uploading attachments into the HIRO Graph, it is best practice streaming that data when possible. To avoid having
+many open IO connections when uploading many files for instance, children of the class `AbstractIOCarrier` can be
+implemented and used. Children that derive from this class open their IO just before the upload and close it immediately
+afterwards.
+
+This library provides a class `BasicFileIOCarrier` for file operations.
+
+See [Example for add_attachments](#add_attachments).
 
 ### Result data format
 
@@ -556,7 +714,7 @@ binary attachments that might be given in their attributes.
 * Content attributes are given as a dict with a key `_content_data` which contains:
     * `data`: Content to upload. This can be anything the Python library `requests` supports as attribute `data=`
       in  `requests.post(data=...)`. If you set an IO object as data, it will be streamed. Also take a look at the
-      class `AbstractIOCarrier` to transparently handle opening and closing of IO sources.
+      class `AbstractIOCarrier` to transparently handle opening and closing of IO sources - see [IOCarrier](#iocarrier).
     * `mimetype`: (optional) Content-Type of the content.
 
 Example for edge data:
@@ -642,15 +800,13 @@ commands: list = [
                 "ogit/type": "text",
                 "_content_data": {
                     "mimetype": "text/plain",
-                    "data": FileIOCarrier('<filename>')
+                    "data": BasicFileIOCarrier('<filename>')
                 }
             }
         ]
     }
 ]
 ```
-
-`FileIOCarrier` in the example above is a hypothetical class that derives from `AbstractIOCarrier`.
 
 ---
 
@@ -840,7 +996,7 @@ https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Storage]_Blob/pos
 * `_content_data`: A dict with the following keys:
     * `data`: Content to upload. This can be anything the Python library `requests` supports as attribute `data=`
       in  `requests.post(data=...)`. If you set an IO object as data, it will be streamed. Also take a look at the
-      class `AbstractIOCarrier` to transparently handle opening and closing of IO sources.
+      class `AbstractIOCarrier` to transparently handle opening and closing of IO sources - see [IOCarrier](#iocarrier).
     * `mimetype`: (optional) Content-Type of the content.
 
 Example:
@@ -860,15 +1016,13 @@ commands: list = [
                 "ogit/_xid": "attachment:arago:test:1:lorem-ipsum",
                 "_content_data": {
                     "mimetype": "text/plain",
-                    "data": FileIOCarrier('<filename>')
+                    "data": BasicFileIOCarrier('<filename>')
                 }
             }
         ]
     }
 ]
 ```
-
-`FileIOCarrier` in the example above is a hypothetical class that derives from `AbstractIOCarrier`.
 
 ---
 (c) 2021 arago GmbH

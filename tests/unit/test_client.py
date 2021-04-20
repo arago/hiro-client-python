@@ -1,27 +1,16 @@
 # from typing import Any, Iterator
 #
-# from hiro_graph_client import HiroGraph, HiroGraphBatch, HiroResultCallback
+# from hiro_graph_client import PasswordAuthTokenApiHandler, AbstractTokenApiHandler, HiroGraph
+# from hiro_graph_client.batchclient import HiroResultCallback, HiroGraphBatch
 #
 #
 # class RunBatch(HiroResultCallback):
 #     hiro_batch_client: HiroGraphBatch
 #
-#     def __init__(self,
-#                  username: str,
-#                  password: str,
-#                  client_id: str,
-#                  client_secret: str,
-#                  graph_endpoint: str,
-#                  auth_endpoint: str):
+#     def __init__(self, api_handler: AbstractTokenApiHandler):
 #         self.hiro_batch_client = HiroGraphBatch(
 #             callback=self,
-#             graph_endpoint=graph_endpoint,
-#             auth_endpoint=auth_endpoint,
-#             username=username,
-#             password=password,
-#             client_id=client_id,
-#             client_secret=client_secret
-#         )
+#             api_handler=api_handler)
 #
 #     def result(self, data: Any, code: int) -> None:
 #         print('Data: ' + str(data))
@@ -29,27 +18,27 @@
 #
 #     def run(self, commands: Iterator[dict]):
 #         self.hiro_batch_client.multi_command(commands)
-
-
+#
+#
 class TestClient:
-    USERNAME: str = ''
-    PASSWORD: str = ''
-    CLIENT_ID: str = ''
-    CLIENT_SECRET: str = ''
-    URL: str = 'https://[server]:8443/api/graph/7.2'
-    AUTH_URL: str = 'https://[server]:8443/api/auth/6'
-
+    # hiro_api_handler = PasswordAuthTokenApiHandler(
+    #     root_url='',
+    #     username='',
+    #     password='',
+    #     client_id='',
+    #     client_secret='',
+    #     secure_logging=False,
+    #     custom_endpoints={
+    #         'graph': '/api/graph/7.2'
+    #     },
+    #     headers={
+    #         'user-agent': 'TestClient'
+    #     }
+    # )
+    #
     def test_simple_query(self):
         pass
-
-        # hiro_client: HiroGraph = HiroGraph(
-        #     username=self.USERNAME,
-        #     password=self.PASSWORD,
-        #     client_id=self.CLIENT_ID,
-        #     client_secret=self.CLIENT_SECRET,
-        #     endpoint=self.URL,
-        #     auth_endpoint=self.AUTH_URL
-        # )
+        # hiro_client: HiroGraph = HiroGraph(api_handler=self.hiro_api_handler)
         #
         # query_result: dict = hiro_client.query('ogit\\/_type:"ogit/MARS/Machine"', limit=1, meta=True)
         #
@@ -59,15 +48,7 @@ class TestClient:
 
     def test_batch_command(self):
         pass
-
-        # hiro_batch_client = HiroGraphBatch(
-        #     username=self.USERNAME,
-        #     password=self.PASSWORD,
-        #     client_id=self.CLIENT_ID,
-        #     client_secret=self.CLIENT_SECRET,
-        #     endpoint=self.URL,
-        #     auth_endpoint=self.AUTH_URL
-        # )
+        # hiro_batch_client: HiroGraphBatch = HiroGraphBatch(api_handler=self.hiro_api_handler)
         #
         # commands: list = [
         #     {
@@ -90,15 +71,7 @@ class TestClient:
 
     def test_batch_command_callback(self):
         pass
-
-        # batch_runner: RunBatch = RunBatch(
-        #     endpoint=self.URL,
-        #     auth_endpoint=self.AUTH_URL,
-        #     username=self.USERNAME,
-        #     password=self.PASSWORD,
-        #     client_id=self.CLIENT_ID,
-        #     client_secret=self.CLIENT_SECRET
-        # )
+        # batch_runner: RunBatch = RunBatch(api_handler=self.hiro_api_handler)
         #
         # commands: list = [
         #     {
