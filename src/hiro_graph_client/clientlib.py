@@ -5,8 +5,9 @@ import logging
 import os
 import threading
 import time
+import urllib
 from abc import abstractmethod
-from typing import Optional, Any, Iterator, Union
+from typing import Optional, Any, Iterator, Union, Tuple
 from urllib.parse import quote, urlencode
 
 import backoff
@@ -74,6 +75,9 @@ class AbstractAPI:
 
         if headers:
             self._headers.update({self._capitalize_header(k): v for k, v in headers.items()})
+
+    def get_root_url(self):
+        return self._root_url
 
     @staticmethod
     def _capitalize_header(name: str) -> str:
@@ -395,7 +399,11 @@ class AbstractTokenApiHandler(AbstractAPI):
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
                from /api/version.
-               Example: {"graph": "/api/graph/7.2", "auth": "/api/auth/6.2"}
+               Example: {
+                           "graph": "/api/graph/7.2",
+                           "auth": "/api/auth/6.2",
+                           "action-ws": ("/api/action-ws/1.0", "action-1.0.0")
+                        }
         """
         super().__init__(root_url=root_url,
                          raise_exceptions=raise_exceptions,
@@ -405,25 +413,27 @@ class AbstractTokenApiHandler(AbstractAPI):
         self._version_info = None
         self.custom_endpoints = custom_endpoints
 
+    @staticmethod
+    def _remove_slash(endpoint: str) -> str:
+        return endpoint[:-1] if endpoint[-1] == '/' else endpoint
+
     ###############################################################################################################
     # Public methods
     ###############################################################################################################
 
     def get_api_endpoint_of(self, api_name: str) -> str:
         """
-        Determines endpoints of the API names. Loads and caches the current API information if necessary.
+        Determines endpoints of the API names.
+        Loads and caches the current API information if necessary.
 
         :param api_name: Name of the HIRO API
-        :return: endpoint for this API
+        :return: Full url of endpoint for this API
         """
-
-        def _remove_slash(_endpoint: str) -> str:
-            return _endpoint[:-1] if _endpoint[-1] == '/' else _endpoint
 
         if self.custom_endpoints:
             endpoint = self.custom_endpoints.get(api_name)
             if endpoint:
-                return _remove_slash(self._root_url + endpoint)
+                return self._remove_slash(self._root_url + endpoint)
 
         if not self._version_info:
             self._version_info = self.get_version()
@@ -433,7 +443,69 @@ class AbstractTokenApiHandler(AbstractAPI):
         if not api_entry:
             raise ValueError("No API named '{}' found.".format(api_name))
 
-        return _remove_slash(self._root_url + api_entry.get('endpoint'))
+        return self._remove_slash(self._root_url + api_entry.get('endpoint'))
+
+    def get_websocket_config(self, api_name: str) -> Tuple[
+        str,
+        str,
+        Optional[str],
+        Optional[int],
+        Optional[dict]
+    ]:
+        """
+        Determines endpoints for websockets of the API names.
+        Loads and caches the current API information if necessary.
+        If proxies have been given, the key of the proxy picked needs to be "ws" or "wss" respectively.
+
+        :param api_name: Name of the HIRO API for websockets
+        :return: Tuple of full url of websocket for this API, its protocol, its proxy_host, its proxy port and proxy
+                 auth (if any).
+        """
+
+        def _get_proxy_info(_url: str) -> Tuple[Optional[str], Optional[int], Optional[dict]]:
+            proxies = self._get_proxies()
+            if not proxies:
+                return None, None, None
+
+            url_parts = urllib.parse.urlparse(_url)
+            proxy_url = proxies.get(url_parts.scheme)
+
+            if not proxy_url:
+                return None, None, None
+
+            proxy_url_parts = urllib.parse.urlparse(proxy_url)
+
+            proxy_auth: dict = {
+                proxy_url_parts.username: proxy_url_parts.password
+            } if proxy_url_parts.username else None
+
+            return proxy_url_parts.hostname, proxy_url_parts.port, proxy_auth
+
+        def _construct_result(_endpoint: str, _protocol: str) -> Tuple[
+            str,
+            str,
+            Optional[str],
+            Optional[str],
+            Optional[dict]
+        ]:
+            _url: str = self._root_url.lower().replace('https://', 'wss://').replace('http://', 'ws://')
+            _proxy, _proxy_port, _proxy_auth = _get_proxy_info(_url)
+            return self._remove_slash(_url + endpoint), _protocol, _proxy, _proxy_port, _proxy_auth
+
+        if self.custom_endpoints:
+            endpoint, protocol = self.custom_endpoints.get(api_name)
+            if endpoint:
+                return _construct_result(endpoint, protocol)
+
+        if not self._version_info:
+            self._version_info = self.get_version()
+
+        api_entry: dict = self._version_info.get(api_name)
+
+        if not api_entry:
+            raise ValueError("No WS API named '{}' found.".format(api_name))
+
+        return _construct_result(api_entry.get('endpoint'), api_entry.get('protocol'))
 
     ###############################################################################################################
     # REST API operations
