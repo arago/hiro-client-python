@@ -50,7 +50,8 @@ class AbstractAPI:
                  root_url: str,
                  raise_exceptions: bool = True,
                  proxies: dict = None,
-                 headers: dict = None):
+                 headers: dict = None,
+                 timeout: int = 600):
         """
         Constructor
 
@@ -58,6 +59,7 @@ class AbstractAPI:
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param timeout: Optional timeout for requests. Default is 600 (10 min).
         """
 
         if not root_url:
@@ -66,6 +68,7 @@ class AbstractAPI:
         self._root_url = root_url
         self._proxies = proxies
         self._raise_exceptions = raise_exceptions
+        self._timeout = timeout
 
         self._headers = {
             'Content-Type': 'application/json',
@@ -101,6 +104,7 @@ class AbstractAPI:
                               {"Content-Type": None, "Accept": (accept or "*/*")}
                           ),
                           verify=False,
+                          timeout=self._timeout,
                           stream=True,
                           proxies=self._get_proxies()) as res:
             self._log_communication(res, response_body=False)
@@ -125,6 +129,7 @@ class AbstractAPI:
                                 {"Content-Type": (content_type or "application/octet-stream")}
                             ),
                             verify=False,
+                            timeout=self._timeout,
                             proxies=self._get_proxies())
         self._log_communication(res, request_body=False)
         return self._parse_json_response(res)
@@ -145,6 +150,7 @@ class AbstractAPI:
                                {"Content-Type": (content_type or "application/octet-stream")}
                            ),
                            verify=False,
+                           timeout=self._timeout,
                            proxies=self._get_proxies())
         self._log_communication(res, request_body=False)
         return self._parse_json_response(res)
@@ -160,6 +166,7 @@ class AbstractAPI:
         res = requests.get(url,
                            headers=self._get_headers({"Content-Type": None}),
                            verify=False,
+                           timeout=self._timeout,
                            proxies=self._get_proxies())
         self._log_communication(res)
         return self._parse_json_response(res)
@@ -177,6 +184,7 @@ class AbstractAPI:
                             json=data,
                             headers=self._get_headers(),
                             verify=False,
+                            timeout=self._timeout,
                             proxies=self._get_proxies())
         self._log_communication(res)
         return self._parse_json_response(res)
@@ -194,6 +202,7 @@ class AbstractAPI:
                            json=data,
                            headers=self._get_headers(),
                            verify=False,
+                           timeout=self._timeout,
                            proxies=self._get_proxies())
         self._log_communication(res)
         return self._parse_json_response(res)
@@ -209,6 +218,7 @@ class AbstractAPI:
         res = requests.delete(url,
                               headers=self._get_headers({"Content-Type": None}),
                               verify=False,
+                              timeout=self._timeout,
                               proxies=self._get_proxies())
         self._log_communication(res)
         return self._parse_json_response(res)
@@ -389,6 +399,7 @@ class AbstractTokenApiHandler(AbstractAPI):
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
+                 timeout: int = 600,
                  custom_endpoints: dict = None):
         """
         Constructor
@@ -397,6 +408,7 @@ class AbstractTokenApiHandler(AbstractAPI):
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
                from /api/version.
                Example: {
@@ -408,6 +420,7 @@ class AbstractTokenApiHandler(AbstractAPI):
         super().__init__(root_url=root_url,
                          raise_exceptions=raise_exceptions,
                          proxies=proxies,
+                         timeout=timeout,
                          headers=headers)
 
         self._version_info = None
@@ -553,6 +566,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
+                 timeout: int = 600,
                  custom_endpoints: dict = None):
         """
         Constructor
@@ -562,6 +576,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
         """
@@ -569,6 +584,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
             root_url=root_url,
             raise_exceptions=raise_exceptions,
             proxies=proxies,
+            timeout=timeout,
             headers=headers,
             custom_endpoints=custom_endpoints
         )
@@ -596,6 +612,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
+                 timeout: int = 600,
                  custom_endpoints: dict = None):
         """
         Constructor
@@ -605,6 +622,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
         """
@@ -613,6 +631,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
             raise_exceptions=raise_exceptions,
             proxies=proxies,
             headers=headers,
+            timeout=timeout,
             custom_endpoints=custom_endpoints
         )
 
@@ -750,6 +769,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
+                 timeout: int = 600,
                  custom_endpoints: dict = None):
         """
         Constructor
@@ -763,6 +783,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
         """
@@ -771,6 +792,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
             raise_exceptions=raise_exceptions,
             proxies=proxies,
             headers=headers,
+            timeout=timeout,
             custom_endpoints=custom_endpoints
         )
 
@@ -931,7 +953,8 @@ class AbstractHandledAPI(AbstractAPI):
         super().__init__(root_url=api_handler._root_url,
                          raise_exceptions=api_handler._raise_exceptions,
                          proxies=api_handler._proxies,
-                         headers=api_handler._headers)
+                         headers=api_handler._headers,
+                         timeout=api_handler._timeout)
 
         self._api_handler = api_handler
         self._api_name = api_name
