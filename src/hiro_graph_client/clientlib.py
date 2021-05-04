@@ -388,7 +388,6 @@ class AbstractAPI:
 # TokenApiHandler classes
 ###################################################################################################################
 
-
 class AbstractTokenApiHandler(AbstractAPI):
     """
     Root class for all TokenApiHandler classes. This class also handles resolving the current api endpoints.
@@ -552,6 +551,16 @@ class AbstractTokenApiHandler(AbstractAPI):
         """
         raise RuntimeError('Cannot use method of this abstract class.')
 
+    @abstractmethod
+    def refresh_time(self) -> Optional[int]:
+        """
+        Calculate the time after which the token should be refreshed.
+
+        :return: The timestamp after which the token shall be refreshed or None if the token cannot be refreshed on its
+                 own.
+        """
+        raise RuntimeError('Cannot use method of this abstract class.')
+
 
 class FixedTokenApiHandler(AbstractTokenApiHandler):
     """
@@ -597,6 +606,13 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
 
     def refresh_token(self) -> None:
         raise FixedTokenError('Token is invalid and cannot be changed because it has been given externally.')
+
+    def refresh_time(self) -> Optional[int]:
+        """
+
+        :return: Always none
+        """
+        return None
 
 
 class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
@@ -646,6 +662,13 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
             "Token is invalid and cannot be changed because it has been given as environment variable '{}'"
             " externally.".format(self._env_var))
 
+    def refresh_time(self) -> Optional[int]:
+        """
+
+        :return: Always none
+        """
+        return None
+
 
 class TokenInfo:
     """
@@ -660,19 +683,24 @@ class TokenInfo:
     """ The refresh token to use - if any."""
     last_update = 0
     """ Timestamp of when the token has been fetched in ms."""
+    refresh_offset = 5000
+    """ Milliseconds of offset for token expiry """
 
-    def __init__(self, token: str = None, refresh_token: str = None, expires_at: int = -1):
+    def __init__(self, token: str = None, refresh_token: str = None, expires_at: int = -1, refresh_offset: int = 5000):
         """
         Constructor
 
         :param token: The token string
         :param refresh_token: A refresh token
         :param expires_at: Token expiration in ms since epoch
+        :param refresh_offset: Offset in milliseconds that will be subtracted from the expiry time so a token will be
+                               refreshed in time. Default is 5 seconds.
         """
         self.token = token
         self.expires_at = expires_at
         self.refresh_token = refresh_token
         self.last_update = self.get_epoch_millis() if token else 0
+        self.refresh_offset = refresh_offset
 
     @staticmethod
     def get_epoch_millis() -> int:
@@ -721,9 +749,9 @@ class TokenInfo:
         """
         Check token expiration
 
-        :return: True when the token has been expired (expires_at <= get_epoch_mills())
+        :return: True when the token has been expired *(expires_at - refresh_offset) <= get_epoch_mills()*
         """
-        return self.expires_at <= self.get_epoch_millis()
+        return self.refresh_time() <= self.get_epoch_millis()
 
     def fresh(self, span: int = 30000) -> bool:
         """
@@ -734,6 +762,14 @@ class TokenInfo:
         """
 
         return (self.get_epoch_millis() - self.last_update) < span
+
+    def refresh_time(self) -> Optional[int]:
+        """
+        Calculate the time after which the token should be refreshed.
+
+        :return: expires_at - refresh_offset or None if refresh is not possible.
+        """
+        return self.expires_at - self.refresh_offset if self.expires_at > 0 else None
 
 
 class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
@@ -901,6 +937,14 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                 self._token_info.parse_token_result(res, "{}.refresh_token".format(self.__class__.__name__))
             except AuthenticationTokenError:
                 self.get_token()
+
+    def refresh_time(self) -> Optional[int]:
+        """
+        Calculate refresh time.
+
+        :return: Timestamp after which the token becomes invalid.
+        """
+        return self._token_info.refresh_time()
 
     ###############################################################################################################
     # Response and token handling

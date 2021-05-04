@@ -401,7 +401,7 @@ class HiroBatchRunner:
         """
         To be used with self.for_each_attribute()
 
-        Try to resolve_ids keys that start with "id:" or "xid:". Try to find the
+        Try to resolve_ids keys that start_reader with "id:" or "xid:". Try to find the
         ogit/_id of a vertex by using the value for such a key in the graph. Return a tuple of (key, value) with the key
         without its prefix "id:" or "xid:" and the value resolved to a real "ogit/_id".
 
@@ -555,7 +555,7 @@ class HiroBatchRunner:
         :param attributes: A dict of attributes to handle.
         :return: A response dict - usually directly the structure received from the backend.
         """
-        raise RuntimeError("Cannot run within HiroCommandBatch directly.")
+        raise RuntimeError("Cannot _run within HiroCommandBatch directly.")
 
 
 class CreateVerticesRunner(HiroBatchRunner):
@@ -1117,7 +1117,7 @@ class HiroGraphBatch:
             ...
 
 
-        with payload being a list of dict containing the attributes to run with that command.
+        with payload being a list of dict containing the attributes to _run with that command.
 
         :param command_iter: An iterator for a dict of pairs "[command]:payload".
         :return a list with results when no callback is set, None otherwise.
