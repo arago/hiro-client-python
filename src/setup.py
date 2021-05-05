@@ -14,10 +14,12 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 
 subversion = timestamp.make_timestamp()
 
-version_by_git.create_version_file()
+name = 'hiro_graph_client'
+
+version_by_git.create_version_file(name)
 
 setup(
-    name="hiro_graph_client",
+    name=name,
     version=hiro_graph_client.__version__,
     packages=find_packages(),
     python_requires='>=3.7',
