@@ -7,7 +7,7 @@ from abc import abstractmethod
 from typing import Optional
 from uuid import uuid4
 
-from hiro_graph_client import AbstractTokenApiHandler
+from hiro_graph_client.clientlib import AbstractTokenApiHandler
 from hiro_graph_client.websocketlib import AbstractHandledWebSocket, CloseWebSocketException
 from websocket import WebSocketApp, WebSocketException
 

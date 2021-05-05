@@ -1,21 +1,25 @@
-import datetime
 from os import path
 
-from hiro_graph_client import __version__
 from setuptools import setup, find_packages
+
+import hiro_graph_client
+import timestamp
+import version_by_git
 
 # read the contents of your README file
 this_directory = path.abspath(path.dirname(__file__))
+
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
-subversion = datetime.datetime.now(tz=datetime.timezone.utc).strftime('%Y%m%d%H%M%S')
+subversion = timestamp.make_timestamp()
+
+version_by_git.create_version_file()
 
 setup(
     name="hiro_graph_client",
-    version=__version__,
+    version=hiro_graph_client.__version__,
     packages=find_packages(),
-
     python_requires='>=3.7',
 
     install_requires=[
