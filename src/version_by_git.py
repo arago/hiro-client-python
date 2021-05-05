@@ -20,14 +20,15 @@ def create_version_file(package: str):
         raise RuntimeError('Git tag "{}" needs to match pattern "{}".'.format(internal_version, regex_pattern))
 
     version_type = match.group(1)
+    version_numbers = match.group(2)
     commit_number = match.group(3)
 
     if version_type == 't':
-        version = "{}.dev{}".format(match.group(2), match.group(3))
+        version = "{}.dev{}".format(version_numbers, commit_number)
     elif int(commit_number) != 0:
-        version = "{}.post{}".format(match.group(2), match.group(3))
+        version = "{}.post{}".format(version_numbers, commit_number)
     else:
-        version = match.group(1)
+        version = version_numbers
 
     version_file.write(version)
 
