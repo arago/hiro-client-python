@@ -13,9 +13,9 @@ from hiro_graph_client.clientlib import AbstractTokenApiHandler, AuthenticationT
     TokenUnauthorizedError, PasswordAuthTokenApiHandler, FixedTokenApiHandler, EnvironmentTokenApiHandler, \
     accept_all_certs
 
+from hiro_graph_client.version import __version__
+
 this_directory = path.abspath(path.dirname(__file__))
-with open(path.join(this_directory, 'VERSION'), encoding='utf-8') as f:
-    __version__ = f.read().strip()
 
 __all__ = [
     'HiroGraph', 'HiroAuth', 'HiroApp', 'HiroGraphBatch', 'SessionData',

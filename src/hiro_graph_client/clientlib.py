@@ -11,7 +11,7 @@ from typing import Optional, Any, Iterator, Union, Tuple
 from urllib.parse import quote, urlencode
 
 import backoff
-import hiro_graph_client
+from hiro_graph_client.version import __version__
 import requests
 import requests.packages.urllib3.exceptions
 
@@ -73,7 +73,7 @@ class AbstractAPI:
         self._headers = {
             'Content-Type': 'application/json',
             'Accept': 'text/plain, application/json',
-            'User-Agent': "python-hiro-client {}".format(hiro_graph_client.__version__)
+            'User-Agent': "python-hiro-client {}".format(__version__)
         }
 
         if headers:
