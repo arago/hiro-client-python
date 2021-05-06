@@ -8,12 +8,18 @@ import sys
 
 
 def create_version_file(package: str):
+    """
+    Create a python version from a git tag. The git tag has to start with 't' or 'v', followed by at least three
+    numbers separated by '.'.
+
+    :param package: Name of the package (usually its subdirectory in *src/*)
+    """
     stream = os.popen('git describe --tags --long --always')
     internal_version = stream.read().strip()
 
     version_file = open(package + '/VERSION', 'w')
 
-    regex_pattern = '@?([tv])([0-9.]+)-(.)'
+    regex_pattern = '@?([tv])((?:[0-9]+\\.){2,}[0-9]+)-(.)'
 
     match = re.search(regex_pattern, internal_version)
     if not match:
@@ -34,4 +40,6 @@ def create_version_file(package: str):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        raise RuntimeError('Need the name of the python package as parameter.')
     create_version_file(sys.argv[1])
