@@ -299,7 +299,7 @@ class AbstractAPI:
                 body = str(body, encoding)
             return body
 
-        if not res.ok or logger.isEnabledFor(logging.DEBUG):
+        if logger.isEnabledFor(logging.DEBUG):
             log_message = f'''
 ################ request ################
 {res.request.method} {res.request.url}
