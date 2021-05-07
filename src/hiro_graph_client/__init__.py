@@ -10,8 +10,7 @@ from hiro_graph_client.batchclient import HiroGraphBatch, SessionData, AbstractI
     SourceValueError, HiroResultCallback
 from hiro_graph_client.client import HiroGraph
 from hiro_graph_client.clientlib import AbstractTokenApiHandler, AuthenticationTokenError, FixedTokenError, \
-    TokenUnauthorizedError, PasswordAuthTokenApiHandler, FixedTokenApiHandler, EnvironmentTokenApiHandler, \
-    accept_all_certs
+    TokenUnauthorizedError, PasswordAuthTokenApiHandler, FixedTokenApiHandler, EnvironmentTokenApiHandler
 
 from hiro_graph_client.version import __version__
 
@@ -21,7 +20,7 @@ __all__ = [
     'HiroGraph', 'HiroAuth', 'HiroApp', 'HiroGraphBatch', 'SessionData',
     'HiroResultCallback', 'AbstractTokenApiHandler', 'PasswordAuthTokenApiHandler', 'FixedTokenApiHandler',
     'EnvironmentTokenApiHandler', 'AuthenticationTokenError', 'FixedTokenError', 'TokenUnauthorizedError',
-    'AbstractIOCarrier', 'BasicFileIOCarrier', 'SourceValueError', 'accept_all_certs', '__version__'
+    'AbstractIOCarrier', 'BasicFileIOCarrier', 'SourceValueError', '__version__'
 ]
 
 site.addsitedir(this_directory)

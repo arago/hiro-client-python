@@ -30,7 +30,7 @@ setup(
     install_requires=[
         'requests',
         'backoff',
-        'websocket',
+        'websocket-client',
         'uuid'
     ],
     package_data={

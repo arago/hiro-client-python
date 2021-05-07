@@ -7,13 +7,14 @@ import threading
 import time
 import urllib
 from abc import abstractmethod
-from typing import Optional, Any, Iterator, Union, Tuple
 from urllib.parse import quote, urlencode
 
 import backoff
-from hiro_graph_client.version import __version__
 import requests
 import requests.packages.urllib3.exceptions
+from typing import Optional, Any, Iterator, Union, Tuple
+
+from hiro_graph_client.version import __version__
 
 BACKOFF_ARGS = [
     backoff.expo,
@@ -33,6 +34,8 @@ def accept_all_certs():
     """
     Globally disable InsecureRequestWarning
     """
+    AbstractAPI.accept_all_certs = True
+
     requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -45,6 +48,8 @@ class AbstractAPI:
     This abstract root class contains the methods for HTTP requests used by all API classes. Also contains several
     tool methods for handling headers, url query parts and response error checking.
     """
+
+    accept_all_certs: bool = False
 
     def __init__(self,
                  root_url: str,
@@ -81,6 +86,9 @@ class AbstractAPI:
 
     def get_root_url(self):
         return self._root_url
+
+    def get_user_agent(self):
+        return self._headers.get('User-Agent') or 'unknown'
 
     @staticmethod
     def _capitalize_header(name: str) -> str:
@@ -502,7 +510,7 @@ class AbstractTokenApiHandler(AbstractAPI):
         ]:
             _url: str = self._root_url.lower().replace('https://', 'wss://').replace('http://', 'ws://')
             _proxy, _proxy_port, _proxy_auth = _get_proxy_info(_url)
-            return self._remove_slash(_url + endpoint), _protocol, _proxy, _proxy_port, _proxy_auth
+            return self._remove_slash(_url + _endpoint), _protocol, _proxy, _proxy_port, _proxy_auth
 
         if self.custom_endpoints:
             endpoint, protocol = self.custom_endpoints.get(api_name)

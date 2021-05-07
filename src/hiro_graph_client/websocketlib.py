@@ -1,13 +1,15 @@
 import json
 import logging
 import random
+import ssl
 import threading
 import time
 from abc import abstractmethod
 from time import sleep
 
-from hiro_graph_client.clientlib import AbstractTokenApiHandler
 from websocket import WebSocketApp, ABNF, WebSocketException, setdefaulttimeout
+
+from hiro_graph_client.clientlib import AbstractTokenApiHandler
 
 logger = logging.getLogger(__name__)
 """ The logger for this module """
@@ -39,9 +41,6 @@ class AbstractHandledWebSocket:
 
     MAX_RETRIES = 3
 
-    CODE_CLOSE = 2000
-    CODE_RECONNECT = 2001
-
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,
                  api_name: str,
@@ -60,7 +59,7 @@ class AbstractHandledWebSocket:
 
         self._timeout = timeout
 
-        self._reader_thread = threading.Thread(target=self._run, args=(self,))
+        self._reader_thread = threading.Thread(target=AbstractHandledWebSocket._run, args=(self,))
         self._reader_thread_lock = threading.RLock()
 
         self._sender_thread_lock = threading.RLock()
@@ -75,6 +74,8 @@ class AbstractHandledWebSocket:
 
         :param ws: WebSocketApp
         :param message: Error message as json string
+        :raise ReconnectWebSocketException: When a token is no longer valid on error code 401.
+        :raise WebSocketException: When error 401 is received and the token was never valid.
         """
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug("Received message: " + message)
@@ -83,69 +84,64 @@ class AbstractHandledWebSocket:
         if isinstance(json_message, dict):
             error = json_message.get("error")
             if error:
-                code = int(json_message.get("code"))
+                code = int(error.get("code"))
+                message = str(error.get("message"))
                 if code == 401:
                     # Always set _do_exit on 401. It will be handled again in self._check_error if no other Exception
                     # occurs.
                     self._do_exit = True
                     if self._token_valid:
                         self._api_handler.refresh_token()
+
+                        # Reset values for reconnect
                         self._reconnect_delay = 0
-                        raise ReconnectWebSocketException("Got error {} {}. Refreshing token.".format(code, error))
+                        self._do_exit = False
+
+                        raise ReconnectWebSocketException(
+                            "Refreshing token because of error {} \"{}\"".format(code, message))
                     else:
-                        raise WebSocketException("Got error {} {} and token was never valid.".format(code, error))
+                        raise WebSocketException(
+                            "Token was never valid and received error {} \"{}\"".format(code, message))
 
         self._token_valid = True
+        self._reconnect_delay = 0
         self.on_message(ws, message)
 
     def _check_open(self, ws: WebSocketApp) -> None:
         """
-        Reset *self._reconnect_delay* on open message. Then call *self.on_open*.
+        Call *self.on_open* and set *self._do_exit* to False if opening succeeded.
 
         :param ws: WebSocketApp
         """
         logger.debug("Connection to {} open.".format(self._url))
 
-        self._reconnect_delay = 0
         self.on_open(ws)
+
+        self._do_exit = False
 
     def _check_close(self, ws: WebSocketApp, code: int, reason: str):
         """
-        Call *self.on_close*. Then, if code is 2000, an intentional shutdown is executed. Try to reconnect otherwise.
+        Call *self.on_close*. When *code* and *reason* are None, the close has been issued locally and not by the
+        remote side.
 
         :param ws: WebSocketApp
         :param code: Code of close message
         :param reason: Reason str of close message
         """
-        logger.debug("Received close: {} {}.".format(code, reason))
+        if code or reason:
+            logger.debug("Received close from remote: {} {}.".format(code, reason))
+        else:
+            logger.debug("Received local close.")
 
         self.on_close(ws, code, reason)
 
-        if code == self.CODE_CLOSE:
-            raise CloseWebSocketException(reason)
-        if code == self.CODE_RECONNECT:
-            raise ReconnectWebSocketException(reason)
-        else:
-            self._do_exit = False
-
     def _check_error(self, ws: WebSocketApp, error: Exception) -> None:
         """
-        Filters CloseWebSocketException and ReconnectWebSocketException and handles them. All other Exceptions are
-        given to *self.on_error*.
+        Just log the error and propagate it to *self.on_error*.
 
         :param ws: WebSocketApp
         :param error: Exception
         """
-        if isinstance(error, CloseWebSocketException):
-            self._do_exit = True
-            logger.debug(error.args[0])
-            return
-
-        if isinstance(error, ReconnectWebSocketException):
-            self._do_exit = False
-            logger.debug(error.args[0])
-            return
-
         logger.error("Received error: {}.".format(error))
         self.on_error(ws, error)
 
@@ -157,13 +153,10 @@ class AbstractHandledWebSocket:
         self._do_exit = False
 
         while not self._do_exit:
-            if self._reconnect_delay:
-                sleep(self._reconnect_delay)
+            self._reconnect_delay = self._backoff(self._reconnect_delay)
 
-            self._reconnect_delay = (self._reconnect_delay + 1) if self._reconnect_delay < 10 \
-                else (self._reconnect_delay + 10) if self._reconnect_delay < 60 \
-                else random.randint(60, 600)
-
+            # This value get set to False in *self._check_open* when open succeeds.
+            self._do_exit = True
             self._token_valid = False
 
             header: dict = {
@@ -180,7 +173,25 @@ class AbstractHandledWebSocket:
 
             self._ws.run_forever(http_proxy_host=self._proxy_hostname,
                                  http_proxy_port=self._proxy_port,
-                                 http_proxy_auth=self._proxy_auth)
+                                 http_proxy_auth=self._proxy_auth,
+                                 sslopt={
+                                     "cert_reqs": ssl.CERT_NONE
+                                 } if AbstractTokenApiHandler.accept_all_certs else None)
+
+    @staticmethod
+    def _backoff(reconnect_delay: int) -> int:
+        """
+        Sleeps for *reconnect_delay* seconds, then returns the delay in seconds for the next try.
+
+        :param reconnect_delay: Delay in seconds to wait.
+        :return: Next value for the delay.
+        """
+        if reconnect_delay:
+            sleep(reconnect_delay)
+
+        return (reconnect_delay + 1) if reconnect_delay < 10 \
+            else (reconnect_delay + 10) if reconnect_delay < 60 \
+            else random.randint(60, 600)
 
     ###############################################################################################################
     # Public API Reader thread
@@ -213,26 +224,49 @@ class AbstractHandledWebSocket:
         with self._reader_thread_lock:
             self._reader_thread.start()
 
+    def join_reader(self, timeout: int = None) -> None:
+        """
+        :param timeout: Optional timeout in seconds for joining the reader thread.
+        """
+        with self._reader_thread_lock:
+            self._reader_thread.join(timeout=timeout)
+
     def close(self, timeout: int = None) -> None:
         """
         Intentionally closes this websocket by setting status (code) 2000. Joins on the reader before returning.
 
         :param timeout: Optional timeout in seconds for joining the reader thread.
         """
-        self._ws.close(status=self.CODE_CLOSE, reason="Intentionally closing down")
-        with self._reader_thread_lock:
-            self._reader_thread.join(timeout=timeout)
+        self._do_exit = True
+        self._ws.close(status=ABNF.OPCODE_CLOSE, reason="{} closing down".format(self._api_handler.get_user_agent()))
+        self.join_reader(timeout)
 
     def send(self, message: str) -> None:
         """
-        Send message across the websocket. Make sure, that this is thread-safe.
+        Send message across the websocket. Make sure, that this is thread-saf.
 
         :param message: Message as string
+        :raise WebSocketException: If a message cannot be sent and all retries have been exhausted.
         """
         with self._sender_thread_lock:
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug("Sending message: " + message)
-            self._ws.send(message)
+
+            retries = 0
+            retry_delay = 0
+
+            while True:
+                retry_delay = self._backoff(retry_delay)
+
+                try:
+                    self._ws.send(message)
+                    return
+                except Exception as err:
+                    if retries >= self.MAX_RETRIES:
+                        raise WebSocketException from err
+
+                    logger.warn('Retrying to send message because of error "%s"', str(err))
+                    retries += 1
 
 
 ###################################################################################################################
