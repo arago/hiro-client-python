@@ -47,7 +47,7 @@ setup(
     author_email="info@arago.co",
     maintainer="Wolfgang Hübner",
     description="Hiro Client for Graph REST API of HIRO 7",
-    keywords="HIRO7 arago GraphIt REST API",
+    keywords="arago HIRO7 API REST WebSocket",
     url="https://github.com/arago/python-hiro-clients",
     license="MIT",
     classifiers=[
@@ -55,7 +55,8 @@ setup(
         "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
-        "Intended Audience :: Developers"
+        "Intended Audience :: Developers",
+        "Topic :: Software Development :: Libraries"
     ],
     long_description=long_description,
     long_description_content_type='text/markdown'
