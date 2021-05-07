@@ -9,8 +9,11 @@ import version_by_git
 # read the contents of your README file
 this_directory = path.abspath(path.dirname(__file__))
 
-with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
-    long_description = f.read()
+with open(path.join(this_directory, 'README.md'), encoding='utf-8') as fr:
+    long_description = fr.read()
+with open(path.join(this_directory, '../CHANGELOG.md'), encoding='utf-8') as fc:
+    long_description += "\n---\n# CHANGELOG\n---\n"
+    long_description += fc.read()
 
 subversion = timestamp.make_timestamp()
 
@@ -32,6 +35,12 @@ setup(
     ],
     package_data={
         'hiro_graph_client': ['VERSION']
+    },
+
+    project_urls={
+        'GitHub': 'https://github.com/arago/python-hiro-clients',
+        'Documentation': 'https://github.com/arago/python-hiro-clients/blob/master/src/README.md',
+        'Changelog': 'https://github.com/arago/python-hiro-clients/blob/master/CHANGELOG.md'
     },
 
     author="arago GmbH",
