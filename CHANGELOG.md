@@ -1,3 +1,7 @@
+# v4.1.1
+
+* Only log request/responses when logging.DEBUG is enabled
+
 # v4.1.0
 
 * Added timeseries handling to command `handle_vertices_combined`
