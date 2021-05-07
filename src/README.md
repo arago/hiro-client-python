@@ -1111,6 +1111,3 @@ commands: list = [
     }
 ]
 ```
-
----
-(c) 2021 arago GmbH

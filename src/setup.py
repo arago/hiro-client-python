@@ -55,6 +55,7 @@ setup(
         "Programming Language :: Python :: 3.7",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
+        "Intended Audience :: Developers"
     ],
     long_description=long_description,
     long_description_content_type='text/markdown'
