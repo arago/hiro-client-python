@@ -26,7 +26,9 @@ setup(
 
     install_requires=[
         'requests',
-        'backoff'
+        'backoff',
+        'websocket',
+        'uuid'
     ],
     package_data={
         'hiro_graph_client': ['VERSION']
