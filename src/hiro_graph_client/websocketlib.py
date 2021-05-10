@@ -17,6 +17,51 @@ logger = logging.getLogger(__name__)
 """ The logger for this module """
 
 
+class ErrorMessage:
+    """
+    The structure of an incoming error message
+    """
+    code: int
+    message: str
+
+    def __init__(self,
+                 code,
+                 message):
+        """
+        Constructor
+
+        :param code: Numerical error code of the error
+        :param message: Error message
+        """
+        self.code = int(code)
+        self.message = str(message)
+
+    @classmethod
+    def parse(cls, message: str):
+        """
+        :param message: The message received from the websocket. Will be decoded here.
+        :return: The new error message or None if this is not an error message.
+        """
+        json_message: dict = json.loads(message)
+        error_message = json_message.get('error')
+        if isinstance(error_message, dict):
+            return cls(error_message.get('code'),
+                       error_message.get('message'))
+        else:
+            return None
+
+    def __str__(self):
+        return json.dumps(vars(self))
+
+    def to_dict(self) -> dict:
+        return {
+            "error": {
+                "code": self.code,
+                "message": self.message
+            }
+        }
+
+
 class AbstractAuthenticatedWebSocketHandler:
     """
     The basic class for all WebSockets.
@@ -35,12 +80,14 @@ class AbstractAuthenticatedWebSocketHandler:
     _timeout: int
     _auto_reconnect: bool
 
-    _ws: Optional[WebSocketApp]
-    _reader_executor: concurrent.futures.ThreadPoolExecutor
-    _reader_websocket_condition: threading.Condition
-    """ Protects *self._ws* """
-    _reader_future: Optional[concurrent.futures.Future]
     _quit_reader: bool
+
+    _ws: Optional[WebSocketApp]
+    _ws_lock: threading.RLock
+
+    _reader_executor: concurrent.futures.ThreadPoolExecutor
+    _reader_future: Optional[concurrent.futures.Future]
+    _reader_condition: threading.Condition
 
     _inner_exception: Optional[Exception]
     """
@@ -74,10 +121,11 @@ class AbstractAuthenticatedWebSocketHandler:
         self._timeout = timeout
         self._auto_reconnect = auto_reconnect
 
-        self._reader_websocket_condition = threading.Condition()
+        self._reader_condition = threading.Condition()
         self._reader_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self._reader_future = None
         self._ws = None
+        self._ws_lock = threading.RLock()
         self._inner_exception = None
 
         self._sender_thread_lock = threading.RLock()
@@ -101,32 +149,30 @@ class AbstractAuthenticatedWebSocketHandler:
         :param ws: WebSocketApp
         :param message: Error message as json string
         """
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Received message: " + message)
-
         try:
-            json_message = json.loads(message)
-            if isinstance(json_message, dict):
-                error = json_message.get("error")
-                if error:
-                    code = int(error.get("code"))
-                    message = str(error.get("message"))
-                    if code == 401:
-                        self._quit_reader = True
-                        if self._token_valid:
-                            self._api_handler.refresh_token()
+            error_message = ErrorMessage.parse(message)
+            if error_message:
+                if error_message.code == 401:
+                    self._quit_reader = True
+                    if self._token_valid:
+                        self._api_handler.refresh_token()
 
-                            # If we get here, the token has been refreshed successfully.
-                            self._reconnect_delay = 0
-                            self._quit_reader = False
+                        # If we get here, the token has been refreshed successfully.
+                        self._reconnect_delay = 0
+                        self._quit_reader = False
 
-                            raise ReconnectWebSocketException(
-                                "Refreshing token because of error {} \"{}\"".format(code, message))
-                        else:
-                            raise WebSocketException(
-                                "Token was never valid and received error {} \"{}\"".format(code, message))
+                        raise ReconnectWebSocketException(
+                            "Refreshing token because of error: " + str(error_message))
+                    else:
+                        raise WebSocketException(
+                            "Received error message while token was never valid: " + str(error_message))
+                else:
+                    logger.warning("Received error: " + str(error_message))
+            else:
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug("Received message: " + message)
 
-            # If no error message came in, the token must be valid.
+            # If we get here, the token is valid
             self._token_valid = True
             self._reconnect_delay = 0
 
@@ -134,23 +180,27 @@ class AbstractAuthenticatedWebSocketHandler:
         except Exception as err:
             self._inner_exception = err
             self._close()
-            raise self._inner_exception
+            raise err
 
     def _check_open(self, ws: WebSocketApp) -> None:
         """
-        Call *self.on_open* and set *self._do_exit* to False if opening succeeded.
+        First signal, that the connection has been opened successfully. Then
+        call *self.on_open* and set *self._quit_reader* to False if opening succeeded.
 
         :param ws: WebSocketApp
         """
         logger.debug("Connection to {} start.".format(self._url))
 
         try:
+            with self._reader_condition:
+                self._reader_condition.notify_all()
+
             self.on_open(ws)
             self._quit_reader = False
         except Exception as err:
             self._inner_exception = err
             self._close()
-            raise self._inner_exception
+            raise err
 
     def _check_close(self, ws: WebSocketApp, code: int, reason: str):
         """
@@ -176,13 +226,14 @@ class AbstractAuthenticatedWebSocketHandler:
         :param error: Exception
         """
         logger.error("Received error: {}.".format(error))
+        # logger.exception(error)
 
         try:
             self.on_error(ws, error)
         except Exception as err:
             self._inner_exception = err
             self._close()
-            raise self._inner_exception
+            raise err
 
     def _run(self) -> None:
         """
@@ -205,7 +256,7 @@ class AbstractAuthenticatedWebSocketHandler:
                 "Sec-WebSocket-Protocol": "{}, token-{}".format(self._protocol, self._api_handler.token)
             }
 
-            with self._reader_websocket_condition:
+            with self._ws_lock:
                 self._ws = WebSocketApp(self._url,
                                         header=header,
                                         on_open=lambda ws: self._check_open(ws),
@@ -214,8 +265,9 @@ class AbstractAuthenticatedWebSocketHandler:
                                         on_error=lambda ws, err: self._check_error(ws, err),
                                         on_ping=lambda ws, data: ws.send(data, opcode=ABNF.OPCODE_PONG))
 
-                self._reader_websocket_condition.notify_all()
-
+            # BUG: While this is initializing, the self._ws_lock should remain locked until the dispatcher listens
+            # at the socket. Since we cannot securely release it within, we have to release it beforehand and
+            # expect errors when the websocket gets closed before it was completely initialized.
             self._ws.run_forever(http_proxy_host=self._proxy_hostname,
                                  http_proxy_port=self._proxy_port,
                                  http_proxy_auth=self._proxy_auth,
@@ -223,7 +275,8 @@ class AbstractAuthenticatedWebSocketHandler:
                                      "cert_reqs": ssl.CERT_NONE
                                  } if AbstractTokenApiHandler.accept_all_certs else None)
 
-        self._ws = None
+        with self._ws_lock:
+            self._ws = None
 
         if self._inner_exception:
             raise self._inner_exception
@@ -248,7 +301,7 @@ class AbstractAuthenticatedWebSocketHandler:
         Internal stop that does not join the reader thread. Intended to be called on unrecoverable errors within the
         reader thread, i.e. invalid tokens.
         """
-        with self._reader_websocket_condition:
+        with self._ws_lock:
             if self._ws:
                 self._quit_reader = True
                 self._ws.close(status=ABNF.OPCODE_CLOSE,
@@ -282,15 +335,11 @@ class AbstractAuthenticatedWebSocketHandler:
         """
         Start the background thread for receiving messages from the websocket. Returns when the websocket has been
         created.
-
-        :raise RuntimeError: When a reader thread exists already.
         """
-        with self._reader_websocket_condition:
-            if self._reader_future:
-                raise RuntimeError("Reader thread already running")
-
-            self._reader_future = self._reader_executor.submit(AbstractAuthenticatedWebSocketHandler._run, self)
-            self._reader_websocket_condition.wait()
+        with self._reader_condition:
+            if not self._reader_future:
+                self._reader_future = self._reader_executor.submit(AbstractAuthenticatedWebSocketHandler._run, self)
+                self._reader_condition.wait()
 
     def join(self, timeout: int = None) -> None:
         """
@@ -299,14 +348,14 @@ class AbstractAuthenticatedWebSocketHandler:
         :param timeout: Optional timeout in seconds for joining the reader thread.
         :raise WebSocketException: When the reader thread finished with an exception.
         """
-        with self._reader_websocket_condition:
-            exception = self._reader_future.exception(timeout)
+        with self._reader_condition:
+            if self._reader_future:
+                exception = self._reader_future.exception(timeout)
+                self._reconnect_delay = 0
+                self._reader_future = None
 
-            self._reconnect_delay = 0
-            self._reader_future = None
-
-            if exception:
-                raise WebSocketException('Reader thread finished with exception.') from exception
+                if exception:
+                    logger.error("Reader thread exited with error: " + str(exception))
 
     def stop(self, timeout: int = None) -> None:
         """
@@ -345,9 +394,9 @@ class AbstractAuthenticatedWebSocketHandler:
                 retry_delay = self._backoff(retry_delay)
 
                 try:
-                    with self._reader_websocket_condition:
+                    with self._ws_lock:
                         if not self._ws:
-                            raise RuntimeError('No websocket.')
+                            raise WebSocketException('No websocket.')
 
                         self._ws.send(message)
 
@@ -357,12 +406,12 @@ class AbstractAuthenticatedWebSocketHandler:
                     if retries >= self.MAX_RETRIES:
                         if self._auto_reconnect:
                             retries = 0
-                            logger.warning('Restarting because of error "%s"', str(err))
+                            logger.warning('Restarting because of error: ' + str(err))
                             self.restart(self._timeout)
                         else:
                             raise WebSocketException("Could not send and all retries have been exhausted.")
                     else:
-                        logger.warning('Retrying to send message because of error "%s"', str(err))
+                        logger.warning('Retrying to send message because of error: ' + str(err))
                         retries += 1
 
 

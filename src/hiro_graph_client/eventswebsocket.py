@@ -1,14 +1,14 @@
 import json
 import logging
+import sched
 import threading
 import time
-
-import sched
 from typing import Optional, List, Dict
+
 from websocket import WebSocketApp, WebSocketException
 
 from hiro_graph_client.clientlib import AbstractTokenApiHandler
-from hiro_graph_client.websocketlib import AbstractAuthenticatedWebSocketHandler, CloseWebSocketException
+from hiro_graph_client.websocketlib import AbstractAuthenticatedWebSocketHandler
 
 logger = logging.getLogger(__name__)
 """ The logger for this module """
@@ -50,7 +50,7 @@ class EventMessage:
         self.nanotime = event_nanotime
 
     @classmethod
-    def from_message(cls, message: str):
+    def parse(cls, message: str):
         """
         :param message: The message received from the websocket. Will be decoded here.
         """
@@ -86,28 +86,10 @@ class EventsFilter:
         self.content = filter_content
         self.type = filter_type or 'jfilter'
 
-    @classmethod
-    def from_message(cls, message: dict):
-        """
-        :param message: The message as dict.
-        :raise WebSocketFilterException: When necessary parameters are missing in the message.
-        """
-        message_id: str = message.get("filter-id")
-        message_content: str = message.get("filter-content")
-
-        if not message_id:
-            raise WebSocketFilterException("This filter has no 'filter-id'.")
-        if not message_content:
-            raise WebSocketFilterException("This filter has no 'filter-content'")
-
-        return cls(message_id,
-                   message_content,
-                   message.get("filter-type"))
-
     def __str__(self):
         return json.dumps(vars(self))
 
-    def to_message(self) -> dict:
+    def to_dict(self) -> dict:
         return {
             "filter-id": self.id,
             "filter-type": self.type,
@@ -162,7 +144,6 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
                     self.send(message)
 
                 self._set_next_token_refresh()
-
         except Exception as err:
             raise WebSocketFilterException('Setting events filter failed') from err
 
@@ -185,7 +166,7 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         :param ws: The WebSocketApp
         :param message: The raw message as string
         """
-        event_message = EventMessage.from_message(message)
+        event_message = EventMessage.parse(message)
 
         if event_message.type in ['CREATE', 'UPDATE', 'DELETE']:
             self.on_event(event_message)
@@ -251,7 +232,7 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     def _get_events_register_message(events_filter: EventsFilter) -> str:
         message: dict = {
             "type": "register",
-            "args": events_filter.to_message()
+            "args": events_filter.to_dict()
         }
 
         return json.dumps(message)
@@ -291,8 +272,15 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     def _set_next_token_refresh(self):
         with self._token_event_lock:
             if self._api_handler.refresh_time() is not None:
+                # make seconds
+                timestamp = self._api_handler.refresh_time() / 1000
+
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug("Next token refresh scheduled at {} local time.".format(
+                        time.strftime("%c", time.localtime(timestamp))
+                    ))
                 self._token_event = self._token_scheduler.enterabs(
-                    time=self._api_handler.refresh_time(),
+                    time=timestamp,
                     priority=2,
                     action=AbstractEventsWebSocketHandler._token_refresh_thread,
                     argument=(self,)

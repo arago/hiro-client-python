@@ -562,10 +562,10 @@ class AbstractTokenApiHandler(AbstractAPI):
     @abstractmethod
     def refresh_time(self) -> Optional[int]:
         """
-        Calculate the time after which the token should be refreshed.
+        Calculate the time after which the token should be refreshed in milliseconds.
 
-        :return: The timestamp after which the token shall be refreshed or None if the token cannot be refreshed on its
-                 own.
+        :return: The timestamp in ms after which the token shall be refreshed or None if the token cannot be refreshed
+                 on its own.
         """
         raise RuntimeError('Cannot use method of this abstract class.')
 
@@ -773,9 +773,9 @@ class TokenInfo:
 
     def refresh_time(self) -> Optional[int]:
         """
-        Calculate the time after which the token should be refreshed.
+        Calculate the time after which the token should be refreshed in milliseconds.
 
-        :return: expires_at - refresh_offset or None if refresh is not possible.
+        :return: expires_at - refresh_offset (in ms) or None if refresh is not possible.
         """
         return self.expires_at - self.refresh_offset if self.expires_at > 0 else None
 
