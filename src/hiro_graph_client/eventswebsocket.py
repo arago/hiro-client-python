@@ -8,7 +8,7 @@ from typing import Optional, List, Dict
 from websocket import WebSocketApp, WebSocketException
 
 from hiro_graph_client.clientlib import AbstractTokenApiHandler
-from hiro_graph_client.websocketlib import AbstractHandledWebSocket, CloseWebSocketException
+from hiro_graph_client.websocketlib import AbstractAuthenticatedWebSocketHandler, CloseWebSocketException
 
 logger = logging.getLogger(__name__)
 """ The logger for this module """
@@ -115,7 +115,7 @@ class EventsFilter:
         }
 
 
-class AbstractEventWebSocket(AbstractHandledWebSocket):
+class AbstractEventAuthenticatedWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     """
     A handler for issue events
     """
@@ -295,7 +295,7 @@ class AbstractEventWebSocket(AbstractHandledWebSocket):
                 self._token_event = self._token_scheduler.enterabs(
                     time=self._api_handler.refresh_time(),
                     priority=2,
-                    action=AbstractEventWebSocket._token_refresh_thread,
+                    action=AbstractEventAuthenticatedWebSocketHandler._token_refresh_thread,
                     argument=(self,)
                 )
             else:

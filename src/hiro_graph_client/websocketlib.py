@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 """ The logger for this module """
 
 
-class AbstractHandledWebSocket:
+class AbstractAuthenticatedWebSocketHandler:
     """
     The basic class for all WebSockets.
     """
@@ -33,6 +33,7 @@ class AbstractHandledWebSocket:
     _url: str
 
     _timeout: int
+    _auto_reconnect: bool
 
     _reader_thread: threading.Thread
     _reader_thread_lock: threading.RLock
@@ -44,13 +45,16 @@ class AbstractHandledWebSocket:
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,
                  api_name: str,
-                 timeout: int = 5):
+                 timeout: int = 5,
+                 auto_reconnect: bool = True):
         """
         Create the websocket
 
         :param api_handler: The api handler for authentication.
         :param api_name: The name of the ws api.
         :param timeout: The timeout for websocket messages. Default is 5sec.
+        :param auto_reconnect: Try to create a new websocket automatically when *self.send()* fails. If this is set
+                               to False, a WebSocketException will be raised instead. The default is True.
         """
         self._url, self._protocol, self._proxy_hostname, self._proxy_port, self._proxy_auth = \
             api_handler.get_websocket_config(api_name)
@@ -58,8 +62,9 @@ class AbstractHandledWebSocket:
         self._api_handler = api_handler
 
         self._timeout = timeout
+        self._auto_reconnect = auto_reconnect
 
-        self._reader_thread = threading.Thread(target=AbstractHandledWebSocket._run, args=(self,))
+        self._reader_thread = threading.Thread(target=AbstractAuthenticatedWebSocketHandler._run, args=(self,))
         self._reader_thread_lock = threading.RLock()
 
         self._sender_thread_lock = threading.RLock()
@@ -233,20 +238,33 @@ class AbstractHandledWebSocket:
 
     def close(self, timeout: int = None) -> None:
         """
-        Intentionally closes this websocket by setting status (code) 2000. Joins on the reader before returning.
+        Intentionally closes this websocket. Joins on the reader before returning.
 
         :param timeout: Optional timeout in seconds for joining the reader thread.
         """
         self._do_exit = True
-        self._ws.close(status=ABNF.OPCODE_CLOSE, reason="{} closing down".format(self._api_handler.get_user_agent()))
+        self._ws.close(status=ABNF.OPCODE_CLOSE,
+                       reason="{} closing".format(self._api_handler.get_user_agent()))
         self.join_reader(timeout)
+
+        self._reconnect_delay = 0
+
+    def restart(self, timeout: int = None) -> None:
+        """
+        Closes the websocket and starts a new one.
+
+        :param timeout: Optional timeout in seconds for joining the old reader thread.
+        """
+        self.close(timeout)
+        self.start_reader()
 
     def send(self, message: str) -> None:
         """
-        Send message across the websocket. Make sure, that this is thread-saf.
+        Send message across the websocket. Make sure, that this is thread-safe.
 
         :param message: Message as string
-        :raise WebSocketException: If a message cannot be sent and all retries have been exhausted.
+        :raise WebSocketException: When *self._auto_reconnect* is False: If a message cannot be sent and all retries
+                                   have been exhausted.
         """
         with self._sender_thread_lock:
             if logger.isEnabledFor(logging.DEBUG):
@@ -263,10 +281,15 @@ class AbstractHandledWebSocket:
                     return
                 except Exception as err:
                     if retries >= self.MAX_RETRIES:
-                        raise WebSocketException from err
-
-                    logger.warn('Retrying to send message because of error "%s"', str(err))
-                    retries += 1
+                        if self._auto_reconnect:
+                            retries = 0
+                            logger.warn('Restarting because of error "%s"', str(err))
+                            self.restart(self._timeout)
+                        else:
+                            raise WebSocketException("Could not send and all retries have been exhausted.")
+                    else:
+                        logger.warn('Retrying to send message because of error "%s"', str(err))
+                        retries += 1
 
 
 ###################################################################################################################

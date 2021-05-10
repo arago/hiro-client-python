@@ -982,7 +982,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
 # Root class for different API groups
 ###################################################################################################################
 
-class AbstractHandledAPI(AbstractAPI):
+class AuthenticatedAPIHandler(AbstractAPI):
     """
     Python implementation for accessing a REST API with authentication.
     """
