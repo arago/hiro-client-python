@@ -38,7 +38,7 @@ class HiroGraph(AuthenticatedAPIHandler):
         :param query: The actual query. e.g. ogit\\\\/_type: ogit\\\\/Question for vertices.
         :param fields: the comma separated list of fields to return
         :param limit: limit of entries to return
-        :param offset: offset where to start_reader returning entries
+        :param offset: offset where to start returning entries
         :param order: order by a field asc|desc, e.g. ogit/name desc
         :param meta: List detailed metainformations in result payload
         :return: Result payload

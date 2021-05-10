@@ -46,7 +46,7 @@ class AbstractIOCarrier:
     then closed.
     """
     __io_base: IO = None
-    """ Private reference to the IO object. Starts with value None and needs to be set in method *open()*. """
+    """ Private reference to the IO object. Starts with value None and needs to be set in method *start()*. """
 
     def __enter__(self) -> IO:
         """ To be able to use *with <child of AbstractIOCarrier> as io_item:* """
@@ -67,7 +67,7 @@ class AbstractIOCarrier:
     @io_base.setter
     def io_base(self, io_base: IO) -> None:
         """
-        Property setter io_base. This property has to be set in *open()* by the child class.
+        Property setter io_base. This property has to be set in *start()* by the child class.
         """
         self.__io_base = io_base
 
@@ -102,7 +102,7 @@ class BasicFileIOCarrier(AbstractIOCarrier):
         """
         Constructor
 
-        :param filename: Local filename to open
+        :param filename: Local filename to start
         :param mode: Open mode. Default is 'rb'.
         """
         self.filename = filename
@@ -110,10 +110,10 @@ class BasicFileIOCarrier(AbstractIOCarrier):
 
     def open(self) -> IO:
         """
-        Just open the included *self.filename* with *self.mode*.
+        Just start the included *self.filename* with *self.mode*.
 
-        :return: The IO handle after open.
-        :raises IOError: Any IO error open might raise.
+        :return: The IO handle after start.
+        :raises IOError: Any IO error start might raise.
         """
         self.io_base = open(self.filename, self.mode)
         return self.io_base
@@ -401,7 +401,7 @@ class HiroBatchRunner:
         """
         To be used with self.for_each_attribute()
 
-        Try to resolve_ids keys that start_reader with "id:" or "xid:". Try to find the
+        Try to resolve_ids keys that start with "id:" or "xid:". Try to find the
         ogit/_id of a vertex by using the value for such a key in the graph. Return a tuple of (key, value) with the key
         without its prefix "id:" or "xid:" and the value resolved to a real "ogit/_id".
 

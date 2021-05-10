@@ -115,7 +115,7 @@ class EventsFilter:
         }
 
 
-class AbstractEventAuthenticatedWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
+class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     """
     A handler for issue events
     """
@@ -153,7 +153,7 @@ class AbstractEventAuthenticatedWebSocketHandler(AbstractAuthenticatedWebSocketH
         Register the filters when websocket opens. If this fails, the websocket gets closed again.
 
         :param ws: The WebSocketApp
-        :raise CloseWebSocketException: When setting the filters failed.
+        :raise WebSocketFilterException: When setting the filters failed.
         """
         try:
             with self._events_filter_messages_lock:
@@ -164,7 +164,7 @@ class AbstractEventAuthenticatedWebSocketHandler(AbstractAuthenticatedWebSocketH
                 self._set_next_token_refresh()
 
         except Exception as err:
-            raise CloseWebSocketException('Setting events filter failed') from err
+            raise WebSocketFilterException('Setting events filter failed') from err
 
     def on_close(self, ws: WebSocketApp, code: int, reason: str):
         """
@@ -184,14 +184,13 @@ class AbstractEventAuthenticatedWebSocketHandler(AbstractAuthenticatedWebSocketH
 
         :param ws: The WebSocketApp
         :param message: The raw message as string
-        :raise InvalidEventWebSocketException: If the type of message is not CREATE, UPDATE or DELETE.
         """
         event_message = EventMessage.from_message(message)
 
         if event_message.type in ['CREATE', 'UPDATE', 'DELETE']:
             self.on_event(event_message)
         else:
-            raise InvalidEventWebSocketException("Unknown event message of type '{}'".format(event_message.type))
+            logger.error("Unknown event message of type '{}'".format(event_message.type))
 
     def on_error(self, ws: WebSocketApp, error: Exception):
         """
@@ -295,7 +294,7 @@ class AbstractEventAuthenticatedWebSocketHandler(AbstractAuthenticatedWebSocketH
                 self._token_event = self._token_scheduler.enterabs(
                     time=self._api_handler.refresh_time(),
                     priority=2,
-                    action=AbstractEventAuthenticatedWebSocketHandler._token_refresh_thread,
+                    action=AbstractEventsWebSocketHandler._token_refresh_thread,
                     argument=(self,)
                 )
             else:

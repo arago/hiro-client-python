@@ -252,7 +252,7 @@ To stream such an attachment to a file, see the example below:
 ogit_id = '<ogit/_id of a vertex of type ogit/_type:"ogit/Attachment">'
 data_iter = hiro_client.get_attachment(ogit_id)
 
-with io.open("attachment.bin", "wb") as file:
+with io.start("attachment.bin", "wb") as file:
     for chunk in data_iter:
         file.write(chunk)
 ```
