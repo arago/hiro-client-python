@@ -28,7 +28,7 @@ PACKAGENAME := hiro_graph_client
 SRCPATH := src
 PYTHONPATH := $(SRCPATH)/$(PACKAGENAME)
 PYTHONDOCPATH := docs/python
-VERSION := $(shell cat $(PYTHONPATH)/VERSION)
+VERSION := $(shell (cd $(SRCPATH) && $(PYTHON) version_by_git.py $(PACKAGENAME) && cat $(PACKAGENAME)/VERSION))
 
 TIMESTAMP := $(shell $(PYTHON) $(SRCPATH)/timestamp.py)
 

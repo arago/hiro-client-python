@@ -6,6 +6,8 @@ import os
 import re
 import sys
 
+VERSION_FILENAME = 'VERSION'
+
 
 def create_version_file(package: str):
     """
@@ -14,10 +16,8 @@ def create_version_file(package: str):
 
     :param package: Name of the package (usually its subdirectory in *src/*)
     """
-    stream = os.popen('git describe --tags --long --always')
-    internal_version = stream.read().strip()
-
-    version_file = open(package + '/VERSION', 'w')
+    with os.popen('git describe --tags --long --always') as stream:
+        internal_version = stream.read().strip()
 
     regex_pattern = '@?([tv])((?:[0-9]+\\.){2,}[0-9]+)-(.)'
 
@@ -36,7 +36,8 @@ def create_version_file(package: str):
     else:
         version = version_numbers
 
-    version_file.write(version)
+    with open(os.path.join(package, VERSION_FILENAME), 'w') as version_file:
+        version_file.write(version)
 
 
 if __name__ == "__main__":
