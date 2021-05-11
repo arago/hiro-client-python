@@ -1,7 +1,6 @@
 import json
 import logging
 import threading
-import time
 from datetime import datetime
 from typing import List, Dict
 
@@ -129,6 +128,10 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         for events_filter in events_filters:
             self._events_filter_messages[events_filter.id] = events_filter
 
+    ###############################################################################################################
+    # Websocket Events
+    ###############################################################################################################
+
     def on_open(self, ws: WebSocketApp):
         """
         Register the filters when websocket opens. If this fails, the websocket gets closed again.
@@ -137,14 +140,15 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         :raise WebSocketFilterException: When setting the filters failed.
         """
         try:
+            if not self._token_scheduler.running:
+                self._set_next_token_refresh()
+                self._token_scheduler.start()
+
             with self._events_filter_messages_lock:
                 for events_filter in self._events_filter_messages.values():
                     message = self._get_events_register_message(events_filter)
                     self.send(message)
 
-                if not self._token_scheduler.running:
-                    self._set_next_token_refresh()
-                    self._token_scheduler.start()
         except Exception as err:
             raise WebSocketFilterException('Setting events filter failed') from err
 
@@ -228,6 +232,7 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     ###################################################################################################################
     # Filter handling
     ###################################################################################################################
+
     @staticmethod
     def _get_events_register_message(events_filter: EventsFilter) -> str:
         message: dict = {
@@ -326,9 +331,3 @@ class WebSocketFilterException(WebSocketException):
     """
     pass
 
-
-class InvalidEventWebSocketException(WebSocketException):
-    """
-    When an EventMessage with an unknown type has been received.
-    """
-    pass

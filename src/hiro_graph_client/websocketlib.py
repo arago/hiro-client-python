@@ -216,12 +216,12 @@ class AbstractAuthenticatedWebSocketHandler:
 
         with self._reader_guard:
             try:
-                with self._reader_guard:
-                    if self._reader_status == ReaderStatus.STARTING:
-                        self._reader_guard.notify()
-                    self._reader_status = ReaderStatus.CHECKING_TOKEN
+                if self._reader_status == ReaderStatus.STARTING:
+                    self._reader_guard.notify()
+                self._reader_status = ReaderStatus.CHECKING_TOKEN
 
                 self.on_open(ws)
+
             except Exception as err:
                 self._reader_status = ReaderStatus.EXITING_ERROR
                 self._inner_exception = err
@@ -258,10 +258,9 @@ class AbstractAuthenticatedWebSocketHandler:
 
         with self._reader_guard:
             try:
-                with self._reader_guard:
-                    if self._reader_status == ReaderStatus.STARTING:
-                        self._reader_guard.notify()
-                    self._reader_status = ReaderStatus.EXITING_ERROR
+                if self._reader_status == ReaderStatus.STARTING:
+                    self._reader_guard.notify()
+                self._reader_status = ReaderStatus.EXITING_ERROR
 
                 self._inner_exception = error
                 self.on_error(ws, error)
