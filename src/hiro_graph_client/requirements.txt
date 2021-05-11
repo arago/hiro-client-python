@@ -5,3 +5,4 @@ backoff~=1.10.0
 setuptools~=56.1.0
 websocket-client~=0.59.0
 uuid~=1.30
+apscheduler~=3.7.0

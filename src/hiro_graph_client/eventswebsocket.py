@@ -1,10 +1,11 @@
 import json
 import logging
-import sched
 import threading
 import time
-from typing import Optional, List, Dict
+from datetime import datetime
+from typing import List, Dict
 
+from apscheduler.schedulers.background import BackgroundScheduler
 from websocket import WebSocketApp, WebSocketException
 
 from hiro_graph_client.clientlib import AbstractTokenApiHandler
@@ -104,10 +105,7 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     _events_filter_messages: Dict[str, EventsFilter] = {}
     _events_filter_messages_lock: threading.RLock
 
-    _token_scheduler: sched.scheduler
-
-    _token_event: Optional[sched.Event] = None
-    _token_event_lock: threading.RLock
+    _token_scheduler: BackgroundScheduler
 
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,
@@ -123,9 +121,10 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
 
         self._events_filter_messages_lock = threading.RLock()
 
-        self._token_event_lock = threading.RLock()
+        self._token_scheduler = BackgroundScheduler()
 
-        self._token_scheduler = sched.scheduler(timefunc=time.time)
+        if logging.root.level == logging.INFO:
+            logging.getLogger('apscheduler').setLevel(logging.WARNING)
 
         for events_filter in events_filters:
             self._events_filter_messages[events_filter.id] = events_filter
@@ -143,7 +142,9 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
                     message = self._get_events_register_message(events_filter)
                     self.send(message)
 
-                self._set_next_token_refresh()
+                if not self._token_scheduler.running:
+                    self._set_next_token_refresh()
+                    self._token_scheduler.start()
         except Exception as err:
             raise WebSocketFilterException('Setting events filter failed') from err
 
@@ -155,9 +156,8 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         :param code:
         :param reason:
         """
-        with self._token_event_lock:
-            if self._token_event:
-                self._token_scheduler.cancel(self._token_event)
+        if self._token_scheduler.running:
+            self._token_scheduler.shutdown()
 
     def on_message(self, ws: WebSocketApp, message: str):
         """
@@ -270,23 +270,16 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     ###################################################################################################################
 
     def _set_next_token_refresh(self):
-        with self._token_event_lock:
-            if self._api_handler.refresh_time() is not None:
-                # make seconds
-                timestamp = self._api_handler.refresh_time() / 1000
+        if self._api_handler.refresh_time() is not None:
+            # make seconds
+            timestamp = self._api_handler.refresh_time() / 1000
 
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug("Next token refresh scheduled at {} local time.".format(
-                        time.strftime("%c", time.localtime(timestamp))
-                    ))
-                self._token_event = self._token_scheduler.enterabs(
-                    time=timestamp,
-                    priority=2,
-                    action=AbstractEventsWebSocketHandler._token_refresh_thread,
-                    argument=(self,)
-                )
-            else:
-                self._token_event = None
+            self._token_scheduler.add_job(
+                func=lambda: self._token_refresh_thread(),
+                trigger='date',
+                run_date=datetime.fromtimestamp(timestamp),
+                id='token_refresh_thread',
+                replace_existing=True)
 
     def _token_refresh_thread(self):
         logger.debug("Updating token for session")

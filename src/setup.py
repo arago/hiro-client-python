@@ -31,7 +31,8 @@ setup(
         'requests',
         'backoff',
         'websocket-client',
-        'uuid'
+        'uuid',
+        'apscheduler'
     ],
     package_data={
         'hiro_graph_client': ['VERSION']
