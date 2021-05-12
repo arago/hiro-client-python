@@ -2,7 +2,6 @@ from os import path
 
 from setuptools import setup, find_packages
 
-import hiro_graph_client
 import timestamp
 import version_by_git
 
@@ -19,15 +18,16 @@ subversion = timestamp.make_timestamp()
 
 name = 'hiro_graph_client'
 
-version_by_git.create_version_file(name)
+__version__ = version_by_git.create_version_file(name)
 
 setup(
     name=name,
-    version=hiro_graph_client.__version__,
+    version=__version__,
     packages=find_packages(),
     python_requires='>=3.7',
 
     install_requires=[
+        'wheel',
         'requests',
         'backoff',
         'websocket-client',

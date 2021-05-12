@@ -8,7 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from websocket import WebSocketApp, WebSocketException
 
 from hiro_graph_client.clientlib import AbstractTokenApiHandler
-from hiro_graph_client.websocketlib import AbstractAuthenticatedWebSocketHandler
+from hiro_graph_client.websocketlib import AbstractAuthenticatedWebSocketHandler, ErrorMessage
 
 logger = logging.getLogger(__name__)
 """ The logger for this module """
@@ -53,12 +53,18 @@ class EventMessage:
     def parse(cls, message: str):
         """
         :param message: The message received from the websocket. Will be decoded here.
+        :return: The EventMessage or None if this is not an EventMessage (type or id are missing).
         """
         json_message: dict = json.loads(message)
-        return cls(json_message.get('id'),
+        event_type = json_message.get('type')
+        event_id = json_message.get('id')
+        if not event_type or not event_id:
+            return None
+
+        return cls(event_id,
                    json_message.get('timestamp'),
                    json_message.get('body'),
-                   json_message.get('type'),
+                   event_type,
                    json_message.get('metadata'),
                    json_message.get('nanotime'))
 
@@ -170,12 +176,19 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         :param ws: The WebSocketApp
         :param message: The raw message as string
         """
-        event_message = EventMessage.parse(message)
 
-        if event_message.type in ['CREATE', 'UPDATE', 'DELETE']:
-            self.on_event(event_message)
+        event_message = EventMessage.parse(message)
+        if event_message:
+            if event_message.type not in ['CREATE', 'UPDATE', 'DELETE']:
+                logger.error("Unknown event message of type '{}'".format(event_message.type))
+            else:
+                self.on_event(event_message)
         else:
-            logger.error("Unknown event message of type '{}'".format(event_message.type))
+            error_message = ErrorMessage.parse(message)
+            if error_message:
+                logger.error("Received error: " + str(error_message))
+            else:
+                logger.error("Invalid message: " + message)
 
     def on_error(self, ws: WebSocketApp, error: Exception):
         """
@@ -330,4 +343,3 @@ class WebSocketFilterException(WebSocketException):
     On errors with setting or parsing filter information.
     """
     pass
-
