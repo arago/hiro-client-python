@@ -56,6 +56,9 @@ class EventMessage:
         :return: The EventMessage or None if this is not an EventMessage (type or id are missing).
         """
         json_message: dict = json.loads(message)
+        if not isinstance(json_message, dict):
+            return None
+
         event_type = json_message.get('type')
         event_id = json_message.get('id')
         if not event_type or not event_id:
