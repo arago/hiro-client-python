@@ -239,7 +239,7 @@ class HiroGraph(AbstractHandledAPI):
         :param node_id: Id of the attachment node
         :param content_id: Id of the content within the attachment node. Default is None.
         :param include_deleted: Whether to be able to access deleted content: Default is False
-        :return: Yields over byte chunks from the response body payload.
+        :return: Returns generator over byte chunks from the response body payload.
         """
         query = {
             "contentId": content_id,
@@ -247,7 +247,7 @@ class HiroGraph(AbstractHandledAPI):
         }
 
         url = self.endpoint + '/' + quote_plus(node_id) + '/content' + self._get_query_part(query)
-        yield self.get_binary(url)
+        return self.get_binary(url)
 
     def post_attachment(self,
                         node_id: str,

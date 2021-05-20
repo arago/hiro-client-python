@@ -1,3 +1,7 @@
+# v4.1.2
+
+* Removed bug with double yields on binary data
+
 # v4.1.1
 
 * Only log request/responses when logging.DEBUG is enabled

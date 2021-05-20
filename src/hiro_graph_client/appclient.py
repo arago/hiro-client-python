@@ -51,10 +51,10 @@ class HiroApp(AbstractHandledAPI):
 
         :param node_id: ogit/_id of the node/vertex or edge.
         :param path: filename / path of the desired content.
-        :return: The result payload yields over binary data.
+        :return: The result payload generator over binary data.
         """
         url = self.endpoint + '/' + quote_plus(node_id) + '/content/' + quote_plus(path)
-        yield self.get_binary(url)
+        return self.get_binary(url)
 
     def get_manifest(self, node_id) -> dict:
         """
