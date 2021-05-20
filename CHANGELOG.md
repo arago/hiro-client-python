@@ -1,3 +1,7 @@
+# v4.1.3
+
+* Use yield from instead of return
+
 # v4.1.2
 
 * Removed bug with double yields on binary data

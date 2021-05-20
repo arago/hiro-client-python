@@ -54,7 +54,7 @@ class HiroApp(AbstractHandledAPI):
         :return: The result payload generator over binary data.
         """
         url = self.endpoint + '/' + quote_plus(node_id) + '/content/' + quote_plus(path)
-        return self.get_binary(url)
+        yield from self.get_binary(url)
 
     def get_manifest(self, node_id) -> dict:
         """

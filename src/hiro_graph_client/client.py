@@ -247,7 +247,7 @@ class HiroGraph(AbstractHandledAPI):
         }
 
         url = self.endpoint + '/' + quote_plus(node_id) + '/content' + self._get_query_part(query)
-        return self.get_binary(url)
+        yield from self.get_binary(url)
 
     def post_attachment(self,
                         node_id: str,

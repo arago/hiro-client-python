@@ -40,7 +40,7 @@ class HiroAuth(AbstractHandledAPI):
         :return: The result payload generator over binary data. Complete binary payload is an image/png.
         """
         url = self.endpoint + '/me/avatar'
-        return self.get_binary(url, accept='image/png')
+        yield from self.get_binary(url, accept='image/png')
 
     def put_avatar(self, data: Any) -> dict:
         """
