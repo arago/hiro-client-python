@@ -45,7 +45,7 @@ def create_version(package: str) -> str:
     else:
         version = version_numbers
 
-    logger.info("Python version {}".format(version))
+    logger.info("Python version %s", version)
 
     return version
 

@@ -183,15 +183,15 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         event_message = EventMessage.parse(message)
         if event_message:
             if event_message.type not in ['CREATE', 'UPDATE', 'DELETE']:
-                logger.error("Unknown event message of type '{}'".format(event_message.type))
+                logger.error("Unknown event message of type '%s'", event_message.type)
             else:
                 self.on_event(event_message)
         else:
             error_message = ErrorMessage.parse(message)
             if error_message:
-                logger.error("Received error: " + str(error_message))
+                logger.error("Received error: %s", str(error_message))
             else:
-                logger.error("Invalid message: " + message)
+                logger.error("Invalid message: %s", message)
 
     def on_error(self, ws: WebSocketApp, error: Exception):
         """

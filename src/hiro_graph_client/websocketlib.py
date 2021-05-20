@@ -175,7 +175,7 @@ class AbstractAuthenticatedWebSocketHandler:
         """
         self._reader_status = ReaderStatus.FAILED
         self._inner_exception = error
-        logger.error("Reader thread encountered error: " + str(error))
+        logger.error("Reader thread encountered error: %s", str(error))
 
     def _check_message(self, ws: WebSocketApp, message: str) -> None:
         """
@@ -201,12 +201,12 @@ class AbstractAuthenticatedWebSocketHandler:
                             self._reconnect_delay = 0
                             self._reader_status = ReaderStatus.RESTARTING
 
-                            logger.info("Refreshing token because of error: " + str(error_message))
+                            logger.info("Refreshing token because of error: %s", str(error_message))
                             self._close()
                             return
                 else:
                     if logger.isEnabledFor(logging.DEBUG):
-                        logger.debug("Received message: " + message)
+                        logger.debug("Received message: %s", message)
 
                 # If we get here, the token is valid
                 if self._reader_status != ReaderStatus.RUNNING:
@@ -225,7 +225,7 @@ class AbstractAuthenticatedWebSocketHandler:
 
         :param ws: WebSocketApp
         """
-        logger.debug("Connection to {} start.".format(self._url))
+        logger.debug("Connection to %s start.", self._url)
 
         with self._reader_guard:
             try:
@@ -250,7 +250,7 @@ class AbstractAuthenticatedWebSocketHandler:
         with self._reader_guard:
             try:
                 if code or reason:
-                    logger.debug("Received close from remote: {} {}. Restarting...".format(code, reason))
+                    logger.debug("Received close from remote: %s %s. Restarting...", code, reason)
                     self._reader_status = ReaderStatus.RESTARTING
                 else:
                     logger.debug("Received local close. Exiting...")
@@ -266,7 +266,7 @@ class AbstractAuthenticatedWebSocketHandler:
         :param ws: WebSocketApp
         :param error: Exception
         """
-        # logger.error("Received error: {}.".format(error))
+        # logger.error("Received error: %s", str(error))
         # logger.exception(error)
 
         with self._reader_guard:
@@ -476,7 +476,7 @@ class AbstractAuthenticatedWebSocketHandler:
                             raise WebSocketConnectionClosedException('Websocket is gone.')
 
                         if logger.isEnabledFor(logging.DEBUG):
-                            logger.debug("Sending message: " + message)
+                            logger.debug("Sending message: %s", message)
 
                         self._ws.send(message)
 
@@ -489,10 +489,10 @@ class AbstractAuthenticatedWebSocketHandler:
                     if retries < self.MAX_RETRIES:
                         if self._auto_reconnect:
                             retries = 0
-                            logger.warning('Restarting because of error: ' + str(err))
+                            logger.warning('Restarting because of error: %s', str(err))
                             self.restart(self._timeout)
                         else:
                             raise WebSocketException("Could not send and all retries have been exhausted.")
                     else:
-                        logger.warning('Retrying to send message because of error: ' + str(err))
+                        logger.warning('Retrying to send message because of error: %s', str(err))
                         retries += 1
