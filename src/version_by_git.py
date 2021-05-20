@@ -26,8 +26,6 @@ def create_version(package: str) -> str:
 
     regex_pattern = '@?([tv])((?:[0-9]+\\.){2,}[0-9]+)-([0-9]+)'
 
-    print(internal_version)
-
     match = re.search(regex_pattern, internal_version)
     if not match:
         logger.warning(
