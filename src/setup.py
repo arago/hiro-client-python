@@ -35,7 +35,7 @@ setup(
         'apscheduler'
     ],
     package_data={
-        'hiro_graph_client': ['VERSION']
+        name: ['VERSION']
     },
 
     project_urls={
