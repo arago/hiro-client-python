@@ -63,7 +63,7 @@ class ErrorMessage:
         }
 
 
-class ReaderStatus(Enum):
+class ReaderStatus(str, Enum):
     """
     The states the reader thread can be in.
     """
@@ -207,6 +207,8 @@ class AbstractAuthenticatedWebSocketHandler:
                 else:
                     if logger.isEnabledFor(logging.DEBUG):
                         logger.debug("Received message: %s", message)
+                    else:
+                        logger.info("Received message of length %d", len(message))
 
                 # If we get here, the token is valid
                 if self._reader_status != ReaderStatus.RUNNING:
@@ -477,6 +479,8 @@ class AbstractAuthenticatedWebSocketHandler:
 
                         if logger.isEnabledFor(logging.DEBUG):
                             logger.debug("Sending message: %s", message)
+                        else:
+                            logger.info("Sending message of length %d", len(message))
 
                         self._ws.send(message)
 
