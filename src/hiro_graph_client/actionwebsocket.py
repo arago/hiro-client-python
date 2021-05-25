@@ -37,24 +37,22 @@ class AbstractActionHandlerMessage:
     """
     id: str
     type: ActionMessageType
+    """ static type name of field 'type' in the json message """
 
     def __init__(self,
-                 action_id: Optional[str],
-                 action_type: ActionMessageType):
+                 action_id: Optional[str]):
         """
         Constructor
 
         :param action_id: ID. Might be None for messages without an ID.
-        :param action_type: Type of action. Required.
-               acknowledged, negativeAcknowledged, sendActionResult, submitAction, error, configChanged
         """
-        if not action_type:
-            raise ValueError('Cannot use an empty action_type.')
         self.id = action_id
-        self.type = action_type
 
-    def __str__(self):
-        return json.dumps(vars(self))
+    def __str__(self) -> str:
+        """ Create a JSON string representation of the message """
+        result = {"type": self.type}
+        result.update(vars(self))
+        return json.dumps(result)
 
 
 class AbstractSimpleActionHandlerMessage(AbstractActionHandlerMessage):
@@ -66,18 +64,16 @@ class AbstractSimpleActionHandlerMessage(AbstractActionHandlerMessage):
 
     def __init__(self,
                  action_id: str,
-                 action_type: ActionMessageType,
                  code: int,
                  message: str):
         """
         Constructor
 
         :param action_id: ID
-        :param action_type: Type of action message
         :param code: Code
         :param message: Message
         """
-        super().__init__(action_id, action_type)
+        super().__init__(action_id)
         self.code = code
         self.message = message
 
@@ -91,6 +87,8 @@ class ActionHandlerSubmit(AbstractActionHandlerMessage):
 
     _expires_at: int
     """Milliseconds"""
+
+    type = ActionMessageType.SUBMIT_ACTION
 
     def __init__(self,
                  action_id: str,
@@ -107,7 +105,7 @@ class ActionHandlerSubmit(AbstractActionHandlerMessage):
         :param parameters: Parameter dict
         :param timeout: Timeout in milliseconds
         """
-        super().__init__(action_id, ActionMessageType.SUBMIT_ACTION)
+        super().__init__(action_id)
         self.handler = handler
         self.capability = capability
         self.parameters = parameters
@@ -123,6 +121,8 @@ class ActionHandlerSubmit(AbstractActionHandlerMessage):
 class ActionHandlerResult(AbstractActionHandlerMessage):
     result: dict
 
+    type = ActionMessageType.SEND_ACTION_RESULT
+
     def __init__(self,
                  action_id: str,
                  result: dict):
@@ -132,7 +132,7 @@ class ActionHandlerResult(AbstractActionHandlerMessage):
         :param action_id: ID
         :param result: Result data
         """
-        super().__init__(action_id, ActionMessageType.SEND_ACTION_RESULT)
+        super().__init__(action_id)
         self.result = result
 
     def stringify_result(self) -> str:
@@ -144,6 +144,8 @@ class ActionHandlerResult(AbstractActionHandlerMessage):
 
 
 class ActionHandlerAck(AbstractSimpleActionHandlerMessage):
+    type = ActionMessageType.ACKNOWLEDGED
+
     def __init__(self,
                  action_id: str,
                  code: int,
@@ -155,10 +157,12 @@ class ActionHandlerAck(AbstractSimpleActionHandlerMessage):
         :param code: Ack code
         :param message: Ack message
         """
-        super().__init__(action_id, ActionMessageType.ACKNOWLEDGED, code, message)
+        super().__init__(action_id, code, message)
 
 
 class ActionHandlerNack(AbstractSimpleActionHandlerMessage):
+    type = ActionMessageType.NEGATIVE_ACKNOWLEDGED
+
     def __init__(self,
                  action_id: str,
                  code: int,
@@ -170,10 +174,12 @@ class ActionHandlerNack(AbstractSimpleActionHandlerMessage):
         :param code: Nack code
         :param message: Nack message
         """
-        super().__init__(action_id, ActionMessageType.NEGATIVE_ACKNOWLEDGED, code, message)
+        super().__init__(action_id, code, message)
 
 
 class ActionHandlerError(AbstractSimpleActionHandlerMessage):
+    type = ActionMessageType.ERROR
+
     def __init__(self, action_id: str, code: int, message: str):
         """
         Constructor
@@ -182,12 +188,14 @@ class ActionHandlerError(AbstractSimpleActionHandlerMessage):
         :param code: Error code
         :param message: Error message
         """
-        super().__init__(action_id, ActionMessageType.ERROR, code, message)
+        super().__init__(action_id, code, message)
 
 
 class ActionHandlerConfigChanged(AbstractActionHandlerMessage):
+    type = ActionMessageType.CONFIG_CHANGED
+
     def __init__(self):
-        super().__init__(None, ActionMessageType.CONFIG_CHANGED)
+        super().__init__(None)
 
 
 class ActionHandlerMessageParser:
@@ -294,7 +302,7 @@ class ActionItem:
 
 class ActionStore:
     """
-    A storage implementation with expiring entries
+    A thread-safe storage implementation with expiring entries
     """
 
     __store: Dict[str, ActionItem]
@@ -447,8 +455,16 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     def on_close(self, ws: WebSocketApp, code: int, reason: str):
         pass
 
-    def on_message(self, ws: WebSocketApp, message: str):
+    def on_error(self, ws: WebSocketApp, error: Exception):
+        pass
 
+    def on_message(self, ws: WebSocketApp, message: str):
+        """
+        Handle incoming action messages
+
+        :param ws: WebSocketApp
+        :param message: The message payload as str
+        """
         try:
             action_message: AbstractActionHandlerMessage = ActionHandlerMessageParser.parse(message)
             if not action_message:
@@ -467,32 +483,19 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
 
                 if action_handler_submit and not action_handler_result:
                     try:
-                        submit_result = self.on_submit(action_message.capability, action_message.parameters)
-
-                        if not submit_result:
-                            result_params = {
-                                "message": "Action successful (no data)",
-                                "code": 204
-                            }
-                        else:
-                            result_params = {
-                                "message": "Action successful",
-                                "code": 200,
-                                "data": json.dumps(submit_result)
-                            }
-
+                        self.on_submit(action_message.id, action_message.capability, action_message.parameters)
                     except Exception as err:
                         result_params = {
                             "message": str(err),
                             "code": 500
                         }
 
-                    action_handler_result = AbstractActionWebSocketHandler.resultStore.add(
-                        action_message.expires_at,
-                        ActionHandlerResult(action_message.id, result_params)
-                    )
+                        action_handler_result = AbstractActionWebSocketHandler.resultStore.add(
+                            action_message.expires_at,
+                            ActionHandlerResult(action_message.id, result_params)
+                        )
 
-                    AbstractActionWebSocketHandler.submitStore.remove(action_message.id)
+                        AbstractActionWebSocketHandler.submitStore.remove(action_message.id)
 
                 else:
                     if action_handler_result:
@@ -547,11 +550,61 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
             if err.id:
                 self.send(str(ActionHandlerNack(err.id, 400, str(err))))
 
-    def on_error(self, ws: WebSocketApp, error: Exception):
+    def on_submit(self, action_id: str, capability: str, parameters: dict):
+        """
+        Handle incoming submitAction
+
+        :param action_id: Id of the action
+        :param capability: Capability of the submitAction
+        :param parameters: Additional parameters for the capability
+        """
         pass
 
-    def on_submit(self, capability: str, parameters: dict) -> dict:
-        pass
+    def send_action_result(self, action_id: str, result: Optional[dict]) -> None:
+        """
+        Send the result of a submitAction. Thread-Safe!
+
+        :param action_id: Id of the submitAction
+        :param result: Data dict with result data. May be None.
+        """
+        try:
+            result_message = ActionHandlerResult(action_id, result)
+            submit_message = AbstractActionWebSocketHandler.submitStore.get(action_id)
+
+            if not isinstance(submit_message, ActionHandlerSubmit):
+                logger.warning('Handling "%s" (id: %s): Submit not stored - maybe it has expired?',
+                               result_message.type,
+                               result_message.id)
+                return
+
+            if not result:
+                result_params = {
+                    "message": "Action successful (no data)",
+                    "code": 204
+                }
+            else:
+                result_params = {
+                    "message": "Action successful",
+                    "code": 200,
+                    "data": json.dumps(result)
+                }
+
+            action_handler_result = AbstractActionWebSocketHandler.resultStore.add(
+                submit_message.expires_at,
+                ActionHandlerResult(result_message.id, result_params)
+            )
+
+            if isinstance(action_handler_result, ActionHandlerResult):
+                logger.info('Sending %s (id: %s)', result_message.type, result_message.id)
+                self.send(action_handler_result.stringify_result())
+            else:
+                logger.warning(
+                    'Handling "%s" (id: %s): Result already exists or action has expired. Not sending result.',
+                    result_message.type,
+                    result_message.id)
+
+        finally:
+            AbstractActionWebSocketHandler.submitStore.remove(action_id)
 
     def on_config_changed(self):
         pass
