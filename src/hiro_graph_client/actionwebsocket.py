@@ -2,6 +2,7 @@ import json
 import logging
 import threading
 import time
+from abc import abstractmethod
 from datetime import datetime
 from enum import Enum
 from typing import Optional, Union, Dict
@@ -35,9 +36,26 @@ class AbstractActionHandlerMessage:
     """
     The structure of an incoming action message
     """
-    id: str
     type: ActionMessageType
     """ static type name of field 'type' in the json message """
+
+    def __str__(self) -> str:
+        """ Create a JSON string representation of the message """
+        result = {"type": self.type}
+        result.update(vars(self))
+        return json.dumps(result)
+
+    @classmethod
+    @abstractmethod
+    def parse(cls, dict_message: dict):
+        pass
+
+
+class AbstractActionHandlerIdMessage(AbstractActionHandlerMessage):
+    """
+    The structure of an incoming action message with id
+    """
+    id: str
 
     def __init__(self,
                  action_id: Optional[str]):
@@ -48,37 +66,13 @@ class AbstractActionHandlerMessage:
         """
         self.id = action_id
 
-    def __str__(self) -> str:
-        """ Create a JSON string representation of the message """
-        result = {"type": self.type}
-        result.update(vars(self))
-        return json.dumps(result)
+    @classmethod
+    @abstractmethod
+    def parse(cls, dict_message: dict):
+        pass
 
 
-class AbstractSimpleActionHandlerMessage(AbstractActionHandlerMessage):
-    """
-    A simple action handler message containing a code and a message.
-    """
-    code: int
-    message: str
-
-    def __init__(self,
-                 action_id: Optional[str],
-                 code: int,
-                 message: str):
-        """
-        Constructor
-
-        :param action_id: ID
-        :param code: Code
-        :param message: Message
-        """
-        super().__init__(action_id)
-        self.code = code
-        self.message = message
-
-
-class ActionHandlerSubmit(AbstractActionHandlerMessage):
+class ActionHandlerSubmit(AbstractActionHandlerIdMessage):
     handler: str
     capability: str
     parameters: dict
@@ -113,12 +107,22 @@ class ActionHandlerSubmit(AbstractActionHandlerMessage):
 
         self._expires_at = int(time.time_ns() / 1000000 + self.timeout)
 
+    @classmethod
+    def parse(cls, dict_message: dict):
+        return cls(
+            action_id=dict_message.get('id'),
+            handler=dict_message.get('handler'),
+            capability=dict_message.get('capability'),
+            parameters=dict_message.get('parameters'),
+            timeout=dict_message.get('timeout')
+        )
+
     @property
     def expires_at(self):
         return self._expires_at
 
 
-class ActionHandlerResult(AbstractActionHandlerMessage):
+class ActionHandlerResult(AbstractActionHandlerIdMessage):
     result: dict
 
     type = ActionMessageType.SEND_ACTION_RESULT
@@ -135,6 +139,13 @@ class ActionHandlerResult(AbstractActionHandlerMessage):
         super().__init__(action_id)
         self.result = result
 
+    @classmethod
+    def parse(cls, dict_message: dict):
+        return cls(
+            action_id=dict_message.get('id'),
+            result=dict_message.get('result')
+        )
+
     def stringify_result(self) -> str:
         return json.dumps({
             "type": self.type,
@@ -143,8 +154,11 @@ class ActionHandlerResult(AbstractActionHandlerMessage):
         })
 
 
-class ActionHandlerAck(AbstractSimpleActionHandlerMessage):
+class ActionHandlerAck(AbstractActionHandlerIdMessage):
     type = ActionMessageType.ACKNOWLEDGED
+
+    code: int
+    message: str
 
     def __init__(self,
                  action_id: str,
@@ -157,11 +171,24 @@ class ActionHandlerAck(AbstractSimpleActionHandlerMessage):
         :param code: Ack code
         :param message: Ack message
         """
-        super().__init__(action_id, code, message)
+        super().__init__(action_id)
+        self.code = code
+        self.message = message
+
+    @classmethod
+    def parse(cls, dict_message: dict):
+        return cls(
+            action_id=dict_message.get('id'),
+            code=dict_message.get('code'),
+            message=dict_message.get('message')
+        )
 
 
-class ActionHandlerNack(AbstractSimpleActionHandlerMessage):
+class ActionHandlerNack(AbstractActionHandlerIdMessage):
     type = ActionMessageType.NEGATIVE_ACKNOWLEDGED
+
+    code: int
+    message: str
 
     def __init__(self,
                  action_id: str,
@@ -174,11 +201,24 @@ class ActionHandlerNack(AbstractSimpleActionHandlerMessage):
         :param code: Nack code
         :param message: Nack message
         """
-        super().__init__(action_id, code, message)
+        super().__init__(action_id)
+        self.code = code
+        self.message = message
+
+    @classmethod
+    def parse(cls, dict_message: dict):
+        return cls(
+            action_id=dict_message.get('id'),
+            code=dict_message.get('code'),
+            message=dict_message.get('message')
+        )
 
 
-class ActionHandlerError(AbstractSimpleActionHandlerMessage):
+class ActionHandlerError(AbstractActionHandlerMessage):
     type = ActionMessageType.ERROR
+
+    code: int
+    message: str
 
     def __init__(self, code: int, message: str):
         """
@@ -187,14 +227,23 @@ class ActionHandlerError(AbstractSimpleActionHandlerMessage):
         :param code: Error code
         :param message: Error message
         """
-        super().__init__(None, code, message)
+        self.code = code
+        self.message = message
+
+    @classmethod
+    def parse(cls, dict_message: dict):
+        return cls(
+            code=dict_message.get('code'),
+            message=dict_message.get('message')
+        )
 
 
 class ActionHandlerConfigChanged(AbstractActionHandlerMessage):
     type = ActionMessageType.CONFIG_CHANGED
 
-    def __init__(self):
-        super().__init__(None)
+    @classmethod
+    def parse(cls, dict_message: dict):
+        return cls()
 
 
 class ActionHandlerMessageParser:
@@ -214,45 +263,23 @@ class ActionHandlerMessageParser:
         dict_message: dict = json.dumps(message) if isinstance(message, str) else message
         if dict_message:
             message_type = dict_message.get('type')
-            action_id = dict_message.get('id')
 
             try:
                 action_type = ActionMessageType(message_type)
                 if action_type == ActionMessageType.SUBMIT_ACTION:
-                    return ActionHandlerSubmit(
-                        action_id=action_id,
-                        handler=dict_message.get('handler'),
-                        capability=dict_message.get('capability'),
-                        parameters=dict_message.get('parameters'),
-                        timeout=dict_message.get('timeout')
-                    )
+                    return ActionHandlerSubmit.parse(dict_message)
                 if action_type == ActionMessageType.SEND_ACTION_RESULT:
-                    return ActionHandlerResult(
-                        action_id=action_id,
-                        result=dict_message.get('result')
-                    )
+                    return ActionHandlerResult.parse(dict_message)
                 if action_type == ActionMessageType.ACKNOWLEDGED:
-                    return ActionHandlerAck(
-                        action_id=action_id,
-                        code=dict_message.get('code'),
-                        message=dict_message.get('message')
-                    )
+                    return ActionHandlerAck.parse(dict_message)
                 if action_type == ActionMessageType.NEGATIVE_ACKNOWLEDGED:
-                    return ActionHandlerNack(
-                        action_id=action_id,
-                        code=dict_message.get('code'),
-                        message=dict_message.get('message')
-                    )
+                    return ActionHandlerNack.parse(dict_message)
                 if action_type == ActionMessageType.CONFIG_CHANGED:
-                    return ActionHandlerConfigChanged(
-                    )
+                    return ActionHandlerConfigChanged.parse(dict_message)
                 if action_type == ActionMessageType.ERROR:
-                    return ActionHandlerError(
-                        code=dict_message.get('code'),
-                        message=dict_message.get('message')
-                    )
+                    return ActionHandlerError.parse(dict_message)
             except ValueError as err:
-                raise UnknownActionException(message_type=message_type, error_id=action_id) from err
+                raise UnknownActionException(message_type=message_type, error_id=dict_message.get('id')) from err
 
         return None
 
@@ -266,7 +293,7 @@ class ActionItem:
     An item for the *ExpiringStore* which carries its timeout and retries
     """
 
-    message: AbstractActionHandlerMessage
+    message: AbstractActionHandlerIdMessage
     expires_at: int
     """ Epoch time after which this item is invalid """
     retries: int
@@ -274,7 +301,7 @@ class ActionItem:
 
     __scheduled_job: Job
 
-    def __init__(self, job: Job, message: AbstractActionHandlerMessage, expires_at: int, retries: int = 4):
+    def __init__(self, job: Job, message: AbstractActionHandlerIdMessage, expires_at: int, retries: int = 4):
         """
         Constructor
 
@@ -338,7 +365,7 @@ class ActionStore:
 
     def add(self,
             expires_at: int,
-            message: AbstractActionHandlerMessage,
+            message: AbstractActionHandlerIdMessage,
             retries: int = 4) -> None:
         """
         Add message to the store and start its expiry timer.
@@ -375,7 +402,7 @@ class ActionStore:
             if message_id in self.__store:
                 del self.__store[message_id]
 
-    def get(self, message_id: str) -> Optional[AbstractActionHandlerMessage]:
+    def get(self, message_id: str) -> Optional[AbstractActionHandlerIdMessage]:
         """
         Get a message from the store.
 
@@ -386,7 +413,7 @@ class ActionStore:
             item: ActionItem = self.__store.get(message_id)
             return item.message if item else None
 
-    def retry_get(self, message_id: str) -> Optional[AbstractActionHandlerMessage]:
+    def retry_get(self, message_id: str) -> Optional[AbstractActionHandlerIdMessage]:
         """
         Get a message from the store. Each time it is returned, its retries counter is decreased. If it reaches 0,
         the message gets deleted and None gets returned.
@@ -525,7 +552,7 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
                     self.send(action_handler_result.stringify_result())
 
             elif isinstance(action_message, ActionHandlerConfigChanged):
-                logger.info('Handling "%s" (id: %s)', action_message.type, action_message.id)
+                logger.info('Handling "%s"', action_message.type)
                 self.on_config_changed()
 
             elif isinstance(action_message, ActionHandlerError):
