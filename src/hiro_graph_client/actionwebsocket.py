@@ -63,7 +63,7 @@ class AbstractSimpleActionHandlerMessage(AbstractActionHandlerMessage):
     message: str
 
     def __init__(self,
-                 action_id: str,
+                 action_id: Optional[str],
                  code: int,
                  message: str):
         """
@@ -180,15 +180,14 @@ class ActionHandlerNack(AbstractSimpleActionHandlerMessage):
 class ActionHandlerError(AbstractSimpleActionHandlerMessage):
     type = ActionMessageType.ERROR
 
-    def __init__(self, action_id: str, code: int, message: str):
+    def __init__(self, code: int, message: str):
         """
         Constructor
 
-        :param action_id: ID
         :param code: Error code
         :param message: Error message
         """
-        super().__init__(action_id, code, message)
+        super().__init__(None, code, message)
 
 
 class ActionHandlerConfigChanged(AbstractActionHandlerMessage):
@@ -249,7 +248,6 @@ class ActionHandlerMessageParser:
                     )
                 if action_type == ActionMessageType.ERROR:
                     return ActionHandlerError(
-                        action_id=action_id,
                         code=dict_message.get('code'),
                         message=dict_message.get('message')
                     )
@@ -327,28 +325,37 @@ class ActionStore:
         """ Destructor. Shuts down the scheduler. """
         self.__expiry_scheduler.shutdown()
 
+    def __expiry_remove(self, message_id: str) -> None:
+        """
+        Remove a message from the store and log it on *logger.isEnabledFor(logging.INFO)*.
+
+        :param message_id: Id of the message
+        """
+        with self.__store_lock:
+            if message_id in self.__store:
+                message = self.__store.pop(message_id).message
+                logger.info("Discard %s %s because it expired.", message.type, message.id)
+
     def add(self,
             expires_at: int,
             message: AbstractActionHandlerMessage,
-            retries: int = 4) -> Optional[AbstractActionHandlerMessage]:
+            retries: int = 4) -> None:
         """
         Add message to the store and start its expiry timer.
 
         :param expires_at: Epoch in ms when the message expires.
         :param message: The message itself.
         :param retries: Retries allowed when *self.retry_get* is used.
-        :return: None if message already expired or already exists in the *self.__store*, the message otherwise.
+        :raise ActionItemExpired: When the expires_at has expired already.
+        :raise ActionItemExists: When the id of the message already exists in the store
         """
 
         if expires_at - (time.time_ns() / 1000000) < 0:
-            logger.debug("Not adding %s %s because it has expired.", message.type, message.id)
-            return None
+            raise ActionItemExpired(message.id, message.type)
 
         with self.__store_lock:
             if message.id in self.__store:
-                logger.debug(
-                    "Not adding %s %s because it already exists.", message.type, message.id)
-                return None
+                raise ActionItemExists(message.id, message.type)
 
             job: Job = self.__expiry_scheduler.add_job(
                 func=lambda message_id: self.__expiry_remove(message_id),
@@ -357,8 +364,6 @@ class ActionStore:
                 run_date=datetime.fromtimestamp(expires_at))
 
             self.__store[message.id] = ActionItem(job, message, expires_at, retries)
-
-            return message
 
     def remove(self, message_id: str) -> None:
         """
@@ -369,17 +374,6 @@ class ActionStore:
         with self.__store_lock:
             if message_id in self.__store:
                 del self.__store[message_id]
-
-    def __expiry_remove(self, message_id: str) -> None:
-        """
-        Remove a message from the store and log it on *logger.isEnabledFor(logging.DEBUG)*.
-
-        :param message_id: Id of the message
-        """
-        with self.__store_lock:
-            if message_id in self.__store:
-                message = self.__store.pop(message_id).message
-                logger.debug("Discard %s %s because it expired.", message.type, message.id)
 
     def get(self, message_id: str) -> Optional[AbstractActionHandlerMessage]:
         """
@@ -407,11 +401,11 @@ class ActionStore:
 
             if item.retries:
                 item.retries -= 1
-                return self.get(message_id)
+                return item.message
             else:
-                logger.debug("Discard message %s %s because no retries left.",
-                             item.message.type,
-                             item.message.id)
+                logger.info("Discard message %s %s because no retries left.",
+                            item.message.type,
+                            item.message.id)
                 self.remove(message_id)
                 return None
 
@@ -432,10 +426,8 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     A handler for actions
     """
 
-    submitStore: ActionStore = ActionStore()
-    """ Static class variable """
-    resultStore: ActionStore = ActionStore()
-    """ Static class variable """
+    submitStore: ActionStore
+    resultStore: ActionStore
 
     def __init__(self, api_handler: AbstractTokenApiHandler):
         """
@@ -444,6 +436,23 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         :param api_handler: The TokenApiHandler for this WebSocket.
         """
         super().__init__(api_handler, 'action-ws')
+        self.submitStore = ActionStore()
+        self.resultStore = ActionStore()
+
+    def __finish_submit(self, action_id: str, action_handler_result: Optional[ActionHandlerResult]):
+        """
+        Sends the action_handler_result if it is not None and makes sure, that the submitAction is removed from the
+        self.submitStore.
+
+        :param action_id: ID of the action
+        :param action_handler_result: Result for the submitAction. May be None.
+        """
+        try:
+            if action_handler_result:
+                logger.info('Sending %s (id: %s)', action_handler_result.type, action_handler_result.id)
+                self.send(action_handler_result.stringify_result())
+        finally:
+            self.submitStore.remove(action_id)
 
     ###############################################################################################################
     # Websocket Events
@@ -475,44 +484,27 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
 
                 self.send(str(ActionHandlerAck(action_message.id, 200, "submitAction acknowledged")))
 
-                submit_exists: bool = (AbstractActionWebSocketHandler.submitStore.get(action_message.id) is not None)
-                action_handler_submit = None if submit_exists else AbstractActionWebSocketHandler.submitStore.add(
-                    action_message.expires_at, action_message
-                )
-                action_handler_result = AbstractActionWebSocketHandler.resultStore.get(action_message.id)
+                try:
+                    self.submitStore.add(action_message.expires_at, action_message)
+                except ActionItemExists as err:
+                    logger.info(str(err))
+                    return
+                except ActionItemExpired as err:
+                    logger.info(str(err))
+                    return
 
-                if action_handler_submit and not action_handler_result:
+                action_handler_result = self.resultStore.get(action_message.id)
+                if isinstance(action_handler_result, ActionHandlerResult):
+                    logger.info('Handling "%s" (id: %s): Already processed', action_message.type, action_message.id)
+                    self.__finish_submit(action_message.id, action_handler_result)
+                else:
                     try:
-                        self.on_submit(action_message.id, action_message.capability, action_message.parameters)
+                        self.on_submit_action(action_message.id, action_message.capability, action_message.parameters)
                     except Exception as err:
-                        result_params = {
+                        self.send_action_result(action_message.id, {
                             "message": str(err),
                             "code": 500
-                        }
-
-                        action_handler_result = AbstractActionWebSocketHandler.resultStore.add(
-                            action_message.expires_at,
-                            ActionHandlerResult(action_message.id, result_params)
-                        )
-
-                        AbstractActionWebSocketHandler.submitStore.remove(action_message.id)
-
-                else:
-                    if action_handler_result:
-                        logger.info('Handling "%s" (id: %s): Already processed',
-                                    action_message.type,
-                                    action_message.id)
-                    elif submit_exists:
-                        logger.info('Handling "%s" (id: %s): Still processing',
-                                    action_message.type,
-                                    action_message.id)
-                    else:
-                        logger.info('Handling "%s" (id: %s): Submit not stored - maybe it has expired?',
-                                    action_message.type,
-                                    action_message.id)
-
-                if isinstance(action_handler_result, ActionHandlerResult):
-                    self.send(action_handler_result.stringify_result())
+                        })
 
             elif isinstance(action_message, ActionHandlerResult):
                 logger.info('Handling "%s" (id: %s)', action_message.type, action_message.id)
@@ -522,12 +514,12 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
             elif isinstance(action_message, ActionHandlerAck):
                 logger.info('Handling "%s" (id: %s)', action_message.type, action_message.id)
 
-                AbstractActionWebSocketHandler.resultStore.remove(action_message.id)
+                self.resultStore.remove(action_message.id)
 
             elif isinstance(action_message, ActionHandlerNack):
                 logger.info('Handling "%s" (id: %s)', action_message.type, action_message.id)
 
-                action_handler_result = AbstractActionWebSocketHandler.resultStore.retry_get(action_message.id)
+                action_handler_result = self.resultStore.retry_get(action_message.id)
                 if isinstance(action_handler_result, ActionHandlerResult):
                     time.sleep(1)
                     self.send(action_handler_result.stringify_result())
@@ -537,11 +529,10 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
                 self.on_config_changed()
 
             elif isinstance(action_message, ActionHandlerError):
-                logger.error('Received error message (id: %s) (code %s): %s',
-                             action_message.type,
-                             action_message.id,
+                logger.error('Received error message (code %s): %s',
                              action_message.code,
                              action_message.message)
+
             else:
                 logger.error("Received unknown message: %s", message)
 
@@ -550,7 +541,11 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
             if err.id:
                 self.send(str(ActionHandlerNack(err.id, 400, str(err))))
 
-    def on_submit(self, action_id: str, capability: str, parameters: dict):
+    ###############################################################################################################
+    # API methods
+    ###############################################################################################################
+
+    def on_submit_action(self, action_id: str, capability: str, parameters: dict):
         """
         Handle incoming submitAction
 
@@ -567,44 +562,38 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         :param action_id: Id of the submitAction
         :param result: Data dict with result data. May be None.
         """
+        result_message = ActionHandlerResult(action_id, result)
+        submit_message = self.submitStore.get(action_id)
+
+        if not isinstance(submit_message, ActionHandlerSubmit):
+            logger.info('Handling "%s" (id: %s): Submit not stored - maybe it has expired?',
+                        result_message.type,
+                        result_message.id)
+            return
+
+        if not result:
+            result_params = {
+                "message": "Action successful (no data)",
+                "code": 204
+            }
+        else:
+            result_params = {
+                "message": "Action successful",
+                "code": 200,
+                "data": json.dumps(result)
+            }
+
+        action_handler_result = ActionHandlerResult(result_message.id, result_params)
         try:
-            result_message = ActionHandlerResult(action_id, result)
-            submit_message = AbstractActionWebSocketHandler.submitStore.get(action_id)
+            self.resultStore.add(submit_message.expires_at, action_handler_result)
+        except ActionItemExists as err:
+            logger.info(str(err))
+            action_handler_result = self.resultStore.get(result_message.id)
+        except ActionItemExpired as err:
+            logger.info(str(err))
+            action_handler_result = None
 
-            if not isinstance(submit_message, ActionHandlerSubmit):
-                logger.warning('Handling "%s" (id: %s): Submit not stored - maybe it has expired?',
-                               result_message.type,
-                               result_message.id)
-                return
-
-            if not result:
-                result_params = {
-                    "message": "Action successful (no data)",
-                    "code": 204
-                }
-            else:
-                result_params = {
-                    "message": "Action successful",
-                    "code": 200,
-                    "data": json.dumps(result)
-                }
-
-            action_handler_result = AbstractActionWebSocketHandler.resultStore.add(
-                submit_message.expires_at,
-                ActionHandlerResult(result_message.id, result_params)
-            )
-
-            if isinstance(action_handler_result, ActionHandlerResult):
-                logger.info('Sending %s (id: %s)', result_message.type, result_message.id)
-                self.send(action_handler_result.stringify_result())
-            else:
-                logger.warning(
-                    'Handling "%s" (id: %s): Result already exists or action has expired. Not sending result.',
-                    result_message.type,
-                    result_message.id)
-
-        finally:
-            AbstractActionWebSocketHandler.submitStore.remove(action_id)
+        self.__finish_submit(action_id, action_handler_result)
 
     def on_config_changed(self):
         pass
@@ -614,7 +603,7 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
 # Exceptions
 ###################################################################################################################
 
-class UnknownActionException(Exception):
+class ActionException(Exception):
     """
     When an unknown action is received
     """
@@ -625,5 +614,38 @@ class UnknownActionException(Exception):
         self.id = error_id
         self.type = message_type
 
+
+class UnknownActionException(ActionException):
+    """
+    When an unknown action is received
+    """
+
+    def __init__(self, error_id, message_type):
+        super().__init__(error_id, message_type)
+
     def __str__(self):
         return 'Unknown ActionHandlerMessage "{}" (id: {})'.format(self.type, self.id)
+
+
+class ActionItemExpired(ActionException):
+    """
+    When an action item for the ActionStore has expired
+    """
+
+    def __init__(self, error_id, message_type):
+        super().__init__(error_id, message_type)
+
+    def __str__(self):
+        return 'Message has expired: "{}" (id: {})'.format(self.type, self.id)
+
+
+class ActionItemExists(ActionException):
+    """
+    When an action item for the ActionStore already exists
+    """
+
+    def __init__(self, error_id, message_type):
+        super().__init__(error_id, message_type)
+
+    def __str__(self):
+        return 'Message id already stored: "{}" (id: {})'.format(self.type, self.id)
