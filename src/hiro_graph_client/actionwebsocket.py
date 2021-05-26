@@ -39,6 +39,9 @@ class AbstractActionHandlerMessage:
     type: ActionMessageType
     """ static type name of field 'type' in the json message """
 
+    def __init__(self, **kwargs):
+        pass
+
     def __str__(self) -> str:
         """ Create a JSON string representation of the message """
         result = {"type": self.type}
@@ -46,7 +49,6 @@ class AbstractActionHandlerMessage:
         return json.dumps(result)
 
     @classmethod
-    @abstractmethod
     def parse(cls, dict_message: dict):
         pass
 
@@ -58,18 +60,39 @@ class AbstractActionHandlerIdMessage(AbstractActionHandlerMessage):
     id: str
 
     def __init__(self,
-                 action_id: Optional[str]):
+                 action_id: str,
+                 **kwargs):
         """
         Constructor
 
         :param action_id: ID. Might be None for messages without an ID.
         """
+        super().__init__(**kwargs)
+        if not action_id:
+            raise ValueError("{}: parameter 'action_id' required.".format(self.__class__.__name__))
         self.id = action_id
 
-    @classmethod
-    @abstractmethod
-    def parse(cls, dict_message: dict):
-        pass
+
+class AbstractActionHandlerCodeMessage(AbstractActionHandlerMessage):
+    """
+    The structure of an incoming action message with code and message
+    """
+    code: int
+    message: str
+
+    def __init__(self,
+                 code: int,
+                 message: str,
+                 **kwargs):
+        """
+        Constructor
+
+        :param code: Code number
+        :param message: Message string
+        """
+        super().__init__(**kwargs)
+        self.code = code
+        self.message = message
 
 
 class ActionHandlerSubmit(AbstractActionHandlerIdMessage):
@@ -99,7 +122,7 @@ class ActionHandlerSubmit(AbstractActionHandlerIdMessage):
         :param parameters: Parameter dict
         :param timeout: Timeout in milliseconds
         """
-        super().__init__(action_id)
+        super().__init__(action_id=action_id)
         self.handler = handler
         self.capability = capability
         self.parameters = parameters
@@ -136,7 +159,7 @@ class ActionHandlerResult(AbstractActionHandlerIdMessage):
         :param action_id: ID
         :param result: Result data
         """
-        super().__init__(action_id)
+        super().__init__(action_id=action_id)
         self.result = result
 
     @classmethod
@@ -154,11 +177,8 @@ class ActionHandlerResult(AbstractActionHandlerIdMessage):
         })
 
 
-class ActionHandlerAck(AbstractActionHandlerIdMessage):
+class ActionHandlerAck(AbstractActionHandlerIdMessage, AbstractActionHandlerCodeMessage):
     type = ActionMessageType.ACKNOWLEDGED
-
-    code: int
-    message: str
 
     def __init__(self,
                  action_id: str,
@@ -171,9 +191,7 @@ class ActionHandlerAck(AbstractActionHandlerIdMessage):
         :param code: Ack code
         :param message: Ack message
         """
-        super().__init__(action_id)
-        self.code = code
-        self.message = message
+        super().__init__(action_id=action_id, code=code, message=message)
 
     @classmethod
     def parse(cls, dict_message: dict):
@@ -184,11 +202,8 @@ class ActionHandlerAck(AbstractActionHandlerIdMessage):
         )
 
 
-class ActionHandlerNack(AbstractActionHandlerIdMessage):
+class ActionHandlerNack(AbstractActionHandlerIdMessage, AbstractActionHandlerCodeMessage):
     type = ActionMessageType.NEGATIVE_ACKNOWLEDGED
-
-    code: int
-    message: str
 
     def __init__(self,
                  action_id: str,
@@ -201,9 +216,7 @@ class ActionHandlerNack(AbstractActionHandlerIdMessage):
         :param code: Nack code
         :param message: Nack message
         """
-        super().__init__(action_id)
-        self.code = code
-        self.message = message
+        super().__init__(action_id=action_id, code=code, message=message)
 
     @classmethod
     def parse(cls, dict_message: dict):
@@ -214,11 +227,8 @@ class ActionHandlerNack(AbstractActionHandlerIdMessage):
         )
 
 
-class ActionHandlerError(AbstractActionHandlerMessage):
+class ActionHandlerError(AbstractActionHandlerCodeMessage):
     type = ActionMessageType.ERROR
-
-    code: int
-    message: str
 
     def __init__(self, code: int, message: str):
         """
@@ -227,8 +237,7 @@ class ActionHandlerError(AbstractActionHandlerMessage):
         :param code: Error code
         :param message: Error message
         """
-        self.code = code
-        self.message = message
+        super().__init__(code=code, message=message)
 
     @classmethod
     def parse(cls, dict_message: dict):
@@ -241,6 +250,9 @@ class ActionHandlerError(AbstractActionHandlerMessage):
 class ActionHandlerConfigChanged(AbstractActionHandlerMessage):
     type = ActionMessageType.CONFIG_CHANGED
 
+    def __init__(self):
+        super().__init__()
+
     @classmethod
     def parse(cls, dict_message: dict):
         return cls()
@@ -251,35 +263,43 @@ class ActionHandlerMessageParser:
     Create an ActionHandlerMessage from a string message or dict.
     """
 
-    @staticmethod
-    def parse(message: Union[dict, str]) -> Optional[AbstractActionHandlerMessage]:
+    message: dict
+
+    def __init__(self, message: Union[dict, str]):
         """
         Create an ActionHandlerMessage from a string message or dict. Return None if no message can be parsed.
 
         :param message: Message as str or dict
-        :return: Instance of a child of AbstractActionHandlerMessage or None if message is empty.
-        :raise UnknownActionException: If the type of the incoming message is unknown.
         """
-        dict_message: dict = json.dumps(message) if isinstance(message, str) else message
-        if dict_message:
-            message_type = dict_message.get('type')
+        self.message = json.dumps(message) if isinstance(message, str) else message
+
+    def parse(self) -> Optional[AbstractActionHandlerMessage]:
+        """
+        Create the ActionHandlerMessage
+
+        :return: Instance of a child of AbstractActionHandlerMessage or None if *self.message* is empty.
+        :raise UnknownActionException: If the type of *self.message* is unknown.
+        """
+        if self.message:
+            message_type = self.message.get('type')
 
             try:
                 action_type = ActionMessageType(message_type)
-                if action_type == ActionMessageType.SUBMIT_ACTION:
-                    return ActionHandlerSubmit.parse(dict_message)
-                if action_type == ActionMessageType.SEND_ACTION_RESULT:
-                    return ActionHandlerResult.parse(dict_message)
-                if action_type == ActionMessageType.ACKNOWLEDGED:
-                    return ActionHandlerAck.parse(dict_message)
-                if action_type == ActionMessageType.NEGATIVE_ACKNOWLEDGED:
-                    return ActionHandlerNack.parse(dict_message)
-                if action_type == ActionMessageType.CONFIG_CHANGED:
-                    return ActionHandlerConfigChanged.parse(dict_message)
-                if action_type == ActionMessageType.ERROR:
-                    return ActionHandlerError.parse(dict_message)
             except ValueError as err:
-                raise UnknownActionException(message_type=message_type, error_id=dict_message.get('id')) from err
+                raise UnknownActionException(message_type=message_type, error_id=self.message.get('id')) from err
+
+            if action_type == ActionMessageType.SUBMIT_ACTION:
+                return ActionHandlerSubmit.parse(self.message)
+            if action_type == ActionMessageType.SEND_ACTION_RESULT:
+                return ActionHandlerResult.parse(self.message)
+            if action_type == ActionMessageType.ACKNOWLEDGED:
+                return ActionHandlerAck.parse(self.message)
+            if action_type == ActionMessageType.NEGATIVE_ACKNOWLEDGED:
+                return ActionHandlerNack.parse(self.message)
+            if action_type == ActionMessageType.CONFIG_CHANGED:
+                return ActionHandlerConfigChanged.parse(self.message)
+            if action_type == ActionMessageType.ERROR:
+                return ActionHandlerError.parse(self.message)
 
         return None
 
@@ -502,7 +522,7 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         :param message: The message payload as str
         """
         try:
-            action_message: AbstractActionHandlerMessage = ActionHandlerMessageParser.parse(message)
+            action_message = ActionHandlerMessageParser(message).parse()
             if not action_message:
                 return
 
@@ -513,10 +533,7 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
 
                 try:
                     self.submitStore.add(action_message.expires_at, action_message)
-                except ActionItemExists as err:
-                    logger.info(str(err))
-                    return
-                except ActionItemExpired as err:
+                except (ActionItemExists, ActionItemExpired) as err:
                     logger.info(str(err))
                     return
 
@@ -524,14 +541,16 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
                 if isinstance(action_handler_result, ActionHandlerResult):
                     logger.info('Handling "%s" (id: %s): Already processed', action_message.type, action_message.id)
                     self.__finish_submit(action_message.id, action_handler_result)
-                else:
-                    try:
-                        self.on_submit_action(action_message.id, action_message.capability, action_message.parameters)
-                    except Exception as err:
-                        self.send_action_result(action_message.id, {
-                            "message": str(err),
-                            "code": 500
-                        })
+                    return
+
+                try:
+                    self.on_submit_action(action_message.id, action_message.capability, action_message.parameters)
+                except Exception as err:
+                    logger.error(str(err))
+                    self.send_action_result(action_message.id, {
+                        "message": str(err),
+                        "code": 500
+                    })
 
             elif isinstance(action_message, ActionHandlerResult):
                 logger.info('Handling "%s" (id: %s)', action_message.type, action_message.id)
@@ -556,9 +575,9 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
                 self.on_config_changed()
 
             elif isinstance(action_message, ActionHandlerError):
-                logger.error('Received error message (code %s): %s',
-                             action_message.code,
-                             action_message.message)
+                logger.warning('Received error message (code %s): %s',
+                               action_message.code,
+                               action_message.message)
 
             else:
                 logger.error("Received unknown message: %s", message)
@@ -572,6 +591,7 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     # API methods
     ###############################################################################################################
 
+    @abstractmethod
     def on_submit_action(self, action_id: str, capability: str, parameters: dict):
         """
         Handle incoming submitAction
@@ -622,6 +642,7 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
 
         self.__finish_submit(action_id, action_handler_result)
 
+    @abstractmethod
     def on_config_changed(self):
         pass
 
