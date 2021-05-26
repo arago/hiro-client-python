@@ -336,6 +336,9 @@ class ActionItem:
         self.retries = retries
 
     def __del__(self):
+        self.remove()
+
+    def remove(self):
         """
         Remove the job from the scheduler on deletion.
         """
@@ -366,11 +369,20 @@ class ActionStore:
         if logging.root.level == logging.INFO:
             logging.getLogger('apscheduler').setLevel(logging.WARNING)
 
-        self.__expiry_scheduler.start()
+        # self.__expiry_scheduler.start()
 
     def __del__(self):
         """ Destructor. Shuts down the scheduler. """
-        self.__expiry_scheduler.shutdown()
+        self.clear()
+        self.stop_scheduler()
+
+    def start_scheduler(self):
+        if not self.__expiry_scheduler.running:
+            self.__expiry_scheduler.start()
+
+    def stop_scheduler(self):
+        if self.__expiry_scheduler.running:
+            self.__expiry_scheduler.shutdown()
 
     def __expiry_remove(self, message_id: str) -> None:
         """
@@ -380,8 +392,9 @@ class ActionStore:
         """
         with self.__store_lock:
             if message_id in self.__store:
-                message = self.__store.pop(message_id).message
-                logger.info("Discard %s %s because it expired.", message.type, message.id)
+                item = self.__store.pop(message_id)
+                logger.info("Discard %s %s because it expired.", item.message.type, item.message.id)
+                item.remove()
 
     def add(self,
             expires_at: int,
@@ -420,7 +433,7 @@ class ActionStore:
         """
         with self.__store_lock:
             if message_id in self.__store:
-                del self.__store[message_id]
+                self.__store.pop(message_id).remove()
 
     def get(self, message_id: str) -> Optional[AbstractActionHandlerIdMessage]:
         """
@@ -461,6 +474,8 @@ class ActionStore:
         Clear the store. Remove all items from it.
         """
         with self.__store_lock:
+            for item in self.__store.values():
+                item.remove()
             self.__store.clear()
 
 
@@ -486,6 +501,10 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         self.submitStore = ActionStore()
         self.resultStore = ActionStore()
 
+    def __del__(self):
+        self.submitStore.stop_scheduler()
+        self.resultStore.stop_scheduler()
+
     def __finish_submit(self, action_id: str, action_handler_result: Optional[ActionHandlerResult]):
         """
         Sends the action_handler_result if it is not None and makes sure, that the submitAction is removed from the
@@ -506,9 +525,13 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     ###############################################################################################################
 
     def on_open(self, ws: WebSocketApp):
+        self.submitStore.start_scheduler()
+        self.resultStore.start_scheduler()
         pass
 
     def on_close(self, ws: WebSocketApp, code: int, reason: str):
+        self.submitStore.stop_scheduler()
+        self.resultStore.stop_scheduler()
         pass
 
     def on_error(self, ws: WebSocketApp, error: Exception):

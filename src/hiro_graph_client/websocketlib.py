@@ -327,7 +327,7 @@ class AbstractAuthenticatedWebSocketHandler:
                         self._reader_guard.acquire()
 
             except Exception as error:
-                self._set_error(error)
+                self._check_error(self._ws, error)
 
             with self._ws_lock:
                 self._ws = None
@@ -390,13 +390,12 @@ class AbstractAuthenticatedWebSocketHandler:
 
         :raise WebSocketException: When the startup of the reader thread fails.
         """
-        if self._reader_future:
-            return
 
         try:
-            self._reader_future = self._reader_executor.submit(AbstractAuthenticatedWebSocketHandler._run, self)
-
             with self._reader_guard:
+                if self._reader_future:
+                    return
+                self._reader_future = self._reader_executor.submit(AbstractAuthenticatedWebSocketHandler._run, self)
                 self._reader_guard.wait()
                 start_ok = (self._reader_status != ReaderStatus.FAILED)
 
