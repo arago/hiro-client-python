@@ -227,7 +227,7 @@ class AbstractAuthenticatedWebSocketHandler:
 
         :param ws: WebSocketApp
         """
-        logger.debug("Connection to %s start.", self._url)
+        logger.debug("Connection to %s open.", self._url)
 
         with self._reader_guard:
             try:
@@ -329,6 +329,8 @@ class AbstractAuthenticatedWebSocketHandler:
             except Exception as error:
                 self._check_error(self._ws, error)
 
+            self.on_close(self._ws)
+
             with self._ws_lock:
                 self._ws = None
 
@@ -368,7 +370,7 @@ class AbstractAuthenticatedWebSocketHandler:
         pass
 
     @abstractmethod
-    def on_close(self, ws: WebSocketApp, code: int, reason: str):
+    def on_close(self, ws: WebSocketApp, code: int = None, reason: str = None):
         pass
 
     @abstractmethod

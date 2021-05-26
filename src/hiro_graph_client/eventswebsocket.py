@@ -161,7 +161,7 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         except Exception as err:
             raise WebSocketFilterException('Setting events filter failed') from err
 
-    def on_close(self, ws: WebSocketApp, code: int, reason: str):
+    def on_close(self, ws: WebSocketApp, code: int = None, reason: str = None):
         """
         Cancel the self._token_refresh_thread. Registered filters remain as they are.
 

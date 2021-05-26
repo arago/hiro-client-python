@@ -152,7 +152,7 @@ class ActionHandlerResult(AbstractActionHandlerIdMessage):
 
     def __init__(self,
                  action_id: str,
-                 result: dict):
+                 result: Union[dict, str]):
         """
         Constructor
 
@@ -271,7 +271,7 @@ class ActionHandlerMessageParser:
 
         :param message: Message as str or dict
         """
-        self.message = json.dumps(message) if isinstance(message, str) else message
+        self.message = json.loads(message) if isinstance(message, str) else message
 
     def parse(self) -> Optional[AbstractActionHandlerMessage]:
         """
@@ -421,7 +421,7 @@ class ActionStore:
                 func=lambda message_id: self.__expiry_remove(message_id),
                 kwargs={"message_id": message.id},
                 trigger='date',
-                run_date=datetime.fromtimestamp(expires_at))
+                run_date=datetime.fromtimestamp(expires_at / 1000))
 
             self.__store[message.id] = ActionItem(job, message, expires_at, retries)
 
@@ -527,12 +527,10 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     def on_open(self, ws: WebSocketApp):
         self.submitStore.start_scheduler()
         self.resultStore.start_scheduler()
-        pass
 
-    def on_close(self, ws: WebSocketApp, code: int, reason: str):
+    def on_close(self, ws: WebSocketApp, code: int = None, reason: str = None):
         self.submitStore.stop_scheduler()
         self.resultStore.stop_scheduler()
-        pass
 
     def on_error(self, ws: WebSocketApp, error: Exception):
         pass
@@ -544,6 +542,7 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         :param ws: WebSocketApp
         :param message: The message payload as str
         """
+        action_message = None
         try:
             action_message = ActionHandlerMessageParser(message).parse()
             if not action_message:
@@ -570,10 +569,7 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
                     self.on_submit_action(action_message.id, action_message.capability, action_message.parameters)
                 except Exception as err:
                     logger.error(str(err))
-                    self.send_action_result(action_message.id, {
-                        "message": str(err),
-                        "code": 500
-                    })
+                    self.send_action_result(action_id=action_message.id, result=None, code=500, message=str(err))
 
             elif isinstance(action_message, ActionHandlerResult):
                 logger.info('Handling "%s" (id: %s)', action_message.type, action_message.id)
@@ -609,6 +605,10 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
             logger.error(str(err))
             if err.id:
                 self.send(str(ActionHandlerNack(err.id, 400, str(err))))
+        except Exception as err:
+            logger.error(str(err))
+            if isinstance(action_message, AbstractActionHandlerIdMessage):
+                self.send(str(ActionHandlerNack(action_message.id, 500, str(err))))
 
     ###############################################################################################################
     # API methods
@@ -625,12 +625,47 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         """
         pass
 
-    def send_action_result(self, action_id: str, result: Optional[dict]) -> None:
+    def send_action_result(self,
+                           action_id: str,
+                           result: Union[dict, str] = None,
+                           code: int = None,
+                           message: str = None,
+                           result_params: dict = None) -> None:
         """
         Send the result of a submitAction. Thread-Safe!
 
-        :param action_id: Id of the submitAction
-        :param result: Data dict with result data. May be None.
+        Will create a standard result dict with the parameters *result*, *code* or *message*. See parameter description
+        for more.
+
+        ::
+
+            {
+                "type": "sendActionResult",
+                "id": action_id,
+                "result": json.dumps({
+                    "message": message,
+                    "code": code,
+                    "data": result
+                })
+
+            }
+
+        If *result_params* is given, this parameter will be used directly while ignoring the other parameters.
+
+        ::
+
+            {
+                "type": "sendActionResult",
+                "id": action_id,
+                "result": json.dumps(result_params)
+            }
+
+        :param action_id: Required. Id of the submitAction
+        :param result: Result data. Either a dict (which will be serialized into a str), a str or None.
+        :param code: Optional result code. If unset, a default will be used (200 if result is not empty, 204 otherwise).
+        :param message: Optional result message. If unset, a default message will be used.
+        :param result_params: Optional custom data to return as result value in message *sendActionResult*.
+                              Overrides all other optional message parameters. Will be serialized to a string.
         """
         result_message = ActionHandlerResult(action_id, result)
         submit_message = self.submitStore.get(action_id)
@@ -641,17 +676,18 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
                         result_message.id)
             return
 
-        if not result:
-            result_params = {
-                "message": "Action successful (no data)",
-                "code": 204
-            }
-        else:
-            result_params = {
-                "message": "Action successful",
-                "code": 200,
-                "data": json.dumps(result)
-            }
+        if not result_params:
+            if not result:
+                result_params = {
+                    "message": message if message else "Action successful (no data)",
+                    "code": code if code else 204
+                }
+            else:
+                result_params = {
+                    "message": message if message else "Action successful",
+                    "code": code if code else 200,
+                    "data": json.dumps(result) if isinstance(result, dict) else result
+                }
 
         action_handler_result = ActionHandlerResult(result_message.id, result_params)
         try:
