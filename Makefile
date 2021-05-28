@@ -9,6 +9,7 @@ PYTHON := python3
 # For user installations, set 'export PIPARGS=--user' or execute 'make <argument> PIPARGS=--user'
 #
 PIPARGS ?=
+PIP_INSTALL_ARGS = $(PIPARGS) --use-feature=in-tree-build
 export PATH := $(HOME)/.local/bin:$(PATH)
 
 #
@@ -27,7 +28,7 @@ PACKAGENAME := hiro_graph_client
 SRCPATH := src
 PYTHONPATH := $(SRCPATH)/$(PACKAGENAME)
 PYTHONDOCPATH := docs/python
-VERSION := $(shell cat $(PYTHONPATH)/VERSION)
+VERSION := $(shell (cd $(SRCPATH) && $(PYTHON) version_by_git.py $(PACKAGENAME) && cat $(PACKAGENAME)/VERSION))
 
 TIMESTAMP := $(shell $(PYTHON) $(SRCPATH)/timestamp.py)
 
@@ -47,16 +48,17 @@ TESTFILE := tests/test-results.xml
 # Install as a local tool on the current system. Remember to use PIPARGS=--user for a local installation.
 #######################################################################################################################
 install:
-	$(PIP) install $(PIPARGS) --requirement $(PYTHONPATH)/requirements.txt
-	$(PIP) install $(PIPARGS) $(SRCPATH)/
+	$(PYTHON) -m pip install -U pip
+	$(PIP) install $(PIP_INSTALL_ARGS) --requirement $(PYTHONPATH)/requirements.txt wheel
+	$(PIP) install $(PIP_INSTALL_ARGS) $(SRCPATH)/
 	touch install
 
 
 #######################################################################################################################
 # Execute test using pytest
 #######################################################################################################################
-test:
-	$(PIP) install $(PIPARGS) pytest
+test: install
+	$(PIP) install $(PIP_INSTALL_ARGS) pytest
 	export PYTHONPATH=$(PYTHONPATH) && $(PYTHON) -m pytest -s --junitxml=$(TESTFILE)
 
 
@@ -65,7 +67,7 @@ test:
 #######################################################################################################################
 
 install-sphinx:
-	$(PIP) install $(PIPARGS) sphinx sphinx-rtd-theme
+	$(PIP) install $(PIP_INSTALL_ARGS) sphinx sphinx-rtd-theme
 	touch install-sphinx
 
 # Create a python code documentation using sphinx
@@ -80,7 +82,7 @@ pythondoc: install install-sphinx
 
 # Make wheel and source package
 dist: install
-	$(PIP) install $(PIPARGS) --upgrade setuptools wheel twine
+	$(PIP) install $(PIP_INSTALL_ARGS) --upgrade setuptools wheel twine
 	(cd src && $(PYTHON) ./setup.py sdist bdist_wheel && mv dist build ..)
 
 # give each package a timestamp as buildnumber to be able to upload packages multiple times
@@ -112,7 +114,7 @@ clean-pythondoc:
 
 # Cleanup, but keep installed packages and dist tar
 clean:
-	$(PIP) install $(PIPARGS) --upgrade pyclean
+	$(PIP) install $(PIP_INSTALL_ARGS) --upgrade pyclean
 	rm -f depends install install-sphinx
 	rm -f $(TESTFILE)
 	$(PYTHON) -m pyclean .

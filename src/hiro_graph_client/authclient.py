@@ -2,10 +2,10 @@
 
 from typing import Any, Iterator
 
-from hiro_graph_client.clientlib import AbstractHandledAPI, AbstractTokenApiHandler
+from hiro_graph_client.clientlib import AuthenticatedAPIHandler, AbstractTokenApiHandler
 
 
-class HiroAuth(AbstractHandledAPI):
+class HiroAuth(AuthenticatedAPIHandler):
     """
     Python implementation for accessing the HIRO Auth REST API.
     See https://core.arago.co/help/specs/?url=definitions/auth.yaml

@@ -1,3 +1,9 @@
+# v4.2.0
+
+* Implement websocket protocols
+  * event-ws
+  * action-ws
+
 # v4.1.3
 
 * Use yield from instead of return

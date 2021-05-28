@@ -4,9 +4,10 @@ from abc import abstractmethod
 from enum import Enum
 from typing import Optional, Tuple, Any, Iterator, IO
 
+from requests.exceptions import RequestException
+
 from hiro_graph_client.client import HiroGraph
 from hiro_graph_client.clientlib import AbstractTokenApiHandler
-from requests.exceptions import RequestException
 
 
 class Result(Enum):
@@ -46,7 +47,7 @@ class AbstractIOCarrier:
     then closed.
     """
     __io_base: IO = None
-    """ Private reference to the IO object. Starts with value None and needs to be set in method *open()*. """
+    """ Private reference to the IO object. Starts with value None and needs to be set in method *start()*. """
 
     def __enter__(self) -> IO:
         """ To be able to use *with <child of AbstractIOCarrier> as io_item:* """
@@ -67,7 +68,7 @@ class AbstractIOCarrier:
     @io_base.setter
     def io_base(self, io_base: IO) -> None:
         """
-        Property setter io_base. This property has to be set in *open()* by the child class.
+        Property setter io_base. This property has to be set in *start()* by the child class.
         """
         self.__io_base = io_base
 
@@ -102,7 +103,7 @@ class BasicFileIOCarrier(AbstractIOCarrier):
         """
         Constructor
 
-        :param filename: Local filename to open
+        :param filename: Local filename to start
         :param mode: Open mode. Default is 'rb'.
         """
         self.filename = filename
@@ -110,10 +111,10 @@ class BasicFileIOCarrier(AbstractIOCarrier):
 
     def open(self) -> IO:
         """
-        Just open the included *self.filename* with *self.mode*.
+        Just start the included *self.filename* with *self.mode*.
 
-        :return: The IO handle after open.
-        :raises IOError: Any IO error open might raise.
+        :return: The IO handle after start.
+        :raises IOError: Any IO error start might raise.
         """
         self.io_base = open(self.filename, self.mode)
         return self.io_base
@@ -555,7 +556,7 @@ class HiroBatchRunner:
         :param attributes: A dict of attributes to handle.
         :return: A response dict - usually directly the structure received from the backend.
         """
-        raise RuntimeError("Cannot run within HiroCommandBatch directly.")
+        raise RuntimeError("Cannot _run within HiroCommandBatch directly.")
 
 
 class CreateVerticesRunner(HiroBatchRunner):
@@ -1116,8 +1117,7 @@ class HiroGraphBatch:
             },
             ...
 
-
-        with payload being a list of dict containing the attributes to run with that command.
+        with payload being a list of dict containing the attributes to _run with that command.
 
         :param command_iter: An iterator for a dict of pairs "[command]:payload".
         :return a list with results when no callback is set, None otherwise.

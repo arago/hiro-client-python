@@ -16,7 +16,7 @@
 #         print('Data: ' + str(data))
 #         print('Code: ' + str(code))
 #
-#     def run(self, commands: Iterator[dict]):
+#     def _run(self, commands: Iterator[dict]):
 #         self.hiro_batch_client.multi_command(commands)
 #
 #
@@ -86,4 +86,4 @@ class TestClient:
         #     }
         # ]
         #
-        # batch_runner.run(commands)
+        # batch_runner._run(commands)

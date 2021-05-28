@@ -1,12 +1,18 @@
 # HIRO Graph API Client
 
-This is a client library to access data of the HIRO Graph. It also allows uploads of huge batches of data in parallel.
+This is a client library to access data of the [HIRO Graph](#graph-client-hirograph). It also allows uploads of huge
+batches of data in parallel.
+
+This library also contains classes for handling the [WebSockets](#websockets) `event-ws` and `action-ws` API.
 
 __Status__
 
 * Technical preview
 
 For more information about HIRO Automation, look at https://www.arago.co/
+
+For more information about the APIs this library covers, see https://developer.hiro.arago.co/7.0/api/ (Currently
+implemented are `app`, `auth`, `graph`, `event-ws` and `action-ws` )
 
 ## Quickstart
 
@@ -252,7 +258,7 @@ To stream such an attachment to a file, see the example below:
 ogit_id = '<ogit/_id of a vertex of type ogit/_type:"ogit/Attachment">'
 data_iter = hiro_client.get_attachment(ogit_id)
 
-with io.open("attachment.bin", "wb") as file:
+with io.start("attachment.bin", "wb") as file:
     for chunk in data_iter:
         file.write(chunk)
 ```
@@ -1113,4 +1119,124 @@ commands: list = [
 ```
 
 ---
-(c) 2021 arago GmbH
+
+## WebSockets
+
+This library contains classes that make using HIRO WebSocket protocols easier. They handle authentication, exceptions
+and much more.
+
+The classes do not handle buffering of messages, so it is the duty of the programmer to ensure, that incoming messages
+are either handled quickly or being buffered to avoid clogging the websocket. The classes are thread-safe, so it is
+possible to handle each incoming message asynchronously in its own thread and have those threads send results back if
+needed (See multithreaded example in [Action WebSocket](#action-websocket)).
+
+### Event WebSocket
+
+This websocket receives notifications about changes to vertices that match a certain filter.
+
+See also [API description of event-ws](https://core.arago.co/help/specs/?url=definitions/events-ws.yaml)
+
+Example:
+
+```python
+from hiro_graph_client.clientlib import FixedTokenApiHandler
+from hiro_graph_client.eventswebsocket import AbstractEventsWebSocketHandler, EventMessage, EventsFilter
+
+
+class EventsWebSocket(AbstractEventsWebSocketHandler):
+
+    def on_create(self, message: EventMessage):
+        """ Vertex has been created """
+        print("Create:\n" + str(message))
+
+    def on_update(self, message: EventMessage):
+        """ Vertex has been updated """
+        print("Update:\n" + str(message))
+
+    def on_delete(self, message: EventMessage):
+        """ Vertex has been removed """
+        print("Delete:\n" + str(message))
+
+
+events_filter = EventsFilter(filter_id='testfilter', filter_content="(element.ogit/_type=ogit/MARS/Machine)")
+
+with EventsWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN'), events_filters=[events_filter]):
+    input("Press [Enter] to stop.\n")
+```
+
+### Action WebSocket
+
+This websocket receives notifications about actions that have been triggered within a KI. Use this to write your own
+custom action handler.
+
+See also [API description of action-ws](https://core.arago.co/help/specs/?url=definitions/action-ws.yaml)
+
+Simple example:
+
+```python
+from hiro_graph_client.actionwebsocket import AbstractActionWebSocketHandler
+from hiro_graph_client.clientlib import FixedTokenApiHandler
+
+
+class ActionWebSocket(AbstractActionWebSocketHandler):
+
+    def on_submit_action(self, action_id: str, capability: str, parameters: dict):
+        """ Message *submitAction* has been received """
+
+        # Handle the message
+        print(f"ID: {action_id}, Capability: {capability}, Parameters: {str(parameters)}")
+
+        # Send back message *sendActionResult*
+        self.send_action_result(action_id, "Everything went fine.")
+
+    def on_config_changed(self):
+        """ The configuration of the ActionHandler has changed """
+        pass
+
+
+with ActionWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN')):
+    input("Press [Enter] to stop.\n")
+
+```
+
+Multithreaded example using a thread executor:
+
+```python
+
+import concurrent.futures
+from hiro_graph_client.actionwebsocket import AbstractActionWebSocketHandler
+from hiro_graph_client.clientlib import FixedTokenApiHandler, AbstractTokenApiHandler
+
+
+class ActionWebSocket(AbstractActionWebSocketHandler):
+
+    def __init__(self, api_handler: AbstractTokenApiHandler):
+        """ Also initialize thread executor """
+        super().__init__(api_handler)
+        self._executor = concurrent.futures.ThreadPoolExecutor()
+
+    def stop(self, timeout: int = None) -> None:
+        """ Shutdown the executor """
+        self._executor.shutdown()
+        super().stop(timeout)
+
+    def on_submit_action(self, action_id: str, capability: str, parameters: dict):
+        """ Message *submitAction* has been received. Message is handled via ThreadPoolExecutor. """
+        self._executor.submit(ActionWebSocket.handle_submit_action, self, action_id, capability, parameters)
+
+    def on_config_changed(self):
+        """ The configuration of the ActionHandler has changed """
+        pass
+
+    def handle_submit_action(self, action_id: str, capability: str, parameters: dict):
+        """ Runs asynchronously in its own thread. """
+        print(f"ID: {action_id}, Capability: {capability}, Parameters: {str(parameters)}")
+
+        # Send back message *sendActionResult*
+        self.send_action_result(action_id, "Everything went fine.")
+
+
+with ActionWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN')):
+    input("Press [Enter] to stop.\n")
+
+```

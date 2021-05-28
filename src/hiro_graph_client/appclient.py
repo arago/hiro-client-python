@@ -3,10 +3,10 @@
 from typing import Iterator
 from urllib.parse import quote_plus
 
-from hiro_graph_client.clientlib import AbstractHandledAPI, AbstractTokenApiHandler
+from hiro_graph_client.clientlib import AuthenticatedAPIHandler, AbstractTokenApiHandler
 
 
-class HiroApp(AbstractHandledAPI):
+class HiroApp(AuthenticatedAPIHandler):
     """
     Python implementation for accessing the HIRO App REST API.
     See https://core.arago.co/help/specs/?url=definitions/app.yaml

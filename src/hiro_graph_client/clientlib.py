@@ -5,14 +5,16 @@ import logging
 import os
 import threading
 import time
+import urllib
 from abc import abstractmethod
-from typing import Optional, Any, Iterator, Union
 from urllib.parse import quote, urlencode
 
 import backoff
-import hiro_graph_client
 import requests
 import requests.packages.urllib3.exceptions
+from typing import Optional, Any, Iterator, Union, Tuple
+
+from hiro_graph_client.version import __version__
 
 BACKOFF_ARGS = [
     backoff.expo,
@@ -32,6 +34,8 @@ def accept_all_certs():
     """
     Globally disable InsecureRequestWarning
     """
+    AbstractAPI.accept_all_certs = True
+
     requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
 
@@ -45,11 +49,14 @@ class AbstractAPI:
     tool methods for handling headers, url query parts and response error checking.
     """
 
+    accept_all_certs: bool = False
+
     def __init__(self,
                  root_url: str,
                  raise_exceptions: bool = True,
                  proxies: dict = None,
-                 headers: dict = None):
+                 headers: dict = None,
+                 timeout: int = 600):
         """
         Constructor
 
@@ -57,6 +64,7 @@ class AbstractAPI:
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param timeout: Optional timeout for requests. Default is 600 (10 min).
         """
 
         if not root_url:
@@ -65,15 +73,22 @@ class AbstractAPI:
         self._root_url = root_url
         self._proxies = proxies
         self._raise_exceptions = raise_exceptions
+        self._timeout = timeout
 
         self._headers = {
             'Content-Type': 'application/json',
             'Accept': 'text/plain, application/json',
-            'User-Agent': "python-hiro-client {}".format(hiro_graph_client.__version__)
+            'User-Agent': "python-hiro-client {}".format(__version__)
         }
 
         if headers:
             self._headers.update({self._capitalize_header(k): v for k, v in headers.items()})
+
+    def get_root_url(self):
+        return self._root_url
+
+    def get_user_agent(self):
+        return self._headers.get('User-Agent') or 'unknown'
 
     @staticmethod
     def _capitalize_header(name: str) -> str:
@@ -97,6 +112,7 @@ class AbstractAPI:
                               {"Content-Type": None, "Accept": (accept or "*/*")}
                           ),
                           verify=False,
+                          timeout=self._timeout,
                           stream=True,
                           proxies=self._get_proxies()) as res:
             self._log_communication(res, response_body=False)
@@ -121,6 +137,7 @@ class AbstractAPI:
                                 {"Content-Type": (content_type or "application/octet-stream")}
                             ),
                             verify=False,
+                            timeout=self._timeout,
                             proxies=self._get_proxies())
         self._log_communication(res, request_body=False)
         return self._parse_json_response(res)
@@ -141,6 +158,7 @@ class AbstractAPI:
                                {"Content-Type": (content_type or "application/octet-stream")}
                            ),
                            verify=False,
+                           timeout=self._timeout,
                            proxies=self._get_proxies())
         self._log_communication(res, request_body=False)
         return self._parse_json_response(res)
@@ -156,6 +174,7 @@ class AbstractAPI:
         res = requests.get(url,
                            headers=self._get_headers({"Content-Type": None}),
                            verify=False,
+                           timeout=self._timeout,
                            proxies=self._get_proxies())
         self._log_communication(res)
         return self._parse_json_response(res)
@@ -173,6 +192,7 @@ class AbstractAPI:
                             json=data,
                             headers=self._get_headers(),
                             verify=False,
+                            timeout=self._timeout,
                             proxies=self._get_proxies())
         self._log_communication(res)
         return self._parse_json_response(res)
@@ -190,6 +210,7 @@ class AbstractAPI:
                            json=data,
                            headers=self._get_headers(),
                            verify=False,
+                           timeout=self._timeout,
                            proxies=self._get_proxies())
         self._log_communication(res)
         return self._parse_json_response(res)
@@ -205,6 +226,7 @@ class AbstractAPI:
         res = requests.delete(url,
                               headers=self._get_headers({"Content-Type": None}),
                               verify=False,
+                              timeout=self._timeout,
                               proxies=self._get_proxies())
         self._log_communication(res)
         return self._parse_json_response(res)
@@ -374,7 +396,6 @@ class AbstractAPI:
 # TokenApiHandler classes
 ###################################################################################################################
 
-
 class AbstractTokenApiHandler(AbstractAPI):
     """
     Root class for all TokenApiHandler classes. This class also handles resolving the current api endpoints.
@@ -385,25 +406,44 @@ class AbstractTokenApiHandler(AbstractAPI):
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
+                 timeout: int = 600,
                  custom_endpoints: dict = None):
         """
         Constructor
+
+        Example for custom_endpoints (see params below):
+
+        ::
+
+           {
+               "graph": "/api/graph/7.2",
+               "auth": "/api/auth/6.2",
+               "action-ws": ("/api/action-ws/1.0", "action-1.0.0")
+           }
+
 
         :param root_url: Root url for HIRO, like https://core.arago.co.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
-               from /api/version.
-               Example: {"graph": "/api/graph/7.2", "auth": "/api/auth/6.2"}
+               from /api/version. Example see above.
+
+
         """
         super().__init__(root_url=root_url,
                          raise_exceptions=raise_exceptions,
                          proxies=proxies,
+                         timeout=timeout,
                          headers=headers)
 
         self._version_info = None
         self.custom_endpoints = custom_endpoints
+
+    @staticmethod
+    def _remove_slash(endpoint: str) -> str:
+        return endpoint[:-1] if endpoint[-1] == '/' else endpoint
 
     ###############################################################################################################
     # Public methods
@@ -411,19 +451,17 @@ class AbstractTokenApiHandler(AbstractAPI):
 
     def get_api_endpoint_of(self, api_name: str) -> str:
         """
-        Determines endpoints of the API names. Loads and caches the current API information if necessary.
+        Determines endpoints of the API names.
+        Loads and caches the current API information if necessary.
 
         :param api_name: Name of the HIRO API
-        :return: endpoint for this API
+        :return: Full url of endpoint for this API
         """
-
-        def _remove_slash(_endpoint: str) -> str:
-            return _endpoint[:-1] if _endpoint[-1] == '/' else _endpoint
 
         if self.custom_endpoints:
             endpoint = self.custom_endpoints.get(api_name)
             if endpoint:
-                return _remove_slash(self._root_url + endpoint)
+                return self._remove_slash(self._root_url + endpoint)
 
         if not self._version_info:
             self._version_info = self.get_version()
@@ -433,7 +471,69 @@ class AbstractTokenApiHandler(AbstractAPI):
         if not api_entry:
             raise ValueError("No API named '{}' found.".format(api_name))
 
-        return _remove_slash(self._root_url + api_entry.get('endpoint'))
+        return self._remove_slash(self._root_url + api_entry.get('endpoint'))
+
+    def get_websocket_config(self, api_name: str) -> Tuple[
+        str,
+        str,
+        Optional[str],
+        Optional[int],
+        Optional[dict]
+    ]:
+        """
+        Determines endpoints for websockets of the API names.
+        Loads and caches the current API information if necessary.
+        If proxies have been given, the key of the proxy picked needs to be "ws" or "wss" respectively.
+
+        :param api_name: Name of the HIRO API for websockets
+        :return: Tuple of full url of websocket for this API, its protocol, its proxy_host, its proxy port and proxy
+                 auth (if any).
+        """
+
+        def _get_proxy_info(_url: str) -> Tuple[Optional[str], Optional[int], Optional[dict]]:
+            proxies = self._get_proxies()
+            if not proxies:
+                return None, None, None
+
+            url_parts = urllib.parse.urlparse(_url)
+            proxy_url = proxies.get(url_parts.scheme)
+
+            if not proxy_url:
+                return None, None, None
+
+            proxy_url_parts = urllib.parse.urlparse(proxy_url)
+
+            proxy_auth: dict = {
+                proxy_url_parts.username: proxy_url_parts.password
+            } if proxy_url_parts.username else None
+
+            return proxy_url_parts.hostname, proxy_url_parts.port, proxy_auth
+
+        def _construct_result(_endpoint: str, _protocol: str) -> Tuple[
+            str,
+            str,
+            Optional[str],
+            Optional[str],
+            Optional[dict]
+        ]:
+            _url: str = self._root_url.lower().replace('https://', 'wss://').replace('http://', 'ws://')
+            _proxy, _proxy_port, _proxy_auth = _get_proxy_info(_url)
+            return self._remove_slash(_url + _endpoint), _protocol, _proxy, _proxy_port, _proxy_auth
+
+        if self.custom_endpoints:
+            endpoint, protocol = self.custom_endpoints.get(api_name)
+            if endpoint:
+                return _construct_result(endpoint, protocol)
+
+        if not self._version_info:
+            self._version_info = self.get_version()
+
+        api_entry: dict = self._version_info.get(api_name)
+
+        if not api_entry:
+            raise ValueError("No WS API named '{}' found.".format(api_name))
+
+        return _construct_result(api_entry.get('endpoint'), api_entry.get('protocol'))
 
     ###############################################################################################################
     # REST API operations
@@ -467,6 +567,16 @@ class AbstractTokenApiHandler(AbstractAPI):
         """
         raise RuntimeError('Cannot use method of this abstract class.')
 
+    @abstractmethod
+    def refresh_time(self) -> Optional[int]:
+        """
+        Calculate the time after which the token should be refreshed in milliseconds.
+
+        :return: The timestamp in ms after which the token shall be refreshed or None if the token cannot be refreshed
+                 on its own.
+        """
+        raise RuntimeError('Cannot use method of this abstract class.')
+
 
 class FixedTokenApiHandler(AbstractTokenApiHandler):
     """
@@ -481,6 +591,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
+                 timeout: int = 600,
                  custom_endpoints: dict = None):
         """
         Constructor
@@ -490,6 +601,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
         """
@@ -497,6 +609,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
             root_url=root_url,
             raise_exceptions=raise_exceptions,
             proxies=proxies,
+            timeout=timeout,
             headers=headers,
             custom_endpoints=custom_endpoints
         )
@@ -509,6 +622,13 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
 
     def refresh_token(self) -> None:
         raise FixedTokenError('Token is invalid and cannot be changed because it has been given externally.')
+
+    def refresh_time(self) -> Optional[int]:
+        """
+
+        :return: Always none
+        """
+        return None
 
 
 class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
@@ -524,6 +644,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
+                 timeout: int = 600,
                  custom_endpoints: dict = None):
         """
         Constructor
@@ -533,6 +654,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
         """
@@ -541,6 +663,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
             raise_exceptions=raise_exceptions,
             proxies=proxies,
             headers=headers,
+            timeout=timeout,
             custom_endpoints=custom_endpoints
         )
 
@@ -554,6 +677,13 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
         raise FixedTokenError(
             "Token is invalid and cannot be changed because it has been given as environment variable '{}'"
             " externally.".format(self._env_var))
+
+    def refresh_time(self) -> Optional[int]:
+        """
+
+        :return: Always none
+        """
+        return None
 
 
 class TokenInfo:
@@ -569,19 +699,24 @@ class TokenInfo:
     """ The refresh token to use - if any."""
     last_update = 0
     """ Timestamp of when the token has been fetched in ms."""
+    refresh_offset = 5000
+    """ Milliseconds of offset for token expiry """
 
-    def __init__(self, token: str = None, refresh_token: str = None, expires_at: int = -1):
+    def __init__(self, token: str = None, refresh_token: str = None, expires_at: int = -1, refresh_offset: int = 5000):
         """
         Constructor
 
         :param token: The token string
         :param refresh_token: A refresh token
         :param expires_at: Token expiration in ms since epoch
+        :param refresh_offset: Offset in milliseconds that will be subtracted from the expiry time so a token will be
+                               refreshed in time. Default is 5 seconds.
         """
         self.token = token
         self.expires_at = expires_at
         self.refresh_token = refresh_token
         self.last_update = self.get_epoch_millis() if token else 0
+        self.refresh_offset = refresh_offset
 
     @staticmethod
     def get_epoch_millis() -> int:
@@ -630,9 +765,9 @@ class TokenInfo:
         """
         Check token expiration
 
-        :return: True when the token has been expired (expires_at <= get_epoch_mills())
+        :return: True when the token has been expired *(expires_at - refresh_offset) <= get_epoch_mills()*
         """
-        return self.expires_at <= self.get_epoch_millis()
+        return self.refresh_time() <= self.get_epoch_millis()
 
     def fresh(self, span: int = 30000) -> bool:
         """
@@ -643,6 +778,14 @@ class TokenInfo:
         """
 
         return (self.get_epoch_millis() - self.last_update) < span
+
+    def refresh_time(self) -> Optional[int]:
+        """
+        Calculate the time after which the token should be refreshed in milliseconds.
+
+        :return: expires_at - refresh_offset (in ms) or None if refresh is not possible.
+        """
+        return self.expires_at - self.refresh_offset if self.expires_at > 0 else None
 
 
 class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
@@ -678,6 +821,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
+                 timeout: int = 600,
                  custom_endpoints: dict = None):
         """
         Constructor
@@ -691,6 +835,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
         """
@@ -699,6 +844,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
             raise_exceptions=raise_exceptions,
             proxies=proxies,
             headers=headers,
+            timeout=timeout,
             custom_endpoints=custom_endpoints
         )
 
@@ -808,6 +954,14 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
             except AuthenticationTokenError:
                 self.get_token()
 
+    def refresh_time(self) -> Optional[int]:
+        """
+        Calculate refresh time.
+
+        :return: Timestamp after which the token becomes invalid.
+        """
+        return self._token_info.refresh_time()
+
     ###############################################################################################################
     # Response and token handling
     ###############################################################################################################
@@ -836,7 +990,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
 # Root class for different API groups
 ###################################################################################################################
 
-class AbstractHandledAPI(AbstractAPI):
+class AuthenticatedAPIHandler(AbstractAPI):
     """
     Python implementation for accessing a REST API with authentication.
     """
@@ -859,7 +1013,8 @@ class AbstractHandledAPI(AbstractAPI):
         super().__init__(root_url=api_handler._root_url,
                          raise_exceptions=api_handler._raise_exceptions,
                          proxies=api_handler._proxies,
-                         headers=api_handler._headers)
+                         headers=api_handler._headers,
+                         timeout=api_handler._timeout)
 
         self._api_handler = api_handler
         self._api_name = api_name
