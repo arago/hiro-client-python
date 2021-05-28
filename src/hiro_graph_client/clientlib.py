@@ -411,18 +411,26 @@ class AbstractTokenApiHandler(AbstractAPI):
         """
         Constructor
 
+        Example for custom_endpoints (see params below):
+
+        ::
+
+           {
+               "graph": "/api/graph/7.2",
+               "auth": "/api/auth/6.2",
+               "action-ws": ("/api/action-ws/1.0", "action-1.0.0")
+           }
+
+
         :param root_url: Root url for HIRO, like https://core.arago.co.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
-               from /api/version.
-               Example: {
-                           "graph": "/api/graph/7.2",
-                           "auth": "/api/auth/6.2",
-                           "action-ws": ("/api/action-ws/1.0", "action-1.0.0")
-                        }
+               from /api/version. Example see above.
+
+
         """
         super().__init__(root_url=root_url,
                          raise_exceptions=raise_exceptions,

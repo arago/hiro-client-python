@@ -48,6 +48,7 @@ TESTFILE := tests/test-results.xml
 # Install as a local tool on the current system. Remember to use PIPARGS=--user for a local installation.
 #######################################################################################################################
 install:
+	$(PYTHON) -m pip install -U pip
 	$(PIP) install $(PIP_INSTALL_ARGS) --requirement $(PYTHONPATH)/requirements.txt wheel
 	$(PIP) install $(PIP_INSTALL_ARGS) $(SRCPATH)/
 	touch install
@@ -56,7 +57,7 @@ install:
 #######################################################################################################################
 # Execute test using pytest
 #######################################################################################################################
-test:
+test: install
 	$(PIP) install $(PIP_INSTALL_ARGS) pytest
 	export PYTHONPATH=$(PYTHONPATH) && $(PYTHON) -m pytest -s --junitxml=$(TESTFILE)
 

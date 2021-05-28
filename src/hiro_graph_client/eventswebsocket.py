@@ -134,6 +134,9 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         if logging.root.level == logging.INFO:
             logging.getLogger('apscheduler').setLevel(logging.WARNING)
 
+        if not events_filters:
+            raise ValueError('Parameter events_filters= cannot be empty. It needs at least one EventsFilter.')
+
         for events_filter in events_filters:
             self._events_filter_messages[events_filter.id] = events_filter
 

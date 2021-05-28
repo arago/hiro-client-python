@@ -4,9 +4,10 @@ from abc import abstractmethod
 from enum import Enum
 from typing import Optional, Tuple, Any, Iterator, IO
 
+from requests.exceptions import RequestException
+
 from hiro_graph_client.client import HiroGraph
 from hiro_graph_client.clientlib import AbstractTokenApiHandler
-from requests.exceptions import RequestException
 
 
 class Result(Enum):
@@ -1115,7 +1116,6 @@ class HiroGraphBatch:
                 ]
             },
             ...
-
 
         with payload being a list of dict containing the attributes to _run with that command.
 

@@ -319,7 +319,7 @@ class ActionItem:
     retries: int
     """ Amount of retries this item can be get via the ActionStore.retryGet(). Default is 4 """
 
-    __scheduled_job: Job
+    _scheduled_job: Job
 
     def __init__(self, job: Job, message: AbstractActionHandlerIdMessage, expires_at: int, retries: int = 4):
         """
@@ -330,7 +330,7 @@ class ActionItem:
         :param expires_at: Expiry of the message in epoch in ms
         :param retries: Retry counter for *ActionStore.retry_get*. Defaults to 4.
         """
-        self.__scheduled_job = job
+        self._scheduled_job = job
         self.message = message
         self.expires_at = expires_at
         self.retries = retries
@@ -343,7 +343,7 @@ class ActionItem:
         Remove the job from the scheduler on deletion.
         """
         try:
-            self.__scheduled_job.remove()
+            self._scheduled_job.remove()
         except JobLookupError:
             pass
 
@@ -353,18 +353,18 @@ class ActionStore:
     A thread-safe storage implementation with expiring entries
     """
 
-    __store: Dict[str, ActionItem]
-    __store_lock: threading.RLock
+    _store: Dict[str, ActionItem]
+    _store_lock: threading.RLock
 
-    __expiry_scheduler: BackgroundScheduler
+    _expiry_scheduler: BackgroundScheduler
 
     def __init__(self):
         """
         Constructor. Starts the scheduler.
         """
-        self.__store = {}
-        self.__store_lock = threading.RLock()
-        self.__expiry_scheduler = BackgroundScheduler()
+        self._store = {}
+        self._store_lock = threading.RLock()
+        self._expiry_scheduler = BackgroundScheduler()
 
         if logging.root.level == logging.INFO:
             logging.getLogger('apscheduler').setLevel(logging.WARNING)
@@ -377,12 +377,12 @@ class ActionStore:
         self.stop_scheduler()
 
     def start_scheduler(self):
-        if not self.__expiry_scheduler.running:
-            self.__expiry_scheduler.start()
+        if not self._expiry_scheduler.running:
+            self._expiry_scheduler.start()
 
     def stop_scheduler(self):
-        if self.__expiry_scheduler.running:
-            self.__expiry_scheduler.shutdown()
+        if self._expiry_scheduler.running:
+            self._expiry_scheduler.shutdown()
 
     def __expiry_remove(self, message_id: str) -> None:
         """
@@ -390,9 +390,9 @@ class ActionStore:
 
         :param message_id: Id of the message
         """
-        with self.__store_lock:
-            if message_id in self.__store:
-                item = self.__store.pop(message_id)
+        with self._store_lock:
+            if message_id in self._store:
+                item = self._store.pop(message_id)
                 logger.info("Discard %s %s because it expired.", item.message.type, item.message.id)
                 item.remove()
 
@@ -413,17 +413,17 @@ class ActionStore:
         if expires_at - (time.time_ns() / 1000000) < 0:
             raise ActionItemExpired(message.id, message.type)
 
-        with self.__store_lock:
-            if message.id in self.__store:
+        with self._store_lock:
+            if message.id in self._store:
                 raise ActionItemExists(message.id, message.type)
 
-            job: Job = self.__expiry_scheduler.add_job(
+            job: Job = self._expiry_scheduler.add_job(
                 func=lambda message_id: self.__expiry_remove(message_id),
                 kwargs={"message_id": message.id},
                 trigger='date',
                 run_date=datetime.fromtimestamp(expires_at / 1000))
 
-            self.__store[message.id] = ActionItem(job, message, expires_at, retries)
+            self._store[message.id] = ActionItem(job, message, expires_at, retries)
 
     def remove(self, message_id: str) -> None:
         """
@@ -431,9 +431,9 @@ class ActionStore:
 
         :param message_id: Id of the message
         """
-        with self.__store_lock:
-            if message_id in self.__store:
-                self.__store.pop(message_id).remove()
+        with self._store_lock:
+            if message_id in self._store:
+                self._store.pop(message_id).remove()
 
     def get(self, message_id: str) -> Optional[AbstractActionHandlerIdMessage]:
         """
@@ -442,8 +442,8 @@ class ActionStore:
         :param message_id: Id of the message
         :return: The message or None if message_id is not present in the store.
         """
-        with self.__store_lock:
-            item: ActionItem = self.__store.get(message_id)
+        with self._store_lock:
+            item: ActionItem = self._store.get(message_id)
             return item.message if item else None
 
     def retry_get(self, message_id: str) -> Optional[AbstractActionHandlerIdMessage]:
@@ -454,8 +454,8 @@ class ActionStore:
         :param message_id: Id of the message
         :return: The message or None if message_id is not present in the store or its retries counter is 0.
         """
-        with self.__store_lock:
-            item: ActionItem = self.__store.get(message_id)
+        with self._store_lock:
+            item: ActionItem = self._store.get(message_id)
             if not item:
                 return None
 
@@ -473,10 +473,10 @@ class ActionStore:
         """
         Clear the store. Remove all items from it.
         """
-        with self.__store_lock:
-            for item in self.__store.values():
+        with self._store_lock:
+            for item in self._store.values():
                 item.remove()
-            self.__store.clear()
+            self._store.clear()
 
 
 ###############################################################################################################
@@ -520,17 +520,25 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         finally:
             self.submitStore.remove(action_id)
 
+    def start(self) -> None:
+        super().start()
+        self.submitStore.start_scheduler()
+        self.resultStore.start_scheduler()
+
+    def stop(self, timeout: int = None) -> None:
+        self.submitStore.stop_scheduler()
+        self.resultStore.stop_scheduler()
+        super().stop(timeout)
+
     ###############################################################################################################
     # Websocket Events
     ###############################################################################################################
 
     def on_open(self, ws: WebSocketApp):
-        self.submitStore.start_scheduler()
-        self.resultStore.start_scheduler()
+        pass
 
     def on_close(self, ws: WebSocketApp, code: int = None, reason: str = None):
-        self.submitStore.stop_scheduler()
-        self.resultStore.stop_scheduler()
+        pass
 
     def on_error(self, ws: WebSocketApp, error: Exception):
         pass

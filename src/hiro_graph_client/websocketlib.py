@@ -116,7 +116,7 @@ class AbstractAuthenticatedWebSocketHandler:
     """
     _inner_exception: Optional[Exception]
     """
-    The WebSocketApp catches all exceptions that are thrown in the on_... methods, so we have to store the exceptions
+    The WebSocketApp catches all exceptions that are thrown in the *on_[...]* methods, so we have to store the exceptions
     here.
     """
 
@@ -132,12 +132,18 @@ class AbstractAuthenticatedWebSocketHandler:
         """
         Create the websocket
 
-        :param api_handler: The api handler for authentication.
+        :param api_handler: Required: The api handler for authentication.
         :param api_name: The name of the ws api.
         :param timeout: The timeout for websocket messages. Default is 5sec.
         :param auto_reconnect: Try to create a new websocket automatically when *self.send()* fails. If this is set
                                to False, a WebSocketException will be raised instead. The default is True.
         """
+        if not api_handler:
+            raise ValueError('Parameter api_handler= cannot be empty.')
+
+        if not api_name:
+            raise ValueError('Parameter api_name= cannot be empty.')
+
         self._url, self._protocol, self._proxy_hostname, self._proxy_port, self._proxy_auth = \
             api_handler.get_websocket_config(api_name)
 
