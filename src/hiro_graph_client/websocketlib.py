@@ -7,7 +7,6 @@ import threading
 import time
 from abc import abstractmethod
 from enum import Enum
-from time import sleep
 from typing import Optional, Tuple
 
 from websocket import WebSocketApp, ABNF, WebSocketException, setdefaulttimeout, WebSocketConnectionClosedException
@@ -116,8 +115,8 @@ class AbstractAuthenticatedWebSocketHandler:
     """
     _inner_exception: Optional[Exception]
     """
-    The WebSocketApp catches all exceptions that are thrown in the *on_[...]* methods, so we have to store the exceptions
-    here.
+    The WebSocketApp catches all exceptions that are thrown in the *on_[...]* methods, so we have to store the
+    exceptions here.
     """
 
     _sender_thread_lock: threading.RLock
@@ -258,8 +257,11 @@ class AbstractAuthenticatedWebSocketHandler:
         with self._reader_guard:
             try:
                 if code or reason:
-                    logger.debug("Received close from remote: %s %s. Restarting...", code, reason)
-                    self._reader_status = ReaderStatus.RESTARTING
+                    if self._reader_status in [ReaderStatus.DONE, ReaderStatus.FAILED]:
+                        logger.debug("Received close from remote: %s %s. Closing...", code, reason)
+                    else:
+                        logger.debug("Received close from remote: %s %s. Restarting...", code, reason)
+                        self._reader_status = ReaderStatus.RESTARTING
                 else:
                     logger.debug("Received local close. Exiting...")
 
@@ -299,8 +301,6 @@ class AbstractAuthenticatedWebSocketHandler:
                 self._reconnect_delay = 0
 
                 while self._reader_status not in [ReaderStatus.DONE, ReaderStatus.FAILED]:
-                    self._reconnect_delay = self._backoff(self._reconnect_delay)
-
                     self._reader_status = ReaderStatus.STARTING
                     self._inner_exception = None
 
@@ -332,6 +332,8 @@ class AbstractAuthenticatedWebSocketHandler:
                     finally:
                         self._reader_guard.acquire()
 
+                    self._reconnect_delay = self._backoff(self._reconnect_delay)
+
             except Exception as error:
                 self._check_error(self._ws, error)
 
@@ -342,8 +344,7 @@ class AbstractAuthenticatedWebSocketHandler:
 
             return self._reader_status, self._inner_exception
 
-    @staticmethod
-    def _backoff(reconnect_delay: int) -> int:
+    def _backoff(self, reconnect_delay: int) -> int:
         """
         Sleeps for *reconnect_delay* seconds, then returns the delay in seconds for the next try.
 
@@ -351,7 +352,8 @@ class AbstractAuthenticatedWebSocketHandler:
         :return: Next value for the delay.
         """
         if reconnect_delay:
-            sleep(reconnect_delay)
+            with self._reader_guard:
+                self._reader_guard.wait(timeout=reconnect_delay)
 
         return (reconnect_delay + 1) if reconnect_delay < 10 \
             else (reconnect_delay + 10) if reconnect_delay < 60 \
@@ -443,6 +445,7 @@ class AbstractAuthenticatedWebSocketHandler:
         """
         with self._reader_guard:
             self._reader_status = ReaderStatus.DONE
+            self._reader_guard.notify()
         self._close()
         self.join(timeout)
 

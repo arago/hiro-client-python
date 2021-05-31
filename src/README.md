@@ -1211,29 +1211,36 @@ from hiro_graph_client.clientlib import FixedTokenApiHandler, AbstractTokenApiHa
 class ActionWebSocket(AbstractActionWebSocketHandler):
 
     def __init__(self, api_handler: AbstractTokenApiHandler):
-        """ Also initialize thread executor """
+        """ Initialize properties """
         super().__init__(api_handler)
+        self._executor = None
+
+    def start(self) -> None:
+        """ Initialize the executor """
+        super().start()
         self._executor = concurrent.futures.ThreadPoolExecutor()
 
     def stop(self, timeout: int = None) -> None:
-        """ Shutdown the executor """
-        self._executor.shutdown()
+        """ Shut the executor down """
+        if self._executor:
+            self._executor.shutdown()
+        self._executor = None
         super().stop(timeout)
 
+    def handle_submit_action(self, action_id: str, capability: str, parameters: dict):
+        """ Runs asynchronously in its own thread. """
+        print(f"ID: {action_id}, Capability: {capability}, Parameters: {str(parameters)}")
+        self.send_action_result(action_id, "Everything went fine.")
+
     def on_submit_action(self, action_id: str, capability: str, parameters: dict):
-        """ Message *submitAction* has been received. Message is handled via ThreadPoolExecutor. """
+        """ Message *submitAction* has been received. Message is handled in thread executor. """
+        if not self._executor:
+            raise RuntimeError('ActionWebSocket has not been started.')
         self._executor.submit(ActionWebSocket.handle_submit_action, self, action_id, capability, parameters)
 
     def on_config_changed(self):
         """ The configuration of the ActionHandler has changed """
         pass
-
-    def handle_submit_action(self, action_id: str, capability: str, parameters: dict):
-        """ Runs asynchronously in its own thread. """
-        print(f"ID: {action_id}, Capability: {capability}, Parameters: {str(parameters)}")
-
-        # Send back message *sendActionResult*
-        self.send_action_result(action_id, "Everything went fine.")
 
 
 with ActionWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN')):

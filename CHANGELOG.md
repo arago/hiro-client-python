@@ -1,3 +1,7 @@
+# v4.2.1
+
+* Avoid blocking thread in _backoff() by not using sleep() but threading.Condition.wait().
+
 # v4.2.0
 
 * Implement websocket protocols
