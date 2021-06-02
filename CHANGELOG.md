@@ -1,6 +1,10 @@
+# v4.2.2
+
+* Introduce parameter `remote_exit_codes` to `AbstractAuthenticatedWebSocketHandler`. 
+
 # v4.2.1
 
-* Avoid blocking thread in _backoff() by not using sleep() but threading.Condition.wait().
+* Avoid blocking thread in `_backoff()` by not using `sleep()` but `threading.Condition.wait()`.
 
 # v4.2.0
 
@@ -14,7 +18,7 @@
 
 # v4.1.2
 
-* Removed bug with double yields on binary data
+* Removed a bug with double yields on binary data
 
 # v4.1.1
 

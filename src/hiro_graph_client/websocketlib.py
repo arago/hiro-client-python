@@ -7,7 +7,7 @@ import threading
 import time
 from abc import abstractmethod
 from enum import Enum
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 from websocket import WebSocketApp, ABNF, WebSocketException, setdefaulttimeout, WebSocketConnectionClosedException
 
@@ -121,13 +121,17 @@ class AbstractAuthenticatedWebSocketHandler:
 
     _sender_thread_lock: threading.RLock
 
+    _remote_exit_codes: List[int] = []
+    """ A list of remote exit codes that will cause the websocket to not reconnect."""
+
     MAX_RETRIES = 3
 
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,
                  api_name: str,
                  timeout: int = 5,
-                 auto_reconnect: bool = True):
+                 auto_reconnect: bool = True,
+                 remote_exit_codes: List[int] = None):
         """
         Create the websocket
 
@@ -136,6 +140,10 @@ class AbstractAuthenticatedWebSocketHandler:
         :param timeout: The timeout for websocket messages. Default is 5sec.
         :param auto_reconnect: Try to create a new websocket automatically when *self.send()* fails. If this is set
                                to False, a WebSocketException will be raised instead. The default is True.
+        :param remote_exit_codes: A list of close codes that can come in from the remote side. If one of the codes in
+                                  this list matches the remote close code, reader thread will exit instead of
+                                  trying to reconnect. The default is None -> reconnect always.
+                                  See https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1
         """
         if not api_handler:
             raise ValueError('Parameter api_handler= cannot be empty.')
@@ -160,6 +168,9 @@ class AbstractAuthenticatedWebSocketHandler:
         self._inner_exception = None
 
         self._sender_thread_lock = threading.RLock()
+
+        if remote_exit_codes:
+            self._remote_exit_codes = remote_exit_codes
 
         setdefaulttimeout(timeout)
 
@@ -257,7 +268,8 @@ class AbstractAuthenticatedWebSocketHandler:
         with self._reader_guard:
             try:
                 if code or reason:
-                    if self._reader_status in [ReaderStatus.DONE, ReaderStatus.FAILED]:
+                    if code in self._remote_exit_codes or self._reader_status in [ReaderStatus.DONE,
+                                                                                  ReaderStatus.FAILED]:
                         logger.debug("Received close from remote: %s %s. Closing...", code, reason)
                     else:
                         logger.debug("Received close from remote: %s %s. Restarting...", code, reason)
