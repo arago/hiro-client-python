@@ -318,7 +318,7 @@ class AbstractAPI:
             if body is None:
                 return ""
             if isinstance(body, bytes):
-                body = str(body, encoding)
+                body = str(body, encoding or 'utf8')
             return body
 
         if logger.isEnabledFor(logging.DEBUG):
@@ -521,9 +521,11 @@ class AbstractTokenApiHandler(AbstractAPI):
             return self._remove_slash(_url + _endpoint), _protocol, _proxy, _proxy_port, _proxy_auth
 
         if self.custom_endpoints:
-            endpoint, protocol = self.custom_endpoints.get(api_name)
-            if endpoint:
-                return _construct_result(endpoint, protocol)
+            value = self.custom_endpoints.get(api_name)
+            if isinstance(value, tuple):
+                endpoint, protocol = value
+                if endpoint:
+                    return _construct_result(endpoint, protocol)
 
         if not self._version_info:
             self._version_info = self.get_version()
