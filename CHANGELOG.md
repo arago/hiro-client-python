@@ -1,3 +1,11 @@
+# v4.2.4
+
+* Updated CHANGELOG.md.
+
+# v4.2.3
+
+* Hardening of clientlib. Removed some None-Value-Errors.
+
 # v4.2.2
 
 * Introduce parameter `remote_exit_codes` to `AbstractAuthenticatedWebSocketHandler`. 
