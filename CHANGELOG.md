@@ -1,3 +1,8 @@
+# v4.2.5
+
+* Send valid close messages to backend.
+* Introduced parameter `client_name` to give connections a name and also set header `User-Agent` more easily.
+
 # v4.2.4
 
 * Updated CHANGELOG.md.

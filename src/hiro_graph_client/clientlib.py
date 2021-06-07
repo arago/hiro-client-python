@@ -51,12 +51,15 @@ class AbstractAPI:
 
     accept_all_certs: bool = False
 
+    _client_name: str = "python-hiro-client"
+
     def __init__(self,
                  root_url: str,
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
-                 timeout: int = 600):
+                 timeout: int = 600,
+                 client_name: str = None):
         """
         Constructor
 
@@ -65,6 +68,8 @@ class AbstractAPI:
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
+        :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
+                            is given with another value for "User-Agent". Default is "python-hiro-client".
         """
 
         if not root_url:
@@ -75,10 +80,13 @@ class AbstractAPI:
         self._raise_exceptions = raise_exceptions
         self._timeout = timeout
 
+        if client_name:
+            self._client_name = client_name
+
         self._headers = {
             'Content-Type': 'application/json',
             'Accept': 'text/plain, application/json',
-            'User-Agent': "python-hiro-client {}".format(__version__)
+            'User-Agent': f"{self._client_name} {__version__}"
         }
 
         if headers:
@@ -87,8 +95,9 @@ class AbstractAPI:
     def get_root_url(self):
         return self._root_url
 
-    def get_user_agent(self):
-        return self._headers.get('User-Agent') or 'unknown'
+    @property
+    def user_agent(self):
+        return self._headers.get('User-Agent') or self._client_name
 
     @staticmethod
     def _capitalize_header(name: str) -> str:
@@ -407,6 +416,7 @@ class AbstractTokenApiHandler(AbstractAPI):
                  proxies: dict = None,
                  headers: dict = None,
                  timeout: int = 600,
+                 client_name: str = None,
                  custom_endpoints: dict = None):
         """
         Constructor
@@ -427,16 +437,17 @@ class AbstractTokenApiHandler(AbstractAPI):
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
+        :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
+                            is given with another value for "User-Agent". Default is "python-hiro-client".
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
                from /api/version. Example see above.
-
-
         """
         super().__init__(root_url=root_url,
                          raise_exceptions=raise_exceptions,
                          proxies=proxies,
                          timeout=timeout,
-                         headers=headers)
+                         headers=headers,
+                         client_name=client_name)
 
         self._version_info = None
         self.custom_endpoints = custom_endpoints
@@ -594,6 +605,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                  proxies: dict = None,
                  headers: dict = None,
                  timeout: int = 600,
+                 client_name: str = None,
                  custom_endpoints: dict = None):
         """
         Constructor
@@ -604,6 +616,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
+        :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
+                            is given with another value for "User-Agent". Default is "python-hiro-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
         """
@@ -613,6 +627,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
             proxies=proxies,
             timeout=timeout,
             headers=headers,
+            client_name=client_name,
             custom_endpoints=custom_endpoints
         )
 
@@ -647,6 +662,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                  proxies: dict = None,
                  headers: dict = None,
                  timeout: int = 600,
+                 client_name: str = None,
                  custom_endpoints: dict = None):
         """
         Constructor
@@ -657,6 +673,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
+        :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
+                            is given with another value for "User-Agent". Default is "python-hiro-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
         """
@@ -666,6 +684,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
             proxies=proxies,
             headers=headers,
             timeout=timeout,
+            client_name=client_name,
             custom_endpoints=custom_endpoints
         )
 
@@ -824,6 +843,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                  proxies: dict = None,
                  headers: dict = None,
                  timeout: int = 600,
+                 client_name: str = None,
                  custom_endpoints: dict = None):
         """
         Constructor
@@ -838,6 +858,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
+        :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
+                            is given with another value for "User-Agent". Default is "python-hiro-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
         """
@@ -847,6 +869,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
             proxies=proxies,
             headers=headers,
             timeout=timeout,
+            client_name=client_name,
             custom_endpoints=custom_endpoints
         )
 
@@ -1016,7 +1039,8 @@ class AuthenticatedAPIHandler(AbstractAPI):
                          raise_exceptions=api_handler._raise_exceptions,
                          proxies=api_handler._proxies,
                          headers=api_handler._headers,
-                         timeout=api_handler._timeout)
+                         timeout=api_handler._timeout,
+                         client_name=api_handler._client_name)
 
         self._api_handler = api_handler
         self._api_name = api_name

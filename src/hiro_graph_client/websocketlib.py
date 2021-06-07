@@ -9,7 +9,8 @@ from abc import abstractmethod
 from enum import Enum
 from typing import Optional, Tuple, List
 
-from websocket import WebSocketApp, ABNF, WebSocketException, setdefaulttimeout, WebSocketConnectionClosedException
+from websocket import WebSocketApp, ABNF, WebSocketException, setdefaulttimeout, WebSocketConnectionClosedException, \
+    STATUS_NORMAL, STATUS_UNEXPECTED_CONDITION
 
 from hiro_graph_client.clientlib import AbstractTokenApiHandler
 
@@ -218,7 +219,7 @@ class AbstractAuthenticatedWebSocketHandler:
                             self._reader_status = ReaderStatus.RESTARTING
 
                             logger.info("Refreshing token because of error: %s", str(error_message))
-                            self._close()
+                            self._close(reason=f"{self._api_handler.user_agent} token refresh.")
                             return
                 else:
                     if logger.isEnabledFor(logging.DEBUG):
@@ -234,7 +235,8 @@ class AbstractAuthenticatedWebSocketHandler:
                 self.on_message(ws, message)
             except Exception as err:
                 self._set_error(err)
-                self._close()
+                self._close(status=STATUS_UNEXPECTED_CONDITION,
+                            reason="Exception while handling incoming text message.")
 
     def _check_open(self, ws: WebSocketApp) -> None:
         """
@@ -254,7 +256,8 @@ class AbstractAuthenticatedWebSocketHandler:
                 self.on_open(ws)
             except Exception as err:
                 self._set_error(err)
-                self._close()
+                self._close(status=STATUS_UNEXPECTED_CONDITION,
+                            reason="Exception while handling open message.")
 
     def _check_close(self, ws: WebSocketApp, code: int, reason: str):
         """
@@ -371,15 +374,17 @@ class AbstractAuthenticatedWebSocketHandler:
             else (reconnect_delay + 10) if reconnect_delay < 60 \
             else random.randint(60, 600)
 
-    def _close(self):
+    def _close(self, status: str = STATUS_NORMAL, reason: str = None):
         """
         Internal stop that does not join the reader thread. Intended to be called on unrecoverable errors within the
         reader thread, i.e. invalid tokens.
+
+        :param status: Status code for close message.
         """
         with self._ws_lock:
             if self._ws:
-                self._ws.close(status=ABNF.OPCODE_CLOSE,
-                               reason="{} closing".format(self._api_handler.get_user_agent()))
+                self._ws.close(status=status,
+                               reason=reason if reason else f"{self._api_handler.user_agent} closing")
 
     ###############################################################################################################
     # Public API Reader thread
