@@ -1,3 +1,7 @@
+# v4.2.6
+
+* Do not require package uuid - it is already supplied with python
+
 # v4.2.5
 
 * Send valid close messages to backend.

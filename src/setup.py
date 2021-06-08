@@ -31,7 +31,6 @@ setup(
         'requests',
         'backoff',
         'websocket-client',
-        'uuid',
         'apscheduler'
     ],
     package_data={
