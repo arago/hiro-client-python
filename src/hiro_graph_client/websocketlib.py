@@ -120,10 +120,14 @@ class AbstractAuthenticatedWebSocketHandler:
     exceptions here.
     """
 
-    _sender_thread_lock: threading.RLock
+    _restart_lock: threading.RLock
+    """ Only one restart attempt at one time """
 
     _remote_exit_codes: List[int] = []
     """ A list of remote exit codes that will cause the websocket to not reconnect."""
+
+    _wait_until_finish: threading.Condition
+    """ This condition gets notified when the reader thread returned and has been joined. """
 
     MAX_RETRIES = 3
 
@@ -168,12 +172,14 @@ class AbstractAuthenticatedWebSocketHandler:
         self._ws_lock = threading.RLock()
         self._inner_exception = None
 
-        self._sender_thread_lock = threading.RLock()
+        self._restart_lock = threading.RLock()
 
         if remote_exit_codes:
             self._remote_exit_codes = remote_exit_codes
 
         setdefaulttimeout(timeout)
+
+        self._wait_until_finish = threading.Condition()
 
         random.seed(time.time_ns())
 
@@ -320,7 +326,8 @@ class AbstractAuthenticatedWebSocketHandler:
                     self._inner_exception = None
 
                     header: dict = {
-                        "Sec-WebSocket-Protocol": "{}, token-{}".format(self._protocol, self._api_handler.token)
+                        "Sec-WebSocket-Protocol": "{}, token-{}".format(self._protocol,
+                                                                        self._api_handler.token)
                     }
 
                     with self._ws_lock:
@@ -419,15 +426,16 @@ class AbstractAuthenticatedWebSocketHandler:
         """
 
         try:
-            with self._reader_guard:
-                if self._reader_future:
-                    return
-                self._reader_future = self._reader_executor.submit(AbstractAuthenticatedWebSocketHandler._run, self)
-                self._reader_guard.wait()
-                start_ok = (self._reader_status != ReaderStatus.FAILED)
+            with self._wait_until_finish:
+                with self._reader_guard:
+                    if self._reader_future:
+                        return
+                    self._reader_future = self._reader_executor.submit(AbstractAuthenticatedWebSocketHandler._run, self)
+                    self._reader_guard.wait()
+                    start_ok = (self._reader_status != ReaderStatus.FAILED)
 
-            if not start_ok:
-                self.join()
+                if not start_ok:
+                    self.join()
         except Exception as err:
             raise WebSocketException("Cannot start reader thread.") from err
 
@@ -453,6 +461,8 @@ class AbstractAuthenticatedWebSocketHandler:
             raise WebSocketException("Reader thread finished with error.") from err
         finally:
             self._reader_future = None
+            with self._wait_until_finish:
+                self._wait_until_finish.notify()
 
     def stop(self, timeout: int = None) -> None:
         """
@@ -466,64 +476,90 @@ class AbstractAuthenticatedWebSocketHandler:
         self._close()
         self.join(timeout)
 
-    def restart(self, timeout: int = None) -> None:
+    def run_forever(self):
         """
-        Closes the websocket and starts a new one.
+        Runs and receives incoming messages. Will return when the reader thread has been joined. This can happen because
+        of an internal error or a call to *stop()* externally.
+        """
+        with self._wait_until_finish:
+            if not self.is_active():
+                return
+            self._wait_until_finish.wait()
+
+    def is_active(self) -> bool:
+        """
+        Checks whether the websocket reader thread is still active.
+        :return: self._reader_status not in [ReaderStatus.NONE, ReaderStatus.DONE, ReaderStatus.FAILED]
+        """
+        with self._reader_guard:
+            return self._reader_status not in [ReaderStatus.NONE, ReaderStatus.DONE, ReaderStatus.FAILED]
+
+    def restart(self, timeout: int = None) -> bool:
+        """
+        Closes the websocket and starts a new one. Ensures, that only one thread is attempting to restart.
 
         :param timeout: Optional timeout in seconds for joining the old reader thread.
+        :return: If another thread is already trying to restart, return False, else return True when restart has been
+                 executed.
         """
-        self.stop(timeout)
-        self.start()
+        restart = self._restart_lock.acquire(blocking=False)
+        if restart:
+            try:
+                self.stop(timeout)
+                self.start()
+            finally:
+                self._restart_lock.release()
+
+        return restart
 
     def send(self, message: str) -> None:
         """
-        Send message across the websocket. Make sure, that this is thread-safe.
+        Send message across the websocket. This is thread-safe.
 
         :param message: Message as string
         :raise WebSocketException: When *self._auto_reconnect* is False: If a message cannot be sent and all retries
                                    have been exhausted.
         :raise WebSocketConnectionClosedException: When the websocket is not available at all.
         """
-        with self._sender_thread_lock:
-            retries = 0
-            retry_delay = 0
+        retries = 0
+        retry_delay = 0
 
-            while True:
-                retry_delay = self._backoff(retry_delay)
+        while True:
+            retry_delay = self._backoff(retry_delay)
 
-                try:
-                    with self._reader_guard:
-                        if self._reader_status in [ReaderStatus.NONE]:
-                            raise WebSocketConnectionClosedException('Websocket not started.')
-                        elif self._reader_status in [ReaderStatus.DONE, ReaderStatus.FAILED]:
-                            raise WebSocketConnectionClosedException('Websocket has exited.')
-                        elif self._reader_status not in [ReaderStatus.RUNNING, ReaderStatus.RUNNING_PRELIMINARY]:
-                            raise WebSocketException('Websocket not ready.')
+            try:
+                with self._reader_guard:
+                    if self._reader_status in [ReaderStatus.NONE]:
+                        raise WebSocketConnectionClosedException('Websocket not started.')
+                    elif self._reader_status in [ReaderStatus.DONE, ReaderStatus.FAILED]:
+                        raise WebSocketConnectionClosedException('Websocket has exited.')
+                    elif self._reader_status not in [ReaderStatus.RUNNING, ReaderStatus.RUNNING_PRELIMINARY]:
+                        raise WebSocketException('Websocket not ready.')
 
-                    with self._ws_lock:
-                        if not self._ws:
-                            raise WebSocketConnectionClosedException('Websocket is gone.')
+                with self._ws_lock:
+                    if not self._ws:
+                        raise WebSocketConnectionClosedException('Websocket is gone.')
 
-                        if logger.isEnabledFor(logging.DEBUG):
-                            logger.debug("Sending message: %s", message)
-                        else:
-                            logger.info("Sending message of length %d", len(message))
-
-                        self._ws.send(message)
-
-                    return
-
-                except WebSocketConnectionClosedException:
-                    raise
-
-                except Exception as err:
-                    if retries < self.MAX_RETRIES:
-                        if self._auto_reconnect:
-                            retries = 0
-                            logger.warning('Restarting because of error: %s', str(err))
-                            self.restart(self._timeout)
-                        else:
-                            raise WebSocketException("Could not send and all retries have been exhausted.")
+                    if logger.isEnabledFor(logging.DEBUG):
+                        logger.debug("Sending message: %s", message)
                     else:
-                        logger.warning('Retrying to send message because of error: %s', str(err))
-                        retries += 1
+                        logger.info("Sending message of length %d", len(message))
+
+                    self._ws.send(message)
+
+                return
+
+            except WebSocketConnectionClosedException:
+                raise
+
+            except Exception as err:
+                if retries < self.MAX_RETRIES:
+                    if self._auto_reconnect:
+                        retries = 0
+                        logger.warning('Restarting because of error: %s', str(err))
+                        self.restart(self._timeout)
+                    else:
+                        raise WebSocketException("Could not send and all retries have been exhausted.")
+                else:
+                    logger.warning('Retrying to send message because of error: %s', str(err))
+                    retries += 1

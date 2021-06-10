@@ -1,3 +1,26 @@
+# v4.2.7
+
+Changes to `AbstractAuthenticatedWebSocketHandler`:
+
+* Introducing `run_forever()` which will return after the reader thread has been joined. This can happen when another
+  thread calls `stop()` (normal exit) or an internal error occurs, either directly when the connection is attempted, a
+  token got invalid and could not be refreshed, or any other exception that has been thrown in the internal reader
+  thread.
+
+  This ensures, that the main thread does not continue when the websocket reader thread is not there.
+
+* Enable parallel executions of `send()` across multiple threads.
+
+* Make sure, that only one thread triggers a restart by a call to `restart()`.
+
+* Check for active websocket reader thread via `is_active()`.
+
+* Update examples for websockets in README.md.
+
+Generic
+
+* Update README.md to show usage of `client_name`. 
+
 # v4.2.6
 
 * Do not require package uuid - it is already supplied with python
@@ -17,7 +40,7 @@
 
 # v4.2.2
 
-* Introduce parameter `remote_exit_codes` to `AbstractAuthenticatedWebSocketHandler`. 
+* Introduce parameter `remote_exit_codes` to `AbstractAuthenticatedWebSocketHandler`.
 
 # v4.2.1
 
@@ -26,8 +49,8 @@
 # v4.2.0
 
 * Implement websocket protocols
-  * event-ws
-  * action-ws
+    * event-ws
+    * action-ws
 
 # v4.1.3
 
@@ -48,15 +71,15 @@
 # v4.0.0
 
 * `AbstractTokenApiHandler`
-  * Better token handling.
-  * Resolve graph api endpoints via calling /api/version.
-    * Ability to customize headers. Headers are handled 
-      case-insensitively and are submitted to requests capitalized.
-    * Ability to override internal endpoints.
+    * Better token handling.
+    * Resolve graph api endpoints via calling /api/version.
+        * Ability to customize headers. Headers are handled case-insensitively and are submitted to requests
+          capitalized.
+        * Ability to override internal endpoints.
 
-  
+
 * AbstractIOCarrier works with `with` statements now.
-* Added `BasicFileIOCarrier`.  
+* Added `BasicFileIOCarrier`.
 
 
 * Removed `ApiConfig`.
@@ -71,9 +94,9 @@
 # v3.1.0
 
 * Separation of APIs in client libraries. Currently, supported APIs are:
-  * HiroGraph: https://core.arago.co/help/specs/?url=definitions/graph.yaml
-  * HiroAuth: https://core.arago.co/help/specs/?url=definitions/auth.yaml
-  * HiroApp: https://core.arago.co/help/specs/?url=definitions/app.yaml
+    * HiroGraph: https://core.arago.co/help/specs/?url=definitions/graph.yaml
+    * HiroAuth: https://core.arago.co/help/specs/?url=definitions/auth.yaml
+    * HiroApp: https://core.arago.co/help/specs/?url=definitions/app.yaml
 * Use correct headers with binary transfers.
 * Added gremlin and multi-id queries to HiroGraph.
 

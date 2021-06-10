@@ -187,15 +187,34 @@ from hiro_graph_client import EnvironmentTokenApiHandler, HiroGraph
 
 hiro_client: HiroGraph = HiroGraph(
     api_handler=EnvironmentTokenApiHandler(
+        root_url="https://core.arago.co"
+    )
+)
+
+# The commands of the Graph API are methods of the class HIROGraph.
+# The next line executes a vertex query for instance. 
+query_result = hiro_client.query('ogit\\/_type:"ogit/MARS/Machine"')
+
+print(query_result)
+```
+
+Example with additional parameters:
+
+```python
+from hiro_graph_client import EnvironmentTokenApiHandler, HiroGraph
+
+hiro_client: HiroGraph = HiroGraph(
+    api_handler=EnvironmentTokenApiHandler(
         root_url="https://core.arago.co",
-        env_var='HIRO_TOKEN',  # optional,
+        env_var='_TOKEN',
         headers={
-            'User-Agent': 'My special user agent'
+            'X-Custom-Header': 'My custom value'
         },
         custom_endpoints={
             "graph": "/api/graph/7.2",
             "auth": "/api/auth/6.2"
-        }
+        },
+        client_name="HiroGraph (testing)" # Will be used in the header 'User-Agent'
     )
 )
 
@@ -1139,6 +1158,9 @@ See also [API description of event-ws](https://core.arago.co/help/specs/?url=def
 Example:
 
 ```python
+import threading
+import concurrent.futures
+
 from hiro_graph_client.clientlib import FixedTokenApiHandler
 from hiro_graph_client.eventswebsocket import AbstractEventsWebSocketHandler, EventMessage, EventsFilter
 
@@ -1158,10 +1180,17 @@ class EventsWebSocket(AbstractEventsWebSocketHandler):
         print("Delete:\n" + str(message))
 
 
+def wait_for_keypress(websocket: EventsWebSocket):
+    input("Press [Enter] to stop.\n")
+    websocket.stop()
+
+
 events_filter = EventsFilter(filter_id='testfilter', filter_content="(element.ogit/_type=ogit/MARS/Machine)")
 
-with EventsWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN'), events_filters=[events_filter]):
-    input("Press [Enter] to stop.\n")
+with EventsWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN'), events_filters=[events_filter]) as ws:
+    threading.Thread(daemon=True, target=wait_for_keypress, args=(ws,)).start()
+    ws.run_forever()
+
 ```
 
 ### Action WebSocket
@@ -1174,6 +1203,8 @@ See also [API description of action-ws](https://core.arago.co/help/specs/?url=de
 Simple example:
 
 ```python
+import threading
+
 from hiro_graph_client.actionwebsocket import AbstractActionWebSocketHandler
 from hiro_graph_client.clientlib import FixedTokenApiHandler
 
@@ -1194,16 +1225,23 @@ class ActionWebSocket(AbstractActionWebSocketHandler):
         pass
 
 
-with ActionWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN')):
+def wait_for_keypress(websocket: ActionWebSocket):
     input("Press [Enter] to stop.\n")
+    websocket.stop()
+
+
+with ActionWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN')) as ws:
+    threading.Thread(daemon=True, target=wait_for_keypress, args=(ws,)).start()
+    ws.run_forever()
 
 ```
 
 Multithreaded example using a thread executor:
 
 ```python
-
+import threading
 import concurrent.futures
+
 from hiro_graph_client.actionwebsocket import AbstractActionWebSocketHandler
 from hiro_graph_client.clientlib import FixedTokenApiHandler, AbstractTokenApiHandler
 
@@ -1243,7 +1281,13 @@ class ActionWebSocket(AbstractActionWebSocketHandler):
         pass
 
 
-with ActionWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN')):
+def wait_for_keypress(websocket: ActionWebSocket):
     input("Press [Enter] to stop.\n")
+    websocket.stop()
+
+
+with ActionWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN')) as ws:
+    threading.Thread(daemon=True, target=wait_for_keypress, args=(ws,)).start()
+    ws.run_forever()
 
 ```
