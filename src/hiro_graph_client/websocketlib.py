@@ -8,6 +8,7 @@ import time
 from abc import abstractmethod
 from enum import Enum
 from typing import Optional, Tuple, List
+from urllib.parse import urlencode
 
 from websocket import WebSocketApp, ABNF, WebSocketException, setdefaulttimeout, WebSocketConnectionClosedException, \
     STATUS_NORMAL, STATUS_UNEXPECTED_CONDITION
@@ -134,6 +135,7 @@ class AbstractAuthenticatedWebSocketHandler:
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,
                  api_name: str,
+                 query_params: dict = None,
                  timeout: int = 5,
                  auto_reconnect: bool = True,
                  remote_exit_codes: List[int] = None):
@@ -142,6 +144,7 @@ class AbstractAuthenticatedWebSocketHandler:
 
         :param api_handler: Required: The api handler for authentication.
         :param api_name: The name of the ws api.
+        :param query_params: URL Query parameters for this specific websocket.
         :param timeout: The timeout for websocket messages. Default is 5sec.
         :param auto_reconnect: Try to create a new websocket automatically when *self.send()* fails. If this is set
                                to False, a WebSocketException will be raised instead. The default is True.
@@ -158,6 +161,9 @@ class AbstractAuthenticatedWebSocketHandler:
 
         self._url, self._protocol, self._proxy_hostname, self._proxy_port, self._proxy_auth = \
             api_handler.get_websocket_config(api_name)
+
+        if query_params:
+            self._url += '?' + urlencode(query_params, safe="/,")
 
         self._api_handler = api_handler
 
