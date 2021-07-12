@@ -122,7 +122,7 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
                  api_handler: AbstractTokenApiHandler,
                  events_filters: List[EventsFilter],
                  scopes: List[str] = None,
-                 query_params: dict = None):
+                 query_params: Dict[str, str] = None):
         """
         Constructor
 
@@ -132,11 +132,13 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         :param scopes: List of ids of non-default scopes to subscribe. These are ogit/_id of the "ogit/DataScope"s
                        (i.e. the scope of your instance) you want to subscribe to. Default is None, which means:
                        Use default scope.
-        :param query_params: URL Query parameters for this specific websocket.
+        :param query_params: URL Query parameters for this specific websocket. Use Dict[str,str] only here,
+                             i.e set {"allscopes": "false"} instead of {"allscopes": False}. The default here is to set
+                             {'allscopes': 'false'}.
         """
         super().__init__(api_handler,
                          'events-ws',
-                         query_params=query_params)
+                         query_params=query_params if query_params is not None else {'allscopes': 'false'})
 
         self._initial_messages_lock = threading.RLock()
 

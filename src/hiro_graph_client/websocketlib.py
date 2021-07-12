@@ -7,7 +7,7 @@ import threading
 import time
 from abc import abstractmethod
 from enum import Enum
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Dict
 from urllib.parse import urlencode
 
 from websocket import WebSocketApp, ABNF, WebSocketException, setdefaulttimeout, WebSocketConnectionClosedException, \
@@ -135,7 +135,7 @@ class AbstractAuthenticatedWebSocketHandler:
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,
                  api_name: str,
-                 query_params: dict = None,
+                 query_params: Dict[str, str] = None,
                  timeout: int = 5,
                  auto_reconnect: bool = True,
                  remote_exit_codes: List[int] = None):
@@ -144,7 +144,8 @@ class AbstractAuthenticatedWebSocketHandler:
 
         :param api_handler: Required: The api handler for authentication.
         :param api_name: The name of the ws api.
-        :param query_params: URL Query parameters for this specific websocket.
+        :param query_params: URL Query parameters for this specific websocket. Use Dict[str,str] only here,
+                             i.e set {"allscopes": "false"} instead of {"allscopes": False}.
         :param timeout: The timeout for websocket messages. Default is 5sec.
         :param auto_reconnect: Try to create a new websocket automatically when *self.send()* fails. If this is set
                                to False, a WebSocketException will be raised instead. The default is True.

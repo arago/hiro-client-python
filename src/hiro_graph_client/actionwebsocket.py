@@ -493,12 +493,13 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
 
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,
-                 query_params: dict = None):
+                 query_params: Dict[str, str] = None):
         """
         Constructor
 
         :param api_handler: The TokenApiHandler for this WebSocket.
-        :param query_params: URL Query parameters for this specific websocket.
+        :param query_params: URL Query parameters for this specific websocket. Use Dict[str,str] only here - no boolean
+                             Values.
         """
         super().__init__(api_handler,
                          'action-ws',

@@ -1,3 +1,8 @@
+# v4.2.12
+
+* Use typing to make sure, that `query_params=` for WebSockets is of type `Dict[str, str]`.
+* Set `query_params={'allscopes': 'false'}` as default for the EventWebSocket.
+
 # v4.2.11
 
 * Debugged EventWebSocket handling.
