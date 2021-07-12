@@ -1,3 +1,7 @@
+# v4.2.8
+
+* WebSockets have new option `query_params` to add arbitrary query parameters to the initial websocket request.  
+
 # v4.2.7
 
 Changes to `AbstractAuthenticatedWebSocketHandler`:
