@@ -491,13 +491,19 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     submitStore: ActionStore
     resultStore: ActionStore
 
-    def __init__(self, api_handler: AbstractTokenApiHandler):
+    def __init__(self,
+                 api_handler: AbstractTokenApiHandler,
+                 query_params: dict = None):
         """
         Constructor
 
         :param api_handler: The TokenApiHandler for this WebSocket.
+        :param query_params: URL Query parameters for this specific websocket.
         """
-        super().__init__(api_handler, 'action-ws')
+        super().__init__(api_handler,
+                         'action-ws',
+                         query_params=query_params)
+
         self.submitStore = ActionStore()
         self.resultStore = ActionStore()
 

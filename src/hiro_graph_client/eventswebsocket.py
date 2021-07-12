@@ -117,15 +117,19 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
 
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,
-                 events_filters: List[EventsFilter]):
+                 events_filters: List[EventsFilter],
+                 query_params: dict = None):
         """
         Constructor
 
         :param api_handler: The TokenApiHandler for this WebSocket.
         :param events_filters: Filters for the events. These have to be set or the flood of incoming events will be too
                                big.
+        :param query_params: URL Query parameters for this specific websocket.
         """
-        super().__init__(api_handler, 'events-ws')
+        super().__init__(api_handler,
+                         'events-ws',
+                         query_params=query_params)
 
         self._events_filter_messages_lock = threading.RLock()
 
