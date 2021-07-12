@@ -136,9 +136,15 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
                              i.e set {"allscopes": "false"} instead of {"allscopes": False}. The default here is to set
                              {'allscopes': 'false'}.
         """
+        _query_params = query_params.copy()
+        if _query_params is None:
+            _query_params = {'allscopes': 'false'}
+        elif 'allscopes' not in _query_params:
+            _query_params.update({'allscopes': 'false'})
+
         super().__init__(api_handler,
                          'events-ws',
-                         query_params=query_params if query_params is not None else {'allscopes': 'false'})
+                         query_params=_query_params)
 
         self._initial_messages_lock = threading.RLock()
 

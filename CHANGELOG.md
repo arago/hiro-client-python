@@ -1,3 +1,9 @@
+# v4.2.13
+
+* You need to explicitly set `query_params={'allscopes': 'true'}` if you
+  want to enable it for EventWebSockets. If this is left out of the
+  query_params, it will be added as 'allscopes': 'false'.
+  
 # v4.2.12
 
 * Use typing to make sure, that `query_params=` for WebSockets is of type `Dict[str, str]`.
