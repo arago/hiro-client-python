@@ -1187,7 +1187,9 @@ def wait_for_keypress(websocket: EventsWebSocket):
 
 events_filter = EventsFilter(filter_id='testfilter', filter_content="(element.ogit/_type=ogit/MARS/Machine)")
 
-with EventsWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN'), events_filters=[events_filter]) as ws:
+with EventsWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN'),
+                     events_filters=[events_filter],
+                     query_params={"allscopes": "true", "delta": "false"}) as ws:
     threading.Thread(daemon=True, target=wait_for_keypress, args=(ws,)).start()
     ws.run_forever()
 
