@@ -8,7 +8,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from websocket import WebSocketApp, WebSocketException
 
 from hiro_graph_client.clientlib import AbstractTokenApiHandler
-from hiro_graph_client.websocketlib import AbstractAuthenticatedWebSocketHandler, ErrorMessage
+from hiro_graph_client.websocketlib import AbstractAuthenticatedWebSocketHandler, ErrorMessage, ReaderStatus
 
 logger = logging.getLogger(__name__)
 """ The logger for this module """
@@ -171,11 +171,12 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
 
             with self._initial_messages_lock:
                 for scope in self._scopes:
-                    self.subscribe_scope(scope)
+                    scope_message = self._get_subscribe_scope_message(scope)
+                    self.send(scope_message)
 
                 for events_filter in self._events_filter_messages.values():
-                    message = self._get_events_register_message(events_filter)
-                    self.send(message)
+                    filter_message = self._get_events_register_message(events_filter)
+                    self.send(filter_message)
 
         except Exception as err:
             raise WebSocketFilterException('Setting events filter failed') from err
@@ -209,6 +210,8 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
             error_message = ErrorMessage.parse(message)
             if error_message:
                 logger.error("Received error: %s", str(error_message))
+                if self._reader_status == ReaderStatus.RUNNING_PRELIMINARY:
+                    self._reader_status = ReaderStatus.FAILED
             else:
                 logger.error("Invalid message: %s", message)
 
@@ -277,6 +280,15 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
 
         return json.dumps(message)
 
+    @staticmethod
+    def _get_subscribe_scope_message(scope_id: str) -> str:
+        message: dict = {
+            "type": "subscribe",
+            "id": scope_id
+        }
+
+        return json.dumps(message)
+
     def add_events_filter(self, events_filter: EventsFilter) -> None:
         message: str = self._get_events_register_message(events_filter)
         self.send(message)
@@ -306,10 +318,7 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
             self._events_filter_messages = {}
 
     def subscribe_scope(self, scope_id: str):
-        message: dict = {
-            "type": "subscribe",
-            "id": scope_id
-        }
+        message = self._get_subscribe_scope_message(scope_id)
         self.send(json.dumps(message))
         with self._initial_messages_lock:
             self._scopes.append(scope_id)

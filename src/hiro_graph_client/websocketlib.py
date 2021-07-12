@@ -239,12 +239,13 @@ class AbstractAuthenticatedWebSocketHandler:
                     else:
                         logger.info("Received message of length %d", len(message))
 
+                self.on_message(ws, message)
+
                 # If we get here, the token is valid
-                if self._reader_status != ReaderStatus.RUNNING:
+                if self._reader_status not in [ReaderStatus.RUNNING, ReaderStatus.FAILED]:
                     self._reader_status = ReaderStatus.RUNNING
                     self._reconnect_delay = 0
 
-                self.on_message(ws, message)
             except Exception as err:
                 self._set_error(err)
                 self._close(status=STATUS_UNEXPECTED_CONDITION,

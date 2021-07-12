@@ -1,3 +1,8 @@
+# v4.2.11
+
+* Debugged EventWebSocket handling.
+* Abort connection when setting scope or filters failed.
+
 # v4.2.10
 
 * Adding scopes to EventWebSockets.
