@@ -1,3 +1,11 @@
+# v4.2.10
+
+* Adding scopes to EventWebSockets.
+
+# v4.2.9
+
+* Documentation of feature in v4.2.8
+
 # v4.2.8
 
 * WebSockets have new option `query_params` to add arbitrary query parameters to the initial websocket request.  

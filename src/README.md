@@ -214,7 +214,7 @@ hiro_client: HiroGraph = HiroGraph(
             "graph": "/api/graph/7.2",
             "auth": "/api/auth/6.2"
         },
-        client_name="HiroGraph (testing)" # Will be used in the header 'User-Agent'
+        client_name="HiroGraph (testing)"  # Will be used in the header 'User-Agent'
     )
 )
 
@@ -1189,6 +1189,7 @@ events_filter = EventsFilter(filter_id='testfilter', filter_content="(element.og
 
 with EventsWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN'),
                      events_filters=[events_filter],
+                     scopes=[],
                      query_params={"allscopes": "true", "delta": "false"}) as ws:
     threading.Thread(daemon=True, target=wait_for_keypress, args=(ws,)).start()
     ws.run_forever()

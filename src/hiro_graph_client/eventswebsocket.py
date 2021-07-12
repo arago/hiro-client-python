@@ -111,13 +111,17 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     A handler for issue events
     """
     _events_filter_messages: Dict[str, EventsFilter] = {}
-    _events_filter_messages_lock: threading.RLock
+    _scopes: List[str] = []
+
+    _initial_messages_lock: threading.RLock
+    """Lock for _events_filter_messages and _scopes """
 
     _token_scheduler: BackgroundScheduler
 
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,
                  events_filters: List[EventsFilter],
+                 scopes: List[str] = None,
                  query_params: dict = None):
         """
         Constructor
@@ -125,13 +129,16 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         :param api_handler: The TokenApiHandler for this WebSocket.
         :param events_filters: Filters for the events. These have to be set or the flood of incoming events will be too
                                big.
+        :param scopes: List of ids of non-default scopes to subscribe. These are ogit/_id of the "ogit/DataScope"s
+                       (i.e. the scope of your instance) you want to subscribe to. Default is None, which means:
+                       Use default scope.
         :param query_params: URL Query parameters for this specific websocket.
         """
         super().__init__(api_handler,
                          'events-ws',
                          query_params=query_params)
 
-        self._events_filter_messages_lock = threading.RLock()
+        self._initial_messages_lock = threading.RLock()
 
         self._token_scheduler = BackgroundScheduler()
 
@@ -143,6 +150,8 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
 
         for events_filter in events_filters:
             self._events_filter_messages[events_filter.id] = events_filter
+
+        self._scopes = scopes or []
 
     ###############################################################################################################
     # Websocket Events
@@ -160,7 +169,10 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
                 self._set_next_token_refresh()
                 self._token_scheduler.start()
 
-            with self._events_filter_messages_lock:
+            with self._initial_messages_lock:
+                for scope in self._scopes:
+                    self.subscribe_scope(scope)
+
                 for events_filter in self._events_filter_messages.values():
                     message = self._get_events_register_message(events_filter)
                     self.send(message)
@@ -268,7 +280,7 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     def add_events_filter(self, events_filter: EventsFilter) -> None:
         message: str = self._get_events_register_message(events_filter)
         self.send(message)
-        with self._events_filter_messages_lock:
+        with self._initial_messages_lock:
             self._events_filter_messages[events_filter.id] = events_filter
 
     def remove_events_filter(self, events_filter_id: str) -> None:
@@ -280,7 +292,7 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         }
 
         self.send(json.dumps(message))
-        with self._events_filter_messages_lock:
+        with self._initial_messages_lock:
             del self._events_filter_messages[events_filter_id]
 
     def clear_events_filters(self) -> None:
@@ -290,8 +302,25 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         }
 
         self.send(json.dumps(message))
-        with self._events_filter_messages_lock:
+        with self._initial_messages_lock:
             self._events_filter_messages = {}
+
+    def subscribe_scope(self, scope_id: str):
+        message: dict = {
+            "type": "subscribe",
+            "id": scope_id
+        }
+        self.send(json.dumps(message))
+        with self._initial_messages_lock:
+            self._scopes.append(scope_id)
+
+    def remove_scope(self, scope_id: str):
+        """
+        This only removes the scope from the internal list since there is no 'unsubscribe'. You need to
+        restart the websocket for this change to take effect.
+        """
+        with self._initial_messages_lock:
+            self._scopes.remove(scope_id)
 
     ###################################################################################################################
     # Token refresh thread
