@@ -561,7 +561,7 @@ class AbstractAuthenticatedWebSocketHandler:
                 raise
 
             except Exception as err:
-                if retries < self.MAX_RETRIES:
+                if retries >= self.MAX_RETRIES:
                     if self._auto_reconnect:
                         retries = 0
                         logger.warning('Restarting because of error: %s', str(err))
