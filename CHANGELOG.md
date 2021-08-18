@@ -1,3 +1,8 @@
+# v4.2.14
+
+* Removed bug with reversed operator in websocketlib.
+* Updated installation instructions in README.md.
+
 # v4.2.13
 
 * You need to explicitly set `query_params={'allscopes': 'true'}` if you

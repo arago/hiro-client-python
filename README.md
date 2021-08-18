@@ -15,7 +15,7 @@ Install the hiro-client as a python package by using one of the following:
     ```
     or
     ```shell script
-    pip3 install src/
+    pip3 install --use-feature=in-tree-build src/
     ```
     You need an account with administrative rights to be able to install the package globally.
 
@@ -26,8 +26,16 @@ Install the hiro-client as a python package by using one of the following:
     ```
     or
     ```shell script
-    pip3 install --user src/
+    pip3 install --use-feature=in-tree-build --user src/
     ```
+
+If you only need the library without any sources, you can also install the compiled package directly from [PyPI](https://pypi.org/project/hiro-graph-client) via:
+
+```shell script
+pip3 install hiro-graph-client
+```
+
+
 
 For more details, take a look at the [Makefile](Makefile) and the [README.md in src](src).
 
