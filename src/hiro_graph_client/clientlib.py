@@ -7,12 +7,12 @@ import threading
 import time
 import urllib
 from abc import abstractmethod
+from typing import Optional, Any, Iterator, Union, Tuple
 from urllib.parse import quote, urlencode
 
 import backoff
 import requests
 import requests.packages.urllib3.exceptions
-from typing import Optional, Any, Iterator, Union, Tuple
 
 from hiro_graph_client.version import __version__
 
@@ -40,6 +40,59 @@ def accept_all_certs():
 
 
 ###################################################################################################################
+# SSL Configuration
+###################################################################################################################
+
+class SSLConfig:
+    verify: bool
+    cert_file: str
+    key_file: str
+    ca_bundle_file: str
+
+    """
+    This class contains the configuration for SSL connections, like the files to use.
+    """
+
+    def __init__(self,
+                 verify: bool = True,
+                 cert_file: str = None,
+                 key_file: str = None,
+                 ca_bundle_file: str = None):
+        """
+        Configuration for SSL connections.
+
+        :param verify: Verify connections at all. If just set to True without other parameters, defaults will be used.
+        :param cert_file: (optional) Client certificate file (.pem).
+        :param key_file: (optional) Key for the certificate file.
+        :param ca_bundle_file: (optional) The ca_bundle for server certificate verification.
+        """
+        self.verify = verify
+        self.cert_file = cert_file
+        self.key_file = key_file
+        self.ca_bundle_file = ca_bundle_file
+
+    def get_verify(self):
+        """
+        Get verify parameter as expected by requests library.
+
+        :return: True, False or a path to a ca_bundle.
+        """
+        if self.verify and self.ca_bundle_file:
+            return self.ca_bundle_file
+        return self.verify
+
+    def get_cert(self):
+        """
+        Get cert parameter as expected by requests library.
+
+        :return: Tuple of cert_file, key_file or just cert_file - which can be None.
+        """
+        if self.cert_file and self.key_file:
+            return self.cert_file, self.key_file
+        return self.cert_file
+
+
+###################################################################################################################
 # Root classes for API
 ###################################################################################################################
 
@@ -51,6 +104,8 @@ class AbstractAPI:
 
     accept_all_certs: bool = False
 
+    ssl_config: SSLConfig
+
     _client_name: str = "python-hiro-client"
 
     def __init__(self,
@@ -59,7 +114,8 @@ class AbstractAPI:
                  proxies: dict = None,
                  headers: dict = None,
                  timeout: int = 600,
-                 client_name: str = None):
+                 client_name: str = None,
+                 ssl_config: SSLConfig = None):
         """
         Constructor
 
@@ -70,6 +126,7 @@ class AbstractAPI:
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
                             is given with another value for "User-Agent". Default is "python-hiro-client".
+        :param ssl_config Configuration for SSL connections.
         """
 
         if not root_url:
@@ -79,6 +136,11 @@ class AbstractAPI:
         self._proxies = proxies
         self._raise_exceptions = raise_exceptions
         self._timeout = timeout
+
+        self.ssl_config = ssl_config if ssl_config else SSLConfig()
+
+        if not self.ssl_config.verify:
+            accept_all_certs()
 
         if client_name:
             self._client_name = client_name
@@ -120,7 +182,8 @@ class AbstractAPI:
                           headers=self._get_headers(
                               {"Content-Type": None, "Accept": (accept or "*/*")}
                           ),
-                          verify=False,
+                          verify=self.ssl_config.get_verify(),
+                          cert=self.ssl_config.get_cert(),
                           timeout=self._timeout,
                           stream=True,
                           proxies=self._get_proxies()) as res:
@@ -145,7 +208,8 @@ class AbstractAPI:
                             headers=self._get_headers(
                                 {"Content-Type": (content_type or "application/octet-stream")}
                             ),
-                            verify=False,
+                            verify=self.ssl_config.get_verify(),
+                            cert=self.ssl_config.get_cert(),
                             timeout=self._timeout,
                             proxies=self._get_proxies())
         self._log_communication(res, request_body=False)
@@ -166,7 +230,8 @@ class AbstractAPI:
                            headers=self._get_headers(
                                {"Content-Type": (content_type or "application/octet-stream")}
                            ),
-                           verify=False,
+                           verify=self.ssl_config.get_verify(),
+                           cert=self.ssl_config.get_cert(),
                            timeout=self._timeout,
                            proxies=self._get_proxies())
         self._log_communication(res, request_body=False)
@@ -182,7 +247,8 @@ class AbstractAPI:
         """
         res = requests.get(url,
                            headers=self._get_headers({"Content-Type": None}),
-                           verify=False,
+                           verify=self.ssl_config.get_verify(),
+                           cert=self.ssl_config.get_cert(),
                            timeout=self._timeout,
                            proxies=self._get_proxies())
         self._log_communication(res)
@@ -200,7 +266,8 @@ class AbstractAPI:
         res = requests.post(url,
                             json=data,
                             headers=self._get_headers(),
-                            verify=False,
+                            verify=self.ssl_config.get_verify(),
+                            cert=self.ssl_config.get_cert(),
                             timeout=self._timeout,
                             proxies=self._get_proxies())
         self._log_communication(res)
@@ -218,7 +285,8 @@ class AbstractAPI:
         res = requests.put(url,
                            json=data,
                            headers=self._get_headers(),
-                           verify=False,
+                           verify=self.ssl_config.get_verify(),
+                           cert=self.ssl_config.get_cert(),
                            timeout=self._timeout,
                            proxies=self._get_proxies())
         self._log_communication(res)
@@ -234,7 +302,8 @@ class AbstractAPI:
         """
         res = requests.delete(url,
                               headers=self._get_headers({"Content-Type": None}),
-                              verify=False,
+                              verify=self.ssl_config.get_verify(),
+                              cert=self.ssl_config.get_cert(),
                               timeout=self._timeout,
                               proxies=self._get_proxies())
         self._log_communication(res)
@@ -417,7 +486,8 @@ class AbstractTokenApiHandler(AbstractAPI):
                  headers: dict = None,
                  timeout: int = 600,
                  client_name: str = None,
-                 custom_endpoints: dict = None):
+                 custom_endpoints: dict = None,
+                 ssl_config: SSLConfig = None):
         """
         Constructor
 
@@ -441,13 +511,15 @@ class AbstractTokenApiHandler(AbstractAPI):
                             is given with another value for "User-Agent". Default is "python-hiro-client".
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
                from /api/version. Example see above.
+        :param ssl_config Configuration for SSL connections.
         """
         super().__init__(root_url=root_url,
                          raise_exceptions=raise_exceptions,
                          proxies=proxies,
                          timeout=timeout,
                          headers=headers,
-                         client_name=client_name)
+                         client_name=client_name,
+                         ssl_config=ssl_config)
 
         self._version_info = None
         self.custom_endpoints = custom_endpoints
@@ -606,7 +678,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                  headers: dict = None,
                  timeout: int = 600,
                  client_name: str = None,
-                 custom_endpoints: dict = None):
+                 custom_endpoints: dict = None,
+                 ssl_config: SSLConfig = None):
         """
         Constructor
 
@@ -620,6 +693,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                             is given with another value for "User-Agent". Default is "python-hiro-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
+        :param ssl_config Configuration for SSL connections.
         """
         super().__init__(
             root_url=root_url,
@@ -628,7 +702,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
             timeout=timeout,
             headers=headers,
             client_name=client_name,
-            custom_endpoints=custom_endpoints
+            custom_endpoints=custom_endpoints,
+            ssl_config=ssl_config
         )
 
         self._token = token
@@ -663,7 +738,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                  headers: dict = None,
                  timeout: int = 600,
                  client_name: str = None,
-                 custom_endpoints: dict = None):
+                 custom_endpoints: dict = None,
+                 ssl_config: SSLConfig = None):
         """
         Constructor
 
@@ -677,6 +753,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                             is given with another value for "User-Agent". Default is "python-hiro-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
+        :param ssl_config Configuration for SSL connections.
         """
         super().__init__(
             root_url=root_url,
@@ -685,7 +762,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
             headers=headers,
             timeout=timeout,
             client_name=client_name,
-            custom_endpoints=custom_endpoints
+            custom_endpoints=custom_endpoints,
+            ssl_config=ssl_config
         )
 
         self._env_var = env_var
@@ -844,7 +922,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                  headers: dict = None,
                  timeout: int = 600,
                  client_name: str = None,
-                 custom_endpoints: dict = None):
+                 custom_endpoints: dict = None,
+                 ssl_config: SSLConfig = None):
         """
         Constructor
 
@@ -862,6 +941,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                             is given with another value for "User-Agent". Default is "python-hiro-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
+        :param ssl_config Configuration for SSL connections.
         """
         super().__init__(
             root_url=root_url,
@@ -870,7 +950,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
             headers=headers,
             timeout=timeout,
             client_name=client_name,
-            custom_endpoints=custom_endpoints
+            custom_endpoints=custom_endpoints,
+            ssl_config=ssl_config
         )
 
         self._username = username
@@ -1040,7 +1121,8 @@ class AuthenticatedAPIHandler(AbstractAPI):
                          proxies=api_handler._proxies,
                          headers=api_handler._headers,
                          timeout=api_handler._timeout,
-                         client_name=api_handler._client_name)
+                         client_name=api_handler._client_name,
+                         ssl_config=api_handler.ssl_config)
 
         self._api_handler = api_handler
         self._api_name = api_name
