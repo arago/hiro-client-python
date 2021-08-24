@@ -1,3 +1,7 @@
+# v4.3.0
+
+* Adding SSL configuration
+
 # v4.2.14
 
 * Removed bug with reversed operator in websocketlib.

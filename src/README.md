@@ -254,6 +254,54 @@ hiro_app_client: HiroApp = HiroApp(
 )
 ```
 
+## SSL Configuration
+
+SSL parameters are configured using the class `SSLConfig`. This class translates the parameters given to the required
+fields for the `requests` library of Python (parameters `cert` and `verify` there). This configuration is given to the
+TokenApiHandlers and will be used by the clients attached to it as well.
+
+If this is not set, the default settings of the library `requests` will be used, which is to verify any server certificates by using system defaults.
+
+#### Example: Disable verification
+
+```python
+from hiro_graph_client import EnvironmentTokenApiHandler, HiroGraph, SSLConfig
+
+hiro_client: HiroGraph = HiroGraph(
+    api_handler=EnvironmentTokenApiHandler(
+        root_url="https://core.arago.co",
+        # Disable any verification.
+        ssl_config=SSLConfig(verify=False)
+    )
+)
+
+query_result = hiro_client.query('ogit\\/_type:"ogit/MARS/Machine"')
+
+print(query_result)
+```
+
+#### Example: Set custom SSL certificates
+
+```python
+from hiro_graph_client import EnvironmentTokenApiHandler, HiroGraph, SSLConfig
+
+hiro_client: HiroGraph = HiroGraph(
+    api_handler=EnvironmentTokenApiHandler(
+        root_url="https://core.arago.co",
+        # Set custom certification files. If any of them are omitted, system defaults will be used.
+        ssl_config=SSLConfig(
+            cert_file="<path to client certificate file>",
+            key_file="<path to key file for the client certificate>",
+            ca_bundle_file="<path to the ca_bundle to verify the server certificate>"
+        )
+    )
+)
+
+query_result = hiro_client.query('ogit\\/_type:"ogit/MARS/Machine"')
+
+print(query_result)
+```
+
 ## Graph Client "HiroGraph"
 
 The Graph Client is mostly straightforward to use, since all public methods of this class represent an API call in the
