@@ -256,9 +256,11 @@ hiro_app_client: HiroApp = HiroApp(
 
 ## SSL Configuration
 
-SSL parameters are configured using the class `SSLConfig`. This class translates the parameters given to the required fields for the `requests` library of Python (parameters `cert` and `verify` there). This configuration is given to the TokenApiHandlers and will be used by the clients attached to it as well.
+SSL parameters are configured using the class `SSLConfig`. This class translates the parameters given to the required
+fields for the `requests` library of Python (parameters `cert` and `verify` there). This configuration is given to the
+TokenApiHandlers and will be used by the clients attached to it as well.
 
-The default is to verify any certificates with system defaults (the default setting `requests` is using).
+If this is not set, the default settings of the library `requests` will be used, which is to verify any server certificates by using system defaults.
 
 #### Example: Disable verification
 
@@ -278,7 +280,7 @@ query_result = hiro_client.query('ogit\\/_type:"ogit/MARS/Machine"')
 print(query_result)
 ```
 
-#### Example: Set custom SSL certificates 
+#### Example: Set custom SSL certificates
 
 ```python
 from hiro_graph_client import EnvironmentTokenApiHandler, HiroGraph, SSLConfig

@@ -126,7 +126,8 @@ class AbstractAPI:
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
                             is given with another value for "User-Agent". Default is "python-hiro-client".
-        :param ssl_config Configuration for SSL connections.
+        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
+                          will be used.
         """
 
         if not root_url:
@@ -511,7 +512,8 @@ class AbstractTokenApiHandler(AbstractAPI):
                             is given with another value for "User-Agent". Default is "python-hiro-client".
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
                from /api/version. Example see above.
-        :param ssl_config Configuration for SSL connections.
+        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
+                          will be used.
         """
         super().__init__(root_url=root_url,
                          raise_exceptions=raise_exceptions,
@@ -693,7 +695,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                             is given with another value for "User-Agent". Default is "python-hiro-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
-        :param ssl_config Configuration for SSL connections.
+        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
+                          will be used.
         """
         super().__init__(
             root_url=root_url,
@@ -753,7 +756,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                             is given with another value for "User-Agent". Default is "python-hiro-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
-        :param ssl_config Configuration for SSL connections.
+        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
+                          will be used.
         """
         super().__init__(
             root_url=root_url,
@@ -941,7 +945,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                             is given with another value for "User-Agent". Default is "python-hiro-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
-        :param ssl_config Configuration for SSL connections.
+        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
+                          will be used.
         """
         super().__init__(
             root_url=root_url,
