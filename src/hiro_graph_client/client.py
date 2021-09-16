@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import datetime
 from typing import Any, Iterator
 from urllib.parse import quote_plus
 
@@ -263,3 +263,50 @@ class HiroGraph(AuthenticatedAPIHandler):
         """
         url = self.endpoint + '/' + quote_plus(node_id) + '/content'
         return self.post_binary(url, data, content_type=content_type)
+
+    def get_history(self,
+                    node_id: str,
+                    ts_from: int = 0,
+                    ts_to: int = datetime.datetime.now(),
+                    history_type: str = 'element',
+                    version: str = None,
+                    vid: str = None,
+                    limit=-1,
+                    offset=0,
+                    include_deleted: bool = False,
+                    meta=False
+                    ) -> dict:
+        """
+        HIRO REST query API: `GET self._endpoint + '/{id}/history'`
+
+        :param node_id: Id of the node
+        :param ts_from: timestamp in ms where to start returning entries (default: 0)
+        :param ts_to: timestamp in ms where to end returning entries (default: now)
+        :param history_type: Response format:
+                             full - full event,
+                             element - only event body,
+                             diff - diff to previous event.
+                             (default: 'element')
+        :param version: get entry with specific ogit/_v value
+        :param vid: get specific version of Entity matching ogit/_v-id
+        :param limit: limit of entries to return (default: -1).
+        :param offset: offset where to start returning entries (default: 0)
+        :param include_deleted: allow to get if ogit/_is-deleted=true (default: false)
+        :param meta: return list type attributes with metadata (default: false)
+        :return: The result payload
+        """
+
+        query = {
+            "from": ts_from,
+            "to": ts_to,
+            "type": history_type,
+            "version": version,
+            "vid": vid,
+            "limit": limit,
+            "offset": offset,
+            "includeDeleted": "true" if include_deleted else None,
+            "listMeta": "true" if meta else None
+        }
+
+        url = self.endpoint + '/' + quote_plus(node_id) + '/history' + self._get_query_part(query)
+        return self.get(url)
