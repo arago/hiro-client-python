@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import datetime
-from typing import Any, Iterator
+from typing import Any, Iterator, Union
 from urllib.parse import quote_plus
 
 from hiro_graph_client.clientlib import AuthenticatedAPIHandler, AbstractTokenApiHandler
@@ -78,13 +78,13 @@ class HiroGraph(AuthenticatedAPIHandler):
                 "listMeta": meta}
         return self.post(url, data)
 
-    def create_node(self, data: dict, obj_type: str, return_id=False) -> dict:
+    def create_node(self, data: dict, obj_type: str, return_id=False) -> Union[dict, str]:
         """
         HIRO REST query API: `POST self._endpoint + '/new/{id}'`
 
         :param data: Payload for the new node/vertex
         :param obj_type: ogit/_type of the new node/vertex
-        :param return_id: Return only the ogit/_id. Default is False to return everything.
+        :param return_id: Return only the ogit/_id as string. Default is False to return everything as dict.
         :return: The result payload
         """
         url = self.endpoint + '/new/' + quote_plus(obj_type)
