@@ -217,7 +217,7 @@ class AbstractAPI:
         return self._parse_json_response(res)
 
     @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def put_binary(self, url: str, data: Any, content_type: str = None) -> dict:
+    def put_binary(self, url: str, data: Any, content_type: str = None) -> Union[dict, str]:
         """
         Implementation of PUT for binary data.
 
@@ -290,6 +290,25 @@ class AbstractAPI:
                            cert=self.ssl_config.get_cert(),
                            timeout=self._timeout,
                            proxies=self._get_proxies())
+        self._log_communication(res)
+        return self._parse_json_response(res)
+
+    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
+    def patch(self, url: str, data: Any) -> dict:
+        """
+        Implementation of PATCH
+
+        :param url: Url to use
+        :param data: The payload to PUT
+        :return: The payload of the response
+        """
+        res = requests.patch(url,
+                             json=data,
+                             headers=self._get_headers(),
+                             verify=self.ssl_config.get_verify(),
+                             cert=self.ssl_config.get_cert(),
+                             timeout=self._timeout,
+                             proxies=self._get_proxies())
         self._log_communication(res)
         return self._parse_json_response(res)
 
