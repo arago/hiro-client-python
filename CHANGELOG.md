@@ -1,3 +1,9 @@
+# v4.4.0
+
+* Added IAM client
+* Updated Graph client and Auth client
+* put_binary is allowed to return simple strings now. (i.e. for avatar image updates).
+
 # v4.3.0
 
 * Adding SSL configuration

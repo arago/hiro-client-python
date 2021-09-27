@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-
-from typing import Any, Iterator
+import datetime
+from typing import Any, Iterator, Union
 from urllib.parse import quote_plus
 
 from hiro_graph_client.clientlib import AuthenticatedAPIHandler, AbstractTokenApiHandler
@@ -33,7 +33,7 @@ class HiroGraph(AuthenticatedAPIHandler):
               order: str = None,
               meta=False) -> dict:
         """
-        HIRO REST query API: `POST self._endpoint + '/query/vertices'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/post_query_vertices
 
         :param query: The actual query. e.g. ogit\\\\/_type: ogit\\\\/Question for vertices.
         :param fields: the comma separated list of fields to return
@@ -61,7 +61,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                       include_deleted: bool = False,
                       meta=False) -> dict:
         """
-        HIRO REST query API: `POST self._endpoint + '/query/gremlin'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/post_query_gremlin
 
         :param query: The actual query. e.g. outE().inV() for gremlin.
         :param root: ogit/_id of the root node where the gremlin query starts.
@@ -78,13 +78,13 @@ class HiroGraph(AuthenticatedAPIHandler):
                 "listMeta": meta}
         return self.post(url, data)
 
-    def create_node(self, data: dict, obj_type: str, return_id=False) -> dict:
+    def create_node(self, data: dict, obj_type: str, return_id=False) -> Union[dict, str]:
         """
-        HIRO REST query API: `POST self._endpoint + '/new/{id}'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/post_new__type_
 
         :param data: Payload for the new node/vertex
         :param obj_type: ogit/_type of the new node/vertex
-        :param return_id: Return only the ogit/_id. Default is False to return everything.
+        :param return_id: Return only the ogit/_id as string. Default is False to return everything as dict.
         :return: The result payload
         """
         url = self.endpoint + '/new/' + quote_plus(obj_type)
@@ -93,7 +93,7 @@ class HiroGraph(AuthenticatedAPIHandler):
 
     def update_node(self, node_id: str, data: dict) -> dict:
         """
-        HIRO REST query API: `POST self._endpoint + '/{id}'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/post__id_
 
         :param data: Payload for the node/vertex
         :param node_id: ogit/_id of the node/vertex
@@ -104,7 +104,7 @@ class HiroGraph(AuthenticatedAPIHandler):
 
     def delete_node(self, node_id: str) -> dict:
         """
-        HIRO REST query API: `DELETE self._endpoint + '/{id}'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/delete__id_
 
         :param node_id: ogit/_id of the node/vertex
         :return: The result payload
@@ -114,7 +114,7 @@ class HiroGraph(AuthenticatedAPIHandler):
 
     def connect_nodes(self, from_node_id: str, verb: str, to_node_id: str) -> dict:
         """
-        HIRO REST query API: `POST self._endpoint + '/connect/{verb}'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Verb/post_connect__type_
 
         :param from_node_id: ogit/_id of the source node/vertex
         :param verb: verb for the connection
@@ -127,7 +127,7 @@ class HiroGraph(AuthenticatedAPIHandler):
 
     def disconnect_nodes(self, from_node_id: str, verb: str, to_node_id: str) -> dict:
         """
-        HIRO REST query API: `DELETE self._endpoint + '/{id}'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Verb/delete__id_
 
         :param from_node_id: ogit/_id of the source node/vertex
         :param verb: verb for the connection
@@ -143,70 +143,110 @@ class HiroGraph(AuthenticatedAPIHandler):
         )
         return self.delete(url)
 
-    def get_node(self, node_id: str, fields: str = None, meta: bool = None) -> dict:
+    def get_node(self,
+                 node_id: str,
+                 fields: str = None,
+                 meta: bool = None,
+                 include_deleted: bool = None,
+                 vid: str = None) -> dict:
         """
-        HIRO REST query API: `GET self._endpoint + '/{id}'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/get__id_
 
         :param node_id: ogit/_id of the node/vertex or edge
         :param fields: Filter for fields
+        :param include_deleted: allow to get if ogit/_is-deleted=true
+        :param vid: get specific version of Entity matching ogit/_v-id
         :param meta: List detailed metainformations in result payload
         :return: The result payload
         """
         query = {
             "fields": fields.replace(" ", "") if fields else None,
-            "listMeta": "true" if meta else None
+            "listMeta": meta,
+            "includeDeleted": include_deleted,
+            "vid": vid
         }
 
         url = self.endpoint + '/' + quote_plus(node_id) + self._get_query_part(query)
         return self.get(url)
 
-    def get_nodes(self, node_ids: list, fields: str = None, meta: bool = None) -> dict:
+    def get_nodes(self,
+                  node_ids: list,
+                  fields: str = None,
+                  meta: bool = None,
+                  include_deleted: bool = None,
+                  ) -> dict:
         """
-        HIRO REST query API: `GET self._endpoint + '/{id}'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/get_query_ids
 
         :param node_ids: list of ogit/_ids of the node/vertexes or edges
         :param fields: Filter for fields
         :param meta: List detailed metainformations in result payload
+        :param include_deleted: allow to get if ogit/_is-deleted=true
         :return: The result payload
         """
         query = {
             "query": ",".join(node_ids),
             "fields": fields.replace(" ", "") if fields else None,
-            "listMeta": "true" if meta else None
+            "includeDeleted": include_deleted,
+            "listMeta": meta
         }
 
         url = self.endpoint + '/query/ids' + self._get_query_part(query)
         return self.get(url)
 
-    def get_node_by_xid(self, node_id: str, fields: str = None, meta: bool = None) -> dict:
+    def get_node_by_xid(self,
+                        node_id: str,
+                        fields: str = None,
+                        meta: bool = None,
+                        include_deleted: bool = None) -> dict:
         """
-        HIRO REST query API: `GET self._endpoint + '/xid/{xid}'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/get_xid__id_
 
         :param node_id: ogit/_xid of the node/vertex or edge
         :param fields: Filter for fields
         :param meta: List detailed metainformations in result payload
+        :param include_deleted: allow to get if ogit/_is-deleted=true
         :return: The result payload
         """
         query = {
             "fields": fields.replace(" ", "") if fields else None,
-            "listMeta": "true" if meta else None
+            "includeDeleted": include_deleted,
+            "listMeta": meta
         }
 
         url = self.endpoint + '/xid/' + quote_plus(node_id) + self._get_query_part(query)
         return self.get(url)
 
-    def get_timeseries(self, node_id: str, starttime: str = None, endtime: str = None) -> dict:
+    def get_timeseries(self,
+                       node_id: str,
+                       starttime: str = None,
+                       endtime: str = None,
+                       include_deleted: bool = None,
+                       limit: int = None,
+                       with_ids: str = None,
+                       order: str = "asc",
+                       aggregate: str = None) -> dict:
         """
-        HIRO REST query API: `GET self._endpoint + '/{id}/values'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Timeseries/get__id__values
 
         :param node_id: ogit/_id of the node containing timeseries
         :param starttime: ms since epoch.
         :param endtime: ms since epoch.
+        :param aggregate: aggregate numeric values for multiple timeseries ids with same timestamp: avg|min|max|sum|none
+        :param order: order by a timestamp asc|desc|none. Default is "asc" here.
+        :param with_ids: list of ids to aggregate in result
+        :param limit: limit of entries to return
+        :param include_deleted: allow to get if ogit/_is-deleted=true
         :return: The result payload
         """
         query = {
             "from": starttime,
-            "to": endtime
+            "to": endtime,
+            "include_deleted": include_deleted,
+            "limit": limit,
+            "with": with_ids,
+            "order": order,
+            "aggregate": aggregate
         }
 
         url = self.endpoint + '/' + quote_plus(node_id) + '/values' + self._get_query_part(query)
@@ -214,27 +254,96 @@ class HiroGraph(AuthenticatedAPIHandler):
         if 'error' in res:
             return res
         timeseries = res['items']
-        timeseries.sort(key=lambda x: x['timestamp'])
         return timeseries
 
-    def post_timeseries(self, node_id: str, items: list) -> dict:
+    def get_timeseries_history(self,
+                               node_id: str,
+                               timestamp: str = None,
+                               include_deleted: bool = None) -> dict:
         """
-        HIRO REST query API: `POST self._endpoint + '/{id}/values'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Timeseries/get__id__values_history
 
+        :param node_id: ogit/_id of the node containing timeseries
+        :param timestamp: timestamp in ms
+        :param include_deleted: allow to get if ogit/_is-deleted=true
+        :return: The result payload
+        """
+        query = {
+            "include_deleted": include_deleted,
+            "timestamp": timestamp
+        }
+
+        url = self.endpoint + '/' + quote_plus(node_id) + '/values/history' + self._get_query_part(query)
+        res = self.get(url)
+        if 'error' in res:
+            return res
+        timeseries = res['items']
+        return timeseries
+
+    def query_timeseries(self,
+                         starttime: str = None,
+                         endtime: str = None,
+                         limit: int = None,
+                         order: str = "asc",
+                         aggregate: str = None) -> dict:
+        """
+        Run a query against the graph and return agragated timeseries values for timeseries vertices matching
+        query result. query: Entities with matching ogit/_type:ogit/Timeseries
+
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/get_query_values
+
+        :param starttime: ms since epoch.
+        :param endtime: ms since epoch.
+        :param aggregate: aggregate numeric values for multiple timeseries ids with same timestamp: avg|min|max|sum|none
+        :param order: order by a timestamp asc|desc|none. Default is "asc" here.
+        :param limit: limit of entries to return
+        :return: The result payload
+        """
+        query = {
+            "from": starttime,
+            "to": endtime,
+            "limit": limit,
+            "order": order,
+            "aggregate": aggregate
+        }
+
+        url = self.endpoint + '/query/values' + self._get_query_part(query)
+        res = self.get(url)
+        if 'error' in res:
+            return res
+        timeseries = res['items']
+        return timeseries
+
+    def post_timeseries(self,
+                        node_id: str,
+                        items: list,
+                        synchronous: bool = True,
+                        ttl: int = None) -> dict:
+        """
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Storage]_Timeseries/post__id__values
+
+        :param synchronous: whether the operation should return synchronously. Default is True here.
+        :param ttl: time to live for values to be stored in seconds (overrides /ttl in vertex).
         :param node_id: ogit/_id of the node containing timeseries
         :param items: list of timeseries values [{timestamp: (ms since epoch), value: ...},...]
         :return: The result payload
         """
-        url = self.endpoint + '/' + quote_plus(node_id) + '/values?synchronous=true'
+
+        query = {
+            "synchronous": synchronous,
+            "ttl": ttl
+        }
+
+        url = self.endpoint + '/' + quote_plus(node_id) + '/values' + self._get_query_part(query)
         data = {"items": items}
         return self.post(url, data)
 
     def get_attachment(self,
                        node_id: str,
                        content_id: str = None,
-                       include_deleted: bool = False) -> Iterator[bytes]:
+                       include_deleted: bool = None) -> Iterator[bytes]:
         """
-        HIRO REST query API: `GET self._endpoint + '/{id}/content'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Blob/get__id__content
 
         :param node_id: Id of the attachment node
         :param content_id: Id of the content within the attachment node. Default is None.
@@ -243,7 +352,7 @@ class HiroGraph(AuthenticatedAPIHandler):
         """
         query = {
             "contentId": content_id,
-            "includeDeleted": "true" if include_deleted else None
+            "includeDeleted": include_deleted
         }
 
         url = self.endpoint + '/' + quote_plus(node_id) + '/content' + self._get_query_part(query)
@@ -254,7 +363,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                         data: Any,
                         content_type: str = None) -> dict:
         """
-        HIRO REST query API: `POST self._endpoint + '/{id}/content'`
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Storage]_Blob/post__id__content
 
         :param node_id: Id of the attachment node
         :param data: Data to upload in binary form. Can also be an IO object for streaming.
@@ -263,3 +372,77 @@ class HiroGraph(AuthenticatedAPIHandler):
         """
         url = self.endpoint + '/' + quote_plus(node_id) + '/content'
         return self.post_binary(url, data, content_type=content_type)
+
+    def get_history(self,
+                    node_id: str,
+                    ts_from: int = 0,
+                    ts_to: int = datetime.datetime.now(),
+                    history_type: str = 'element',
+                    version: str = None,
+                    vid: str = None,
+                    limit=-1,
+                    offset=0,
+                    include_deleted: bool = None,
+                    meta=None
+                    ) -> dict:
+        """
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_History/get__id__history
+
+        :param node_id: Id of the node
+        :param ts_from: timestamp in ms where to start returning entries (default: 0)
+        :param ts_to: timestamp in ms where to end returning entries (default: now)
+        :param history_type: Response format:
+                             full - full event,
+                             element - only event body,
+                             diff - diff to previous event.
+                             (default: 'element')
+        :param version: get entry with specific ogit/_v value
+        :param vid: get specific version of Entity matching ogit/_v-id
+        :param limit: limit of entries to return (default: -1).
+        :param offset: offset where to start returning entries (default: 0)
+        :param include_deleted: allow to get if ogit/_is-deleted=true (default: false)
+        :param meta: return list type attributes with metadata (default: false)
+        :return: The result payload
+        """
+
+        query = {
+            "from": ts_from,
+            "to": ts_to,
+            "type": history_type,
+            "version": version,
+            "vid": vid,
+            "limit": limit,
+            "offset": offset,
+            "includeDeleted": include_deleted,
+            "listMeta": meta
+        }
+
+        url = self.endpoint + '/' + quote_plus(node_id) + '/history' + self._get_query_part(query)
+        return self.get(url)
+
+    def get_events(self,
+                   ts_from: int = 0,
+                   ts_to: int = datetime.datetime.now(),
+                   ogit_type: str = None,
+                   jfilter: str = None) -> dict:
+        """
+        Replays events from history
+
+        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Events]_History/get_events_
+
+        :param ts_from: timestamp in ms where to start returning entries (default: 0)
+        :param ts_to: timestamp in ms where to end returning entries (default: now)
+        :param jfilter: jfilter string to limit matching results
+        :param ogit_type: Entity or Verb ogit/_type for filtering result based on this type
+        :return: The result payload
+        """
+
+        query = {
+            "from": ts_from,
+            "to": ts_to,
+            "type": ogit_type,
+            "filter": jfilter
+        }
+
+        url = self.endpoint + '/events' + self._get_query_part(query)
+        return self.get(url)

@@ -42,15 +42,16 @@ class HiroAuth(AuthenticatedAPIHandler):
         url = self.endpoint + '/me/avatar'
         yield from self.get_binary(url, accept='image/png')
 
-    def put_avatar(self, data: Any) -> dict:
+    def put_avatar(self, data: Any, content_type: str = 'image/png') -> str:
         """
         HIRO REST query API: `PUT self._auth_endpoint + '/me/avatar'`
 
-        :param data: Binary data for image/png of avatar.
-        :return: The result payload
+        :param data: Binary data for image of avatar.
+        :param content_type: Content-Type. Default: image/png
+        :return: The result payload / size of the avatar in bytes.
         """
         url = self.endpoint + '/me/avatar'
-        return self.put_binary(url, data, content_type='image/png')
+        return self.put_binary(url, data, content_type=content_type)
 
     def change_password(self, old_password: str, new_password: str) -> dict:
         """

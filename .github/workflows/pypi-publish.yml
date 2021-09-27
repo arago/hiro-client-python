@@ -1,0 +1,28 @@
+# This workflow will install Python dependencies, run tests and lint with a single version of Python
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
+
+name: Publish to PyPI
+
+on:
+  release:
+    types: [ created ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.7
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.7
+      - name: Publish to Repository
+        run: make deploy
+        env:
+          PIPARGS: "--user"
+          PYPI_CREDENTIALS_USER: ${{ secrets.PYPI_USER }}
+          PYPI_CREDENTIALS_PSW: ${{ secrets.PYPI_PASSWORD }}
+          TESTPYPI_CREDENTIALS_USER: ${{ secrets.PYPI_TEST_USER }}
+          TESTPYPI_CREDENTIALS_PSW: ${{ secrets.PYPI_TEST_PASSWORD }}
