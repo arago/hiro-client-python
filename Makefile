@@ -87,7 +87,7 @@ dist: install
 
 # give each package a timestamp as buildnumber to be able to upload packages multiple times
 # also only publish whl file
-publish-test: clean-dist dist
+deploy-test: clean-dist dist
 	mkdir -p dist-test
 	(cd dist-test && rm -f *.whl)
 	cp -a dist/*.whl dist-test/
@@ -96,7 +96,7 @@ publish-test: clean-dist dist
 
 # publishing to PyPI only works once for each version. To update your package, you have to create a new version
 # in src/hiro_graph_client/__init__.py
-publish: dist
+deploy: dist
 	$(PYTHON) -m twine upload --repository pypi --username "$${PYPI_CREDENTIALS_USR}" --password "$${PYPI_CREDENTIALS_PSW}" dist/*
 
 #######################################################################################################################
