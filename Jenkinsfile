@@ -44,7 +44,7 @@ pipeline {
             }
 
             steps {
-                sh 'make publish-test'
+                sh 'make deploy-test'
             }
         }
 
@@ -56,7 +56,7 @@ pipeline {
             }
 
             steps {
-                sh 'make publish'
+                sh 'make deploy'
             }
         }
     }
