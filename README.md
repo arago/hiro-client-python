@@ -1,4 +1,4 @@
-# Python HIRO Clients
+# HIRO Client Python
 
 This is a client library to access data of the HIRO Graph. It also allows uploads
 of huge batches of data in parallel.
@@ -7,7 +7,13 @@ of huge batches of data in parallel.
 
 This project needs at least Python 3.7. 
 
-Install the hiro-client as a python package by using one of the following: 
+If you need the library without any sources, you can install the compiled package directly from [PyPI](https://pypi.org/project/hiro-graph-client) via:
+
+```shell script
+pip3 install hiro-graph-client
+```
+
+To install the hiro-client from source as a python package, use one of the following: 
 
 * Global installation
     ```shell script
@@ -29,15 +35,11 @@ Install the hiro-client as a python package by using one of the following:
     pip3 install --use-feature=in-tree-build --user src/
     ```
 
-If you only need the library without any sources, you can also install the compiled package directly from [PyPI](https://pypi.org/project/hiro-graph-client) via:
+For more details, take a look at the [Makefile](Makefile)
 
-```shell script
-pip3 install hiro-graph-client
-```
+## Documentation
 
-
-
-For more details, take a look at the [Makefile](Makefile) and the [README.md in src](src).
+Look at [README.md in src](src).
 
 
 
