@@ -11,8 +11,18 @@ __Status__
 
 For more information about HIRO Automation, look at https://www.arago.co/
 
-For more information about the APIs this library covers, see https://developer.hiro.arago.co/7.0/api/ (Currently
-implemented are `app`, `auth`, `graph`, `event-ws` and `action-ws` )
+For more information about the APIs this library covers, see https://developer.hiro.arago.co/7.0/api/
+
+Currently implemented are 
+  * `HiroApp` for `app`
+  * `HiroAuth` for `auth`
+  * `HiroGraph` for `graph`
+  * `HiroIam` for `iam`
+
+and for the websockets
+
+  * `AbstractEventWebSocketHandler` for `event-ws`
+  * `AbstractActionWebSocketHandler` for `action-ws`
 
 ## Quickstart
 

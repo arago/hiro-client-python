@@ -1,3 +1,8 @@
+# v4.5.0
+
+* GitHub repository got renamed from `python-hiro-clients` to `hiro-client-python`.
+No other technical changes.
+
 # v4.4.0
 
 * Added IAM client

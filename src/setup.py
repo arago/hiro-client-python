@@ -38,9 +38,9 @@ setup(
     },
 
     project_urls={
-        'GitHub': 'https://github.com/arago/python-hiro-clients',
-        'Documentation': 'https://github.com/arago/python-hiro-clients/blob/master/src/README.md',
-        'Changelog': 'https://github.com/arago/python-hiro-clients/blob/master/CHANGELOG.md'
+        'GitHub': 'https://github.com/arago/hiro-client-python',
+        'Documentation': 'https://github.com/arago/hiro-client-python/blob/master/src/README.md',
+        'Changelog': 'https://github.com/arago/hiro-client-python/blob/master/CHANGELOG.md'
     },
 
     author="arago GmbH",
@@ -48,7 +48,7 @@ setup(
     maintainer="Wolfgang Hübner",
     description="Hiro Client for Graph REST API of HIRO 7",
     keywords="arago HIRO7 API REST WebSocket",
-    url="https://github.com/arago/python-hiro-clients",
+    url="https://github.com/arago/hiro-client-python",
     license="MIT",
     classifiers=[
         "Programming Language :: Python :: 3",
