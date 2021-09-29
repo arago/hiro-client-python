@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import base64
 import json
 import logging
 import os
@@ -13,7 +13,6 @@ from urllib.parse import quote, urlencode
 import backoff
 import requests
 import requests.packages.urllib3.exceptions
-
 from hiro_graph_client.version import __version__
 
 BACKOFF_ARGS = [
@@ -665,6 +664,22 @@ class AbstractTokenApiHandler(AbstractAPI):
         :return: The current token
         """
         raise RuntimeError('Cannot use property of this abstract class.')
+
+    def decode_token(self) -> dict:
+        """
+        Return a dict with the decoded token payload. This payload contains detailed information about what this token
+        has access to.
+        :return: The dict with the decoded token payload.
+        """
+        base64_payload: list = self.token.split('.')
+        if len(base64_payload) == 1:
+            raise AuthenticationTokenError("Token is missing base64 payload")
+
+        payload = base64_payload[1] + '=' * (4 - len(base64_payload[1]) % 4)
+
+        json_payload = base64.urlsafe_b64decode(payload)
+
+        return json.loads(json_payload)
 
     @abstractmethod
     def refresh_token(self) -> None:
