@@ -1,3 +1,7 @@
+# v4.5.1
+
+* Add `decode_token()` to decode the information embedded in a HIRO token.
+
 # v4.5.0
 
 * GitHub repository got renamed from `python-hiro-clients` to `hiro-client-python`.
