@@ -1252,7 +1252,8 @@ with EventsWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN'),
 
 ```
 
-If you need to set the scope by hand, use the following: 
+If you do not set the parameter `scope=`, the default scope of your account will be used. If you need to set the scope
+by hand, use the following: 
 
 ```python
 [...]
