@@ -1251,7 +1251,7 @@ default_scope = api_handler.decode_token()['data']['default-scope']
 
 with EventsWebSocket(api_handler=api_handler,
                      events_filters=[events_filter],
-                     # You can also leave the default_scope at [] or None. The default_scope will then be applied
+                     # You can also leave the scopes at [] or None. The default_scope will then be applied
                      # automatically if allscopes is set to false.
                      scopes=[default_scope],
                      query_params={"allscopes": "false", "delta": "false"}) as ws:
