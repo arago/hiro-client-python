@@ -1217,7 +1217,6 @@ Example:
 
 ```python
 import threading
-import concurrent.futures
 
 from hiro_graph_client.clientlib import FixedTokenApiHandler
 from hiro_graph_client.eventswebsocket import AbstractEventsWebSocketHandler, EventMessage, EventsFilter
@@ -1245,14 +1244,25 @@ def wait_for_keypress(websocket: EventsWebSocket):
 
 events_filter = EventsFilter(filter_id='testfilter', filter_content="(element.ogit/_type=ogit/MARS/Machine)")
 
+with EventsWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN'),
+                     events_filters=[events_filter],
+                     query_params={"allscopes": "false", "delta": "false"}) as ws:
+    threading.Thread(daemon=True, target=wait_for_keypress, args=(ws,)).start()
+    ws.run_forever()
+
+```
+
+If you need to set the scope by hand, use the following: 
+
+```python
+[...]
+
 api_handler = FixedTokenApiHandler('HIRO_TOKEN')
 
 default_scope = api_handler.decode_token()['data']['default-scope']
 
 with EventsWebSocket(api_handler=api_handler,
                      events_filters=[events_filter],
-                     # You can also leave the scopes at [] or None. The default_scope will then be applied
-                     # automatically if allscopes is set to false.
                      scopes=[default_scope],
                      query_params={"allscopes": "false", "delta": "false"}) as ws:
     threading.Thread(daemon=True, target=wait_for_keypress, args=(ws,)).start()
