@@ -31,7 +31,7 @@ class HiroGraph(AuthenticatedAPIHandler):
               limit=-1,
               offset=0,
               order: str = None,
-              meta=False) -> dict:
+              meta: bool = None) -> dict:
         """
         https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/post_query_vertices
 
@@ -48,7 +48,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                 "limit": limit,
                 "fields": (quote_plus(fields.replace(" ", ""), safe="/,") if fields else ""),
                 "count": False,
-                "listMeta": meta,
+                "listMeta": self._bool_to_external_str(meta),
                 "offset": offset}
         if order is not None:
             data['order'] = order
@@ -58,8 +58,8 @@ class HiroGraph(AuthenticatedAPIHandler):
                       query: str,
                       root: str,
                       fields: str = None,
-                      include_deleted: bool = False,
-                      meta=False) -> dict:
+                      include_deleted: bool = None,
+                      meta: bool = None) -> dict:
         """
         https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/post_query_gremlin
 
@@ -74,8 +74,8 @@ class HiroGraph(AuthenticatedAPIHandler):
         data = {"query": str(query),
                 "root": root,
                 "fields": (quote_plus(fields.replace(" ", ""), safe="/,") if fields else ""),
-                "includeDeleted": include_deleted,
-                "listMeta": meta}
+                "includeDeleted": self._bool_to_external_str(include_deleted),
+                "listMeta": self._bool_to_external_str(meta)}
         return self.post(url, data)
 
     def create_node(self, data: dict, obj_type: str, return_id=False) -> Union[dict, str]:
@@ -383,7 +383,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                     limit=-1,
                     offset=0,
                     include_deleted: bool = None,
-                    meta=None
+                    meta: bool = None
                     ) -> dict:
         """
         https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_History/get__id__history
