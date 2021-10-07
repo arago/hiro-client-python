@@ -361,13 +361,15 @@ class AbstractAPI:
         return headers
 
     @staticmethod
-    def _bool_to_external_str(value: Any) -> str:
+    def _bool_to_external_str(value: Any) -> Optional[str]:
         """
         Translate bool to string values "true" and "false" if value is a bool.
 
         :param value: The value to check.
-        :return: String representation of the value.
+        :return: String representation of the value or None.
         """
+        if value is None:
+            return None
         if isinstance(value, bool):
             return "true" if value else "false"
         return str(value)
