@@ -1,3 +1,10 @@
+# v4.5.2
+
+BUGFIX
+
+* Previous versions incorrectly translated True and False to "True" and
+  "False" whereas "true" and "false" (lowercase) are needed in URL queries. Fixed.
+
 # v4.5.1
 
 * Add `decode_token()` to decode the information embedded in a HIRO token.

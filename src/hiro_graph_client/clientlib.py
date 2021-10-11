@@ -361,6 +361,20 @@ class AbstractAPI:
         return headers
 
     @staticmethod
+    def _bool_to_external_str(value: Any) -> Optional[str]:
+        """
+        Translate bool to string values "true" and "false" if value is a bool.
+
+        :param value: The value to check.
+        :return: String representation of the value or None.
+        """
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        return str(value)
+
+    @staticmethod
     def _get_query_part(params: dict) -> str:
         """
         Create the query part of an url. Keys in *params* whose values are set to None are removed.
@@ -368,7 +382,7 @@ class AbstractAPI:
         :param params: A dict of params to use for the query.
         :return: The query part of an url with a leading '?', or an empty string when query is empty.
         """
-        params_cleaned = {k: v for k, v in params.items() if v is not None}
+        params_cleaned = {k: AbstractAPI._bool_to_external_str(v) for k, v in params.items() if v is not None}
         return ('?' + urlencode(params_cleaned, quote_via=quote, safe="/,")) if params_cleaned else ""
 
     def _parse_json_response(self, res: requests.Response) -> dict:
