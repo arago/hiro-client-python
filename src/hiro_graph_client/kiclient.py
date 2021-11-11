@@ -5,7 +5,7 @@ from hiro_graph_client.clientlib import AuthenticatedAPIHandler, AbstractTokenAp
 
 class HiroKi(AuthenticatedAPIHandler):
     """
-    Python implementation for accessing the HIRO Authz REST API.
+    Python implementation for accessing the HIRO Ki REST API.
     See https://core.arago.co/help/specs/?url=definitions/ki.yaml
     """
 
