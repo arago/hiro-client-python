@@ -1,3 +1,16 @@
+# v4.6.1
+
+* Updated CHANGELOG.md
+
+# v4.6.0
+
+* Added the following APIS:
+  * KI
+  * AuthZ
+  * Variables
+* Adjust return value typing with API methods that return lists of dicts.
+
+
 # v4.5.2
 
 BUGFIX
