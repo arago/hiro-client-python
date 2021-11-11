@@ -29,7 +29,7 @@ class HiroVariables(AuthenticatedAPIHandler):
         """
         Creates new variable
 
-        HIRO REST query API: `POST self._endpoint`
+        HIRO REST query API: `PUT self._endpoint`
 
         :param data: Variable content.
                See https://core.arago.co/help/specs/?url=definitions/variables.yaml#/[Variables]/put_
@@ -48,7 +48,7 @@ class HiroVariables(AuthenticatedAPIHandler):
         """
         Get variable by name. (synonym for self.define(name))
 
-        HIRO REST query API: `POST self._endpoint + '/define'`
+        HIRO REST query API: `GET self._endpoint + '/define'`
 
         :param name Variable name. Required.
         :return: The result payload
@@ -60,7 +60,7 @@ class HiroVariables(AuthenticatedAPIHandler):
         """
         Get variable by name.
 
-        HIRO REST query API: `POST self._endpoint + '/define'`
+        HIRO REST query API: `GET self._endpoint + '/define'`
 
         :param name Variable name. Required.
         :return: The result payload
@@ -80,7 +80,7 @@ class HiroVariables(AuthenticatedAPIHandler):
         """
         Search for similar variables.
 
-        HIRO REST query API: `POST self._endpoint + '/like'`
+        HIRO REST query API: `GET self._endpoint + '/like'`
 
         :param name Variable name. Required.
         :param description: Search by variable description. Optional.
@@ -109,7 +109,7 @@ class HiroVariables(AuthenticatedAPIHandler):
         """
         Search for similar variables.
 
-        HIRO REST query API: `POST self._endpoint + '/suggest'`
+        HIRO REST query API: `GET self._endpoint + '/suggest'`
 
         :param name Variable name. Required.
         :param subtype: Value of ogit/subType. Optional.
