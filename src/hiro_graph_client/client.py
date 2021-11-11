@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import datetime
-from typing import Any, Iterator, Union
+from typing import Any, Iterator, Union, List, Dict
 from urllib.parse import quote_plus
 
 from hiro_graph_client.clientlib import AuthenticatedAPIHandler, AbstractTokenApiHandler
@@ -225,7 +225,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                        limit: int = None,
                        with_ids: str = None,
                        order: str = "asc",
-                       aggregate: str = None) -> dict:
+                       aggregate: str = None) -> Union[List, Dict]:
         """
         https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Timeseries/get__id__values
 
@@ -237,7 +237,7 @@ class HiroGraph(AuthenticatedAPIHandler):
         :param with_ids: list of ids to aggregate in result
         :param limit: limit of entries to return
         :param include_deleted: allow to get if ogit/_is-deleted=true
-        :return: The result payload
+        :return: The result payload. Either a list of dict or a dict with an error message.
         """
         query = {
             "from": starttime,
@@ -253,20 +253,20 @@ class HiroGraph(AuthenticatedAPIHandler):
         res = self.get(url)
         if 'error' in res:
             return res
-        timeseries = res['items']
+        timeseries: list = res['items']
         return timeseries
 
     def get_timeseries_history(self,
                                node_id: str,
                                timestamp: str = None,
-                               include_deleted: bool = None) -> dict:
+                               include_deleted: bool = None) -> Union[List, Dict]:
         """
         https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Timeseries/get__id__values_history
 
         :param node_id: ogit/_id of the node containing timeseries
         :param timestamp: timestamp in ms
         :param include_deleted: allow to get if ogit/_is-deleted=true
-        :return: The result payload
+        :return: The result payload. Either a list of dict or a dict with an error message.
         """
         query = {
             "include_deleted": include_deleted,
@@ -277,7 +277,7 @@ class HiroGraph(AuthenticatedAPIHandler):
         res = self.get(url)
         if 'error' in res:
             return res
-        timeseries = res['items']
+        timeseries: list = res['items']
         return timeseries
 
     def query_timeseries(self,
@@ -285,7 +285,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                          endtime: str = None,
                          limit: int = None,
                          order: str = "asc",
-                         aggregate: str = None) -> dict:
+                         aggregate: str = None) -> Union[List, Dict]:
         """
         Run a query against the graph and return agragated timeseries values for timeseries vertices matching
         query result. query: Entities with matching ogit/_type:ogit/Timeseries
@@ -297,7 +297,7 @@ class HiroGraph(AuthenticatedAPIHandler):
         :param aggregate: aggregate numeric values for multiple timeseries ids with same timestamp: avg|min|max|sum|none
         :param order: order by a timestamp asc|desc|none. Default is "asc" here.
         :param limit: limit of entries to return
-        :return: The result payload
+        :return: The result payload. Either a list of dict or a dict with an error message.
         """
         query = {
             "from": starttime,
@@ -311,7 +311,7 @@ class HiroGraph(AuthenticatedAPIHandler):
         res = self.get(url)
         if 'error' in res:
             return res
-        timeseries = res['items']
+        timeseries: list = res['items']
         return timeseries
 
     def post_timeseries(self,
