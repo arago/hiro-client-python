@@ -51,7 +51,7 @@ class HiroAuth(AuthenticatedAPIHandler):
         :return: The result payload / size of the avatar in bytes.
         """
         url = self.endpoint + '/me/avatar'
-        return self.put_binary(url, data, content_type=content_type)
+        return self.put_binary(url, data, content_type=content_type, expected_media_type='*/*')
 
     def change_password(self, old_password: str, new_password: str) -> dict:
         """

@@ -211,18 +211,24 @@ class AbstractAPI:
 
         yield from _get_binary()
 
-    def post_binary(self, url: str, data: Any, content_type: str = None) -> dict:
+    def post_binary(self,
+                    url: str,
+                    data: Any,
+                    content_type: str = None,
+                    expected_media_type: str = 'application/json') -> Union[dict, str]:
         """
         Implementation of POST for binary data.
 
         :param url: Url to use
         :param data: The payload to POST. This can be anything 'requests.post(data=...)' supports.
         :param content_type: The content type of the data. Defaults to "application/octet-stream" internally if unset.
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _post_binary() -> dict:
+        def _post_binary() -> Union[dict, str]:
             res = requests.post(url,
                                 data=data,
                                 headers=self._get_headers(
@@ -233,17 +239,23 @@ class AbstractAPI:
                                 timeout=self._timeout,
                                 proxies=self._get_proxies())
             self._log_communication(res, request_body=False)
-            return self._parse_json_response(res)
+            return self._parse_response(res, expected_media_type)
 
         return _post_binary()
 
-    def put_binary(self, url: str, data: Any, content_type: str = None) -> Union[dict, str]:
+    def put_binary(self,
+                   url: str,
+                   data: Any,
+                   content_type: str = None,
+                   expected_media_type: str = 'application/json') -> Union[dict, str]:
         """
         Implementation of PUT for binary data.
 
         :param url: Url to use
         :param data: The payload to PUT. This can be anything 'requests.put(data=...)' supports.
         :param content_type: The content type of the data. Defaults to "application/octet-stream" internally if unset.
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
 
@@ -259,20 +271,24 @@ class AbstractAPI:
                                timeout=self._timeout,
                                proxies=self._get_proxies())
             self._log_communication(res, request_body=False)
-            return self._parse_json_response(res)
+            return self._parse_response(res, expected_media_type)
 
         return _put_binary()
 
-    def get(self, url: str) -> dict:
+    def get(self,
+            url: str,
+            expected_media_type: str = 'application/json') -> Union[dict, str]:
         """
         Implementation of GET
 
         :param url: Url to use
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _get() -> dict:
+        def _get() -> Union[dict, str]:
             res = requests.get(url,
                                headers=self._get_headers({"Content-Type": None}),
                                verify=self.ssl_config.get_verify(),
@@ -280,21 +296,26 @@ class AbstractAPI:
                                timeout=self._timeout,
                                proxies=self._get_proxies())
             self._log_communication(res)
-            return self._parse_json_response(res)
+            return self._parse_response(res, expected_media_type)
 
         return _get()
 
-    def post(self, url: str, data: Any) -> dict:
+    def post(self,
+             url: str,
+             data: Any,
+             expected_media_type: str = 'application/json') -> Union[dict, str]:
         """
         Implementation of POST
 
         :param url: Url to use
         :param data: The payload to POST
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _post() -> dict:
+        def _post() -> Union[dict, str]:
             res = requests.post(url,
                                 json=data,
                                 headers=self._get_headers(),
@@ -303,21 +324,26 @@ class AbstractAPI:
                                 timeout=self._timeout,
                                 proxies=self._get_proxies())
             self._log_communication(res)
-            return self._parse_json_response(res)
+            return self._parse_response(res, expected_media_type)
 
         return _post()
 
-    def put(self, url: str, data: Any) -> dict:
+    def put(self,
+            url: str,
+            data: Any,
+            expected_media_type: str = 'application/json') -> Union[dict, str]:
         """
         Implementation of PUT
 
         :param url: Url to use
         :param data: The payload to PUT
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _put() -> dict:
+        def _put() -> Union[dict, str]:
             res = requests.put(url,
                                json=data,
                                headers=self._get_headers(),
@@ -326,21 +352,26 @@ class AbstractAPI:
                                timeout=self._timeout,
                                proxies=self._get_proxies())
             self._log_communication(res)
-            return self._parse_json_response(res)
+            return self._parse_response(res, expected_media_type)
 
         return _put()
 
-    def patch(self, url: str, data: Any) -> dict:
+    def patch(self,
+              url: str,
+              data: Any,
+              expected_media_type: str = 'application/json') -> Union[dict, str]:
         """
         Implementation of PATCH
 
         :param url: Url to use
         :param data: The payload to PUT
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _patch() -> dict:
+        def _patch() -> Union[dict, str]:
             res = requests.patch(url,
                                  json=data,
                                  headers=self._get_headers(),
@@ -349,20 +380,24 @@ class AbstractAPI:
                                  timeout=self._timeout,
                                  proxies=self._get_proxies())
             self._log_communication(res)
-            return self._parse_json_response(res)
+            return self._parse_response(res, expected_media_type)
 
         return _patch()
 
-    def delete(self, url: str) -> dict:
+    def delete(self,
+               url: str,
+               expected_media_type: str = 'application/json') -> Union[dict, str]:
         """
         Implementation of DELETE
 
         :param url: Url to use
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _delete() -> dict:
+        def _delete() -> Union[dict, str]:
             res = requests.delete(url,
                                   headers=self._get_headers({"Content-Type": None}),
                                   verify=self.ssl_config.get_verify(),
@@ -370,7 +405,7 @@ class AbstractAPI:
                                   timeout=self._timeout,
                                   proxies=self._get_proxies())
             self._log_communication(res)
-            return self._parse_json_response(res)
+            return self._parse_response(res, expected_media_type)
 
         return _delete()
 
@@ -431,21 +466,30 @@ class AbstractAPI:
         params_cleaned = {k: AbstractAPI._bool_to_external_str(v) for k, v in params.items() if v is not None}
         return ('?' + urlencode(params_cleaned, quote_via=quote, safe="/,")) if params_cleaned else ""
 
-    def _parse_json_response(self, res: requests.Response) -> dict:
+    def _parse_response(self,
+                        res: requests.Response,
+                        expected_media_type: str = 'application/json') -> Union[dict, str]:
         """
         Parse the response of the backend.
 
         :param res: The result payload
-        :return: The result payload
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
+        :return: The result payload. A dict when the result media_type within Content-Type is 'application/json', a
+                 str otherwise.
         :raises RequestException: On HTTP errors.
         :raises WrongContentTypeError: When the Media-Type of the Content-Type of the Response is not
-                'application/json'.
+                *expected_media_type*.
         """
         try:
             self._check_response(res)
             self._check_status_error(res)
-            AbstractAPI._check_content_type(res, 'application/json')
-            return res.json()
+            if expected_media_type not in ['*', '*/*']:
+                AbstractAPI._check_content_type(res, expected_media_type)
+            if expected_media_type.lower() == 'application/json':
+                return res.json()
+            else:
+                return str(res.text)
         except (json.JSONDecodeError, ValueError):
             return {"error": {"message": res.text, "code": 999}}
 
