@@ -271,13 +271,15 @@ hiro_app_client: HiroApp = HiroApp(
 
 The default value for tries of HTTP requests is `2`. 
 
-If you want to change this value, because this library is using `backoff` to handle retries, the amount of tries for a
-successful request / response has to be set prior to initialization of the library itself.
-To accomplish this, the environment variable `BACKOFF_MAX_TRIES` is used.
+If you want to change this value, you have to adjust a parameter of the module `backoff` to handle retries. The
+setting can be changed by using the global function `set_max_tries(max_tries: int) -> None` of `hiro_graph_client`.
+
 
 Example:
-```shell
-BACKOFF_MAX_TRIES=1
+```python
+import hiro_graph_client
+
+hiro_graph_client.set_max_tries(1)
 ```
 
 See https://pypi.org/project/backoff/ for more information.

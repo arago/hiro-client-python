@@ -14,7 +14,7 @@ from hiro_graph_client.batchclient import HiroGraphBatch, SessionData, AbstractI
 from hiro_graph_client.client import HiroGraph
 from hiro_graph_client.clientlib import AbstractTokenApiHandler, AuthenticationTokenError, FixedTokenError, \
     TokenUnauthorizedError, PasswordAuthTokenApiHandler, FixedTokenApiHandler, EnvironmentTokenApiHandler, \
-    accept_all_certs, SSLConfig
+    accept_all_certs, SSLConfig, set_max_tries
 from hiro_graph_client.iamclient import HiroIam
 from hiro_graph_client.version import __version__
 
@@ -25,7 +25,7 @@ __all__ = [
     'SessionData', 'HiroResultCallback', 'AbstractTokenApiHandler', 'PasswordAuthTokenApiHandler',
     'FixedTokenApiHandler', 'EnvironmentTokenApiHandler', 'AuthenticationTokenError', 'FixedTokenError',
     'TokenUnauthorizedError', 'AbstractIOCarrier', 'BasicFileIOCarrier', 'SourceValueError', '__version__',
-    'accept_all_certs', 'SSLConfig'
+    'accept_all_certs', 'SSLConfig', 'set_max_tries'
 ]
 
 site.addsitedir(this_directory)

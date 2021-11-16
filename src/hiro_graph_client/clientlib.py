@@ -16,21 +16,36 @@ import requests.packages.urllib3.exceptions
 
 from hiro_graph_client.version import __version__
 
+logger = logging.getLogger(__name__)
+""" The logger for this module """
+
 BACKOFF_ARGS = [
     backoff.expo,
     requests.exceptions.RequestException
 ]
 BACKOFF_KWARGS = {
-    'max_tries': int(os.environ.get('BACKOFF_MAX_TRIES', 2)),
     'jitter': backoff.random_jitter,
     'giveup': lambda e: e.response is not None and e.response.status_code < 500
 }
 
-logger = logging.getLogger(__name__)
-""" The logger for this module """
+_max_tries: int = 2
 
 
-def accept_all_certs():
+def _get_max_tries() -> int:
+    return _max_tries
+
+
+def set_max_tries(max_tries: int) -> None:
+    """
+    Set parameter *max_tries* for module BACKOFF.
+
+    :param max_tries: Amount of HTTP request tries.
+    """
+    global _max_tries
+    _max_tries = max_tries
+
+
+def accept_all_certs() -> None:
     """
     Globally disable InsecureRequestWarning
     """
@@ -127,8 +142,8 @@ class AbstractAPI:
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
                             is given with another value for "User-Agent". Default is "python-hiro-client".
-        :param ssl_config: Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
-                          will be used.
+        :param ssl_config: Optional configuration for SSL connections. If this is omitted, the defaults of `requests`
+                           lib will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         """
@@ -174,7 +189,7 @@ class AbstractAPI:
     # Basic requests
     ###############################################################################################################
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
+    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
     def get_binary(self, url: str, accept: str = None) -> Iterator[bytes]:
         """
         Implementation of GET for binary data.
@@ -198,7 +213,7 @@ class AbstractAPI:
 
             yield from res.iter_content(chunk_size=65536)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
+    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
     def post_binary(self, url: str, data: Any, content_type: str = None) -> dict:
         """
         Implementation of POST for binary data.
@@ -220,7 +235,7 @@ class AbstractAPI:
         self._log_communication(res, request_body=False)
         return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
+    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
     def put_binary(self, url: str, data: Any, content_type: str = None) -> Union[dict, str]:
         """
         Implementation of PUT for binary data.
@@ -242,7 +257,7 @@ class AbstractAPI:
         self._log_communication(res, request_body=False)
         return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
+    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
     def get(self, url: str) -> dict:
         """
         Implementation of GET
@@ -259,7 +274,7 @@ class AbstractAPI:
         self._log_communication(res)
         return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
+    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
     def post(self, url: str, data: Any) -> dict:
         """
         Implementation of POST
@@ -278,7 +293,7 @@ class AbstractAPI:
         self._log_communication(res)
         return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
+    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
     def put(self, url: str, data: Any) -> dict:
         """
         Implementation of PUT
@@ -297,7 +312,7 @@ class AbstractAPI:
         self._log_communication(res)
         return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
+    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
     def patch(self, url: str, data: Any) -> dict:
         """
         Implementation of PATCH
@@ -316,7 +331,7 @@ class AbstractAPI:
         self._log_communication(res)
         return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
+    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
     def delete(self, url: str) -> dict:
         """
         Implementation of DELETE
