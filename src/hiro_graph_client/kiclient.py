@@ -36,6 +36,10 @@ class HiroKi(AuthenticatedAPIHandler):
         url = self.endpoint + '/check'
         return self.post(url, data)
 
+    ###############################################################################################################
+    # Internal methods
+    ###############################################################################################################
+
     def _get_error_message(self, json_result: dict) -> str:
         """
         Intercept special error messages. These have a key 'status' in their dict.
