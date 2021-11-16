@@ -21,7 +21,7 @@ BACKOFF_ARGS = [
     requests.exceptions.RequestException
 ]
 BACKOFF_KWARGS = {
-    'max_tries': int(os.environ['BACKOFF_MAX_TRIES']) or 2,
+    'max_tries': int(os.environ.get('BACKOFF_MAX_TRIES', 2)),
     'jitter': backoff.random_jitter,
     'giveup': lambda e: e.response is not None and e.response.status_code < 500
 }
