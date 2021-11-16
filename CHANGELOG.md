@@ -4,7 +4,7 @@
 
 * Content- / Media-Type handling
 
-  * Throw WrongContentTypeError when an unexpected (or missing) Content-Type is returned.
+  * Throw `WrongContentTypeError` when an unexpected (or missing) Content-Type is returned.
   * Check for Content-Type of error results for constructing HTTPError.
 
 * Error handling
@@ -12,6 +12,9 @@
   * Separate error message extraction, so it can be overwritten per API.
   * Try to handle different message formats by guessing, where their error message might be.
   * Intercept special error messages for API `ki`.
+  * Flag `log_communication_on_error` to enable logging of communication when an error is detected in the response.
+
+* Use environment variable `BACKOFF_MAX_TRIES` to set the max_tries in BACKOFF.
 
 # v4.6.1
 
