@@ -490,7 +490,7 @@ class AbstractAPI:
         Compares only the media-type portion of the header (by splitting at ';').
 
         :param res: The response object
-        :param expected_media_type: The expected Content-Type.
+        :param expected_media_type: The expected Media-Type.
         :raise WrongContentTypeError: When the Media-Type of the Content-Type is not *expected_media_type* or
                the header is is missing completely.
         """
