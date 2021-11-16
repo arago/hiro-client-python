@@ -267,18 +267,18 @@ hiro_app_client: HiroApp = HiroApp(
 )
 ```
 
-## Setting retries on http requests
+## Setting retries on HTTP requests
 
-Because this library is using `backoff` to handle retries, the amount of tries for a successful request / response has
-to be set prior to initialization of the library itself. Therefore the environment variable `BACKOFF_MAX_TRIES` is used.
-The default value if this environment variable is missing is `2`.
+The default value for tries of HTTP requests is `2`. 
+
+If you want to change this value, because this library is using `backoff` to handle retries, the amount of tries for a
+successful request / response has to be set prior to initialization of the library itself.
+To accomplish this, the environment variable `BACKOFF_MAX_TRIES` is used.
 
 Example:
 ```shell
 BACKOFF_MAX_TRIES=1
 ```
-
-
 
 See https://pypi.org/project/backoff/ for more information.
 
