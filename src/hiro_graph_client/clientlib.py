@@ -215,7 +215,7 @@ class AbstractAPI:
                     url: str,
                     data: Any,
                     content_type: str = None,
-                    expected_media_type: str = 'application/json') -> Union[dict, str]:
+                    expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of POST for binary data.
 
@@ -228,7 +228,7 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _post_binary() -> Union[dict, str]:
+        def _post_binary() -> Any:
             res = requests.post(url,
                                 data=data,
                                 headers=self._get_headers(
@@ -247,7 +247,7 @@ class AbstractAPI:
                    url: str,
                    data: Any,
                    content_type: str = None,
-                   expected_media_type: str = 'application/json') -> Union[dict, str]:
+                   expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of PUT for binary data.
 
@@ -260,7 +260,7 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _put_binary() -> Union[dict, str]:
+        def _put_binary() -> Any:
             res = requests.put(url,
                                data=data,
                                headers=self._get_headers(
@@ -277,7 +277,7 @@ class AbstractAPI:
 
     def get(self,
             url: str,
-            expected_media_type: str = 'application/json') -> Union[dict, str]:
+            expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of GET
 
@@ -288,7 +288,7 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _get() -> Union[dict, str]:
+        def _get() -> Any:
             res = requests.get(url,
                                headers=self._get_headers({"Content-Type": None}),
                                verify=self.ssl_config.get_verify(),
@@ -303,7 +303,7 @@ class AbstractAPI:
     def post(self,
              url: str,
              data: Any,
-             expected_media_type: str = 'application/json') -> Union[dict, str]:
+             expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of POST
 
@@ -315,7 +315,7 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _post() -> Union[dict, str]:
+        def _post() -> Any:
             res = requests.post(url,
                                 json=data,
                                 headers=self._get_headers(),
@@ -331,7 +331,7 @@ class AbstractAPI:
     def put(self,
             url: str,
             data: Any,
-            expected_media_type: str = 'application/json') -> Union[dict, str]:
+            expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of PUT
 
@@ -343,7 +343,7 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _put() -> Union[dict, str]:
+        def _put() -> Any:
             res = requests.put(url,
                                json=data,
                                headers=self._get_headers(),
@@ -359,7 +359,7 @@ class AbstractAPI:
     def patch(self,
               url: str,
               data: Any,
-              expected_media_type: str = 'application/json') -> Union[dict, str]:
+              expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of PATCH
 
@@ -371,7 +371,7 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _patch() -> Union[dict, str]:
+        def _patch() -> Any:
             res = requests.patch(url,
                                  json=data,
                                  headers=self._get_headers(),
@@ -386,7 +386,7 @@ class AbstractAPI:
 
     def delete(self,
                url: str,
-               expected_media_type: str = 'application/json') -> Union[dict, str]:
+               expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of DELETE
 
@@ -397,7 +397,7 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _delete() -> Union[dict, str]:
+        def _delete() -> Any:
             res = requests.delete(url,
                                   headers=self._get_headers({"Content-Type": None}),
                                   verify=self.ssl_config.get_verify(),
@@ -468,15 +468,15 @@ class AbstractAPI:
 
     def _parse_response(self,
                         res: requests.Response,
-                        expected_media_type: str = 'application/json') -> Union[dict, str]:
+                        expected_media_type: str = 'application/json') -> Any:
         """
         Parse the response of the backend.
 
         :param res: The result payload
         :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
                '*/*', any media_type is accepted.
-        :return: The result payload. A dict when the result media_type within Content-Type is 'application/json', a
-                 str otherwise.
+        :return: The result payload. A json type when the result media_type within Content-Type is 'application/json'
+                 (usually a dict), a str otherwise.
         :raises RequestException: On HTTP errors.
         :raises WrongContentTypeError: When the Media-Type of the Content-Type of the Response is not
                 *expected_media_type*.
