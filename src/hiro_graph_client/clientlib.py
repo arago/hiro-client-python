@@ -501,7 +501,9 @@ class AbstractAPI:
         media_type = content_type.lower().split(';')[0]
 
         if media_type != expected_media_type.lower():
-            raise WrongContentTypeError(f"Expected Content-Type '{expected_media_type}', but got '{media_type}'.")
+            raise WrongContentTypeError(
+                f"Expected media-type '{expected_media_type}' in Content-Type header, but got '{media_type}'."
+            )
 
     ###############################################################################################################
     # Response and token handling
