@@ -13,6 +13,7 @@ from urllib.parse import quote, urlencode
 import backoff
 import requests
 import requests.packages.urllib3.exceptions
+
 from hiro_graph_client.version import __version__
 
 BACKOFF_ARGS = [
@@ -392,10 +393,13 @@ class AbstractAPI:
         :param res: The result payload
         :return: The result payload
         :raises RequestException: On HTTP errors.
+        :raises WrongContentTypeError: When the Media-Type of the Content-Type of the Response is not
+                'application/json'.
         """
         try:
             self._check_response(res)
             self._check_status_error(res)
+            AbstractAPI._check_content_type(res, 'application/json')
             return res.json()
         except (json.JSONDecodeError, ValueError):
             return {"error": {"message": res.text, "code": 999}}
@@ -469,14 +473,35 @@ class AbstractAPI:
 
             if res.content:
                 try:
+                    AbstractAPI._check_content_type(res, 'application/json')
                     json_result: dict = res.json()
                     message = json_result['error']['message']
                     http_error_msg += ": " + message
-                except (json.JSONDecodeError, KeyError):
+                except (json.JSONDecodeError, KeyError, WrongContentTypeError):
                     if '_TOKEN' not in res.text:
                         http_error_msg += ": " + str(res.text)
 
             raise requests.exceptions.HTTPError(http_error_msg, response=err.response) from err
+
+    @staticmethod
+    def _check_content_type(res: requests.Response, expected_media_type: str) -> None:
+        """
+        Raise an Exception if the Content-Type header of the response does not contain the *expected_media_type*.
+        Compares only the media-type portion of the header (by splitting at ';').
+
+        :param res: The response object
+        :param expected_media_type: The expected Content-Type.
+        :raise WrongContentTypeError: When the Media-Type of the Content-Type is not *expected_media_type* or
+               the header is is missing completely.
+        """
+        content_type = res.headers.get('Content-Type')
+        if not content_type:
+            raise WrongContentTypeError("Response has no Content-Type.")
+
+        media_type = content_type.lower().split(';')[0]
+
+        if media_type != expected_media_type.lower():
+            raise WrongContentTypeError(f"Expected Content-Type '{expected_media_type}', but got '{media_type}'.")
 
     ###############################################################################################################
     # Response and token handling
@@ -1244,5 +1269,13 @@ class TokenUnauthorizedError(AuthenticationTokenError):
 class FixedTokenError(AuthenticationTokenError):
     """
     Child of *AuthenticationTokenErrors*. Used when tokens are fixed and cannot be refreshed.
+    """
+    pass
+
+
+class WrongContentTypeError(Exception):
+    """
+    When the Content-Type of the result is unexpected, i.e. 'application/json' was expected, but something else got
+    returned.
     """
     pass
