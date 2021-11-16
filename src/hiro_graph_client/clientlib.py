@@ -493,7 +493,7 @@ class AbstractAPI:
             error_block = json_result['error']
             if isinstance(error_block, dict):
                 error_message = error_block['message']
-                return error_message or json.dumps(error_block)
+                return error_message if isinstance(error_message, str) else json.dumps(error_block)
             if isinstance(error_block, str):
                 return error_block
 
