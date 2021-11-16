@@ -483,12 +483,21 @@ class AbstractAPI:
 
     def _get_error_message(self, json_result: dict) -> str:
         """
-        Extract error message from {"error": { "message": "(errormessage)" }}
+        Extract error message from {"error": { "message": "(errormessage)" }} or {"error":"(errormessage)" } if
+        possible. Return the complete JSON as str if not.
 
         :param json_result: The json dict containing the error message.
         :return: The extracted error message.
         """
-        return json_result['error']['message']
+        if 'error' in json_result:
+            error_block = json_result['error']
+            if isinstance(error_block, dict):
+                error_message = error_block['message']
+                return error_message or json.dumps(error_block)
+            if isinstance(error_block, str):
+                return error_block
+
+        return json.dumps(json_result)
 
     @staticmethod
     def _check_content_type(res: requests.Response, expected_media_type: str) -> None:
