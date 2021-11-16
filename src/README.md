@@ -20,7 +20,7 @@ Currently implemented are
   * `HiroIam` for `iam`
   * `HiroKi` for `ki`
   * `HiroAuthz` for `authz`
-  * `HiroVeriables` for `variables`
+  * `HiroVariables` for `variables`
 
 and for the websockets
 
