@@ -193,10 +193,10 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _get_binary(_url: str, _accept: str = None) -> Iterator[bytes]:
-            with requests.get(_url,
+        def _get_binary() -> Iterator[bytes]:
+            with requests.get(url,
                               headers=self._get_headers(
-                                  {"Content-Type": None, "Accept": (_accept or "*/*")}
+                                  {"Content-Type": None, "Accept": (accept or "*/*")}
                               ),
                               verify=self.ssl_config.get_verify(),
                               cert=self.ssl_config.get_cert(),
@@ -209,7 +209,7 @@ class AbstractAPI:
 
                 yield from res.iter_content(chunk_size=65536)
 
-        yield from _get_binary(url, accept)
+        yield from _get_binary()
 
     def post_binary(self, url: str, data: Any, content_type: str = None) -> dict:
         """
@@ -222,11 +222,11 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _post_binary(_url: str, _data: Any, _content_type: str = None) -> dict:
-            res = requests.post(_url,
-                                data=_data,
+        def _post_binary() -> dict:
+            res = requests.post(url,
+                                data=data,
                                 headers=self._get_headers(
-                                    {"Content-Type": (_content_type or "application/octet-stream")}
+                                    {"Content-Type": (content_type or "application/octet-stream")}
                                 ),
                                 verify=self.ssl_config.get_verify(),
                                 cert=self.ssl_config.get_cert(),
@@ -235,7 +235,7 @@ class AbstractAPI:
             self._log_communication(res, request_body=False)
             return self._parse_json_response(res)
 
-        return _post_binary(url, data, content_type)
+        return _post_binary()
 
     def put_binary(self, url: str, data: Any, content_type: str = None) -> Union[dict, str]:
         """
@@ -248,11 +248,11 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _put_binary(_url: str, _data: Any, _content_type: str = None) -> Union[dict, str]:
-            res = requests.put(_url,
-                               data=_data,
+        def _put_binary() -> Union[dict, str]:
+            res = requests.put(url,
+                               data=data,
                                headers=self._get_headers(
-                                   {"Content-Type": (_content_type or "application/octet-stream")}
+                                   {"Content-Type": (content_type or "application/octet-stream")}
                                ),
                                verify=self.ssl_config.get_verify(),
                                cert=self.ssl_config.get_cert(),
@@ -261,7 +261,7 @@ class AbstractAPI:
             self._log_communication(res, request_body=False)
             return self._parse_json_response(res)
 
-        return _put_binary(url, data, content_type)
+        return _put_binary()
 
     def get(self, url: str) -> dict:
         """
@@ -272,8 +272,8 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _get(_url: str) -> dict:
-            res = requests.get(_url,
+        def _get() -> dict:
+            res = requests.get(url,
                                headers=self._get_headers({"Content-Type": None}),
                                verify=self.ssl_config.get_verify(),
                                cert=self.ssl_config.get_cert(),
@@ -282,7 +282,7 @@ class AbstractAPI:
             self._log_communication(res)
             return self._parse_json_response(res)
 
-        return _get(url)
+        return _get()
 
     def post(self, url: str, data: Any) -> dict:
         """
@@ -294,9 +294,9 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _post(_url: str, _data: Any) -> dict:
-            res = requests.post(_url,
-                                json=_data,
+        def _post() -> dict:
+            res = requests.post(url,
+                                json=data,
                                 headers=self._get_headers(),
                                 verify=self.ssl_config.get_verify(),
                                 cert=self.ssl_config.get_cert(),
@@ -305,7 +305,7 @@ class AbstractAPI:
             self._log_communication(res)
             return self._parse_json_response(res)
 
-        return _post(url, data)
+        return _post()
 
     def put(self, url: str, data: Any) -> dict:
         """
@@ -317,7 +317,7 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _put(_url: str, _data: Any) -> dict:
+        def _put() -> dict:
             res = requests.put(url,
                                json=data,
                                headers=self._get_headers(),
@@ -328,7 +328,7 @@ class AbstractAPI:
             self._log_communication(res)
             return self._parse_json_response(res)
 
-        return _put(url, data)
+        return _put()
 
     def patch(self, url: str, data: Any) -> dict:
         """
@@ -340,9 +340,9 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _patch(_url: str, _data: Any) -> dict:
-            res = requests.patch(_url,
-                                 json=_data,
+        def _patch() -> dict:
+            res = requests.patch(url,
+                                 json=data,
                                  headers=self._get_headers(),
                                  verify=self.ssl_config.get_verify(),
                                  cert=self.ssl_config.get_cert(),
@@ -351,7 +351,7 @@ class AbstractAPI:
             self._log_communication(res)
             return self._parse_json_response(res)
 
-        return _patch(url, data)
+        return _patch()
 
     def delete(self, url: str) -> dict:
         """
@@ -362,8 +362,8 @@ class AbstractAPI:
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
-        def _delete(_url: str) -> dict:
-            res = requests.delete(_url,
+        def _delete() -> dict:
+            res = requests.delete(url,
                                   headers=self._get_headers({"Content-Type": None}),
                                   verify=self.ssl_config.get_verify(),
                                   cert=self.ssl_config.get_cert(),
@@ -372,7 +372,7 @@ class AbstractAPI:
             self._log_communication(res)
             return self._parse_json_response(res)
 
-        return _delete(url)
+        return _delete()
 
     ###############################################################################################################
     # Tool methods for requests
