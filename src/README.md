@@ -267,23 +267,6 @@ hiro_app_client: HiroApp = HiroApp(
 )
 ```
 
-## Setting retries on HTTP requests
-
-The default value for tries of HTTP requests is `2`. 
-
-If you want to change this value, you have to adjust a parameter of the module `backoff` to handle retries. The
-setting can be changed by using the global function `set_max_tries(max_tries: int) -> None` of `hiro_graph_client`.
-
-
-Example:
-```python
-import hiro_graph_client
-
-hiro_graph_client.set_max_tries(1)
-```
-
-See https://pypi.org/project/backoff/ for more information.
-
 ## SSL Configuration
 
 SSL parameters are configured using the class `SSLConfig`. This class translates the parameters given to the required

@@ -14,7 +14,7 @@
     * Intercept special error messages for API `ki`.
     * Flag `log_communication_on_error` to enable logging of communication when an error is detected in the response.
 
-* Add function `set_max_tries` (for module `backoff`) for HTTP request retries.
+* Add parameter `max_tries` to TokenHandlers.
 
 # v4.6.1
 

@@ -28,22 +28,6 @@ BACKOFF_KWARGS = {
     'giveup': lambda e: e.response is not None and e.response.status_code < 500
 }
 
-_max_tries: int = 2
-
-
-def _get_max_tries() -> int:
-    return _max_tries
-
-
-def set_max_tries(max_tries: int) -> None:
-    """
-    Set parameter *max_tries* for module BACKOFF.
-
-    :param max_tries: Amount of HTTP request tries.
-    """
-    global _max_tries
-    _max_tries = max_tries
-
 
 def accept_all_certs() -> None:
     """
@@ -123,6 +107,8 @@ class AbstractAPI:
 
     _client_name: str = "python-hiro-client"
 
+    _max_tries: int = 2
+
     def __init__(self,
                  root_url: str,
                  raise_exceptions: bool = True,
@@ -131,7 +117,8 @@ class AbstractAPI:
                  timeout: int = 600,
                  client_name: str = None,
                  ssl_config: SSLConfig = None,
-                 log_communication_on_error: bool = None):
+                 log_communication_on_error: bool = None,
+                 max_tries: int = None):
         """
         Constructor
 
@@ -146,6 +133,7 @@ class AbstractAPI:
                            lib will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
+        :param max_tries: Max tries for BACKOFF. Default is 2.
         """
 
         if not root_url:
@@ -174,6 +162,12 @@ class AbstractAPI:
         if headers:
             self._headers.update({self._capitalize_header(k): v for k, v in headers.items()})
 
+        if max_tries is not None:
+            self._max_tries = max_tries
+
+    def _get_max_tries(self):
+        return self._max_tries
+
     def get_root_url(self):
         return self._root_url
 
@@ -189,7 +183,6 @@ class AbstractAPI:
     # Basic requests
     ###############################################################################################################
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
     def get_binary(self, url: str, accept: str = None) -> Iterator[bytes]:
         """
         Implementation of GET for binary data.
@@ -198,22 +191,26 @@ class AbstractAPI:
         :param accept: Mimetype for accept. Will be set to */* if not given.
         :return: Yields over raw chunks of the response payload.
         """
-        with requests.get(url,
-                          headers=self._get_headers(
-                              {"Content-Type": None, "Accept": (accept or "*/*")}
-                          ),
-                          verify=self.ssl_config.get_verify(),
-                          cert=self.ssl_config.get_cert(),
-                          timeout=self._timeout,
-                          stream=True,
-                          proxies=self._get_proxies()) as res:
-            self._log_communication(res, response_body=False)
-            self._check_response(res)
-            self._check_status_error(res)
 
-            yield from res.iter_content(chunk_size=65536)
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _get_binary(_url: str, _accept: str = None) -> Iterator[bytes]:
+            with requests.get(_url,
+                              headers=self._get_headers(
+                                  {"Content-Type": None, "Accept": (_accept or "*/*")}
+                              ),
+                              verify=self.ssl_config.get_verify(),
+                              cert=self.ssl_config.get_cert(),
+                              timeout=self._timeout,
+                              stream=True,
+                              proxies=self._get_proxies()) as res:
+                self._log_communication(res, response_body=False)
+                self._check_response(res)
+                self._check_status_error(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
+                yield from res.iter_content(chunk_size=65536)
+
+        yield from _get_binary(url, accept)
+
     def post_binary(self, url: str, data: Any, content_type: str = None) -> dict:
         """
         Implementation of POST for binary data.
@@ -223,19 +220,23 @@ class AbstractAPI:
         :param content_type: The content type of the data. Defaults to "application/octet-stream" internally if unset.
         :return: The payload of the response
         """
-        res = requests.post(url,
-                            data=data,
-                            headers=self._get_headers(
-                                {"Content-Type": (content_type or "application/octet-stream")}
-                            ),
-                            verify=self.ssl_config.get_verify(),
-                            cert=self.ssl_config.get_cert(),
-                            timeout=self._timeout,
-                            proxies=self._get_proxies())
-        self._log_communication(res, request_body=False)
-        return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _post_binary(_url: str, _data: Any, _content_type: str = None) -> dict:
+            res = requests.post(_url,
+                                data=_data,
+                                headers=self._get_headers(
+                                    {"Content-Type": (_content_type or "application/octet-stream")}
+                                ),
+                                verify=self.ssl_config.get_verify(),
+                                cert=self.ssl_config.get_cert(),
+                                timeout=self._timeout,
+                                proxies=self._get_proxies())
+            self._log_communication(res, request_body=False)
+            return self._parse_json_response(res)
+
+        return _post_binary(url, data, content_type)
+
     def put_binary(self, url: str, data: Any, content_type: str = None) -> Union[dict, str]:
         """
         Implementation of PUT for binary data.
@@ -245,19 +246,23 @@ class AbstractAPI:
         :param content_type: The content type of the data. Defaults to "application/octet-stream" internally if unset.
         :return: The payload of the response
         """
-        res = requests.put(url,
-                           data=data,
-                           headers=self._get_headers(
-                               {"Content-Type": (content_type or "application/octet-stream")}
-                           ),
-                           verify=self.ssl_config.get_verify(),
-                           cert=self.ssl_config.get_cert(),
-                           timeout=self._timeout,
-                           proxies=self._get_proxies())
-        self._log_communication(res, request_body=False)
-        return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _put_binary(_url: str, _data: Any, _content_type: str = None) -> Union[dict, str]:
+            res = requests.put(_url,
+                               data=_data,
+                               headers=self._get_headers(
+                                   {"Content-Type": (_content_type or "application/octet-stream")}
+                               ),
+                               verify=self.ssl_config.get_verify(),
+                               cert=self.ssl_config.get_cert(),
+                               timeout=self._timeout,
+                               proxies=self._get_proxies())
+            self._log_communication(res, request_body=False)
+            return self._parse_json_response(res)
+
+        return _put_binary(url, data, content_type)
+
     def get(self, url: str) -> dict:
         """
         Implementation of GET
@@ -265,16 +270,20 @@ class AbstractAPI:
         :param url: Url to use
         :return: The payload of the response
         """
-        res = requests.get(url,
-                           headers=self._get_headers({"Content-Type": None}),
-                           verify=self.ssl_config.get_verify(),
-                           cert=self.ssl_config.get_cert(),
-                           timeout=self._timeout,
-                           proxies=self._get_proxies())
-        self._log_communication(res)
-        return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _get(_url: str) -> dict:
+            res = requests.get(_url,
+                               headers=self._get_headers({"Content-Type": None}),
+                               verify=self.ssl_config.get_verify(),
+                               cert=self.ssl_config.get_cert(),
+                               timeout=self._timeout,
+                               proxies=self._get_proxies())
+            self._log_communication(res)
+            return self._parse_json_response(res)
+
+        return _get(url)
+
     def post(self, url: str, data: Any) -> dict:
         """
         Implementation of POST
@@ -283,17 +292,21 @@ class AbstractAPI:
         :param data: The payload to POST
         :return: The payload of the response
         """
-        res = requests.post(url,
-                            json=data,
-                            headers=self._get_headers(),
-                            verify=self.ssl_config.get_verify(),
-                            cert=self.ssl_config.get_cert(),
-                            timeout=self._timeout,
-                            proxies=self._get_proxies())
-        self._log_communication(res)
-        return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _post(_url: str, _data: Any) -> dict:
+            res = requests.post(_url,
+                                json=_data,
+                                headers=self._get_headers(),
+                                verify=self.ssl_config.get_verify(),
+                                cert=self.ssl_config.get_cert(),
+                                timeout=self._timeout,
+                                proxies=self._get_proxies())
+            self._log_communication(res)
+            return self._parse_json_response(res)
+
+        return _post(url, data)
+
     def put(self, url: str, data: Any) -> dict:
         """
         Implementation of PUT
@@ -302,17 +315,21 @@ class AbstractAPI:
         :param data: The payload to PUT
         :return: The payload of the response
         """
-        res = requests.put(url,
-                           json=data,
-                           headers=self._get_headers(),
-                           verify=self.ssl_config.get_verify(),
-                           cert=self.ssl_config.get_cert(),
-                           timeout=self._timeout,
-                           proxies=self._get_proxies())
-        self._log_communication(res)
-        return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _put(_url: str, _data: Any) -> dict:
+            res = requests.put(url,
+                               json=data,
+                               headers=self._get_headers(),
+                               verify=self.ssl_config.get_verify(),
+                               cert=self.ssl_config.get_cert(),
+                               timeout=self._timeout,
+                               proxies=self._get_proxies())
+            self._log_communication(res)
+            return self._parse_json_response(res)
+
+        return _put(url, data)
+
     def patch(self, url: str, data: Any) -> dict:
         """
         Implementation of PATCH
@@ -321,17 +338,21 @@ class AbstractAPI:
         :param data: The payload to PUT
         :return: The payload of the response
         """
-        res = requests.patch(url,
-                             json=data,
-                             headers=self._get_headers(),
-                             verify=self.ssl_config.get_verify(),
-                             cert=self.ssl_config.get_cert(),
-                             timeout=self._timeout,
-                             proxies=self._get_proxies())
-        self._log_communication(res)
-        return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=_get_max_tries)
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _patch(_url: str, _data: Any) -> dict:
+            res = requests.patch(_url,
+                                 json=_data,
+                                 headers=self._get_headers(),
+                                 verify=self.ssl_config.get_verify(),
+                                 cert=self.ssl_config.get_cert(),
+                                 timeout=self._timeout,
+                                 proxies=self._get_proxies())
+            self._log_communication(res)
+            return self._parse_json_response(res)
+
+        return _patch(url, data)
+
     def delete(self, url: str) -> dict:
         """
         Implementation of DELETE
@@ -339,14 +360,19 @@ class AbstractAPI:
         :param url: Url to use
         :return: The payload of the response
         """
-        res = requests.delete(url,
-                              headers=self._get_headers({"Content-Type": None}),
-                              verify=self.ssl_config.get_verify(),
-                              cert=self.ssl_config.get_cert(),
-                              timeout=self._timeout,
-                              proxies=self._get_proxies())
-        self._log_communication(res)
-        return self._parse_json_response(res)
+
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _delete(_url: str) -> dict:
+            res = requests.delete(_url,
+                                  headers=self._get_headers({"Content-Type": None}),
+                                  verify=self.ssl_config.get_verify(),
+                                  cert=self.ssl_config.get_cert(),
+                                  timeout=self._timeout,
+                                  proxies=self._get_proxies())
+            self._log_communication(res)
+            return self._parse_json_response(res)
+
+        return _delete(url)
 
     ###############################################################################################################
     # Tool methods for requests
@@ -595,7 +621,8 @@ class AbstractTokenApiHandler(AbstractAPI):
                  client_name: str = None,
                  custom_endpoints: dict = None,
                  ssl_config: SSLConfig = None,
-                 log_communication_on_error: bool = None):
+                 log_communication_on_error: bool = None,
+                 max_tries: int = None):
         """
         Constructor
 
@@ -623,6 +650,7 @@ class AbstractTokenApiHandler(AbstractAPI):
                           will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
+        :param max_tries: Max tries for BACKOFF. Default is 2.
         """
         super().__init__(root_url=root_url,
                          raise_exceptions=raise_exceptions,
@@ -631,7 +659,8 @@ class AbstractTokenApiHandler(AbstractAPI):
                          headers=headers,
                          client_name=client_name,
                          ssl_config=ssl_config,
-                         log_communication_on_error=log_communication_on_error)
+                         log_communication_on_error=log_communication_on_error,
+                         max_tries=max_tries)
 
         self._version_info = None
         self.custom_endpoints = custom_endpoints
@@ -808,7 +837,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                  client_name: str = None,
                  custom_endpoints: dict = None,
                  ssl_config: SSLConfig = None,
-                 log_communication_on_error: bool = None):
+                 log_communication_on_error: bool = None,
+                 max_tries: int = None):
         """
         Constructor
 
@@ -826,6 +856,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                           will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
+        :param max_tries: Max tries for BACKOFF. Default is 2.
         """
         super().__init__(
             root_url=root_url,
@@ -836,7 +867,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
             client_name=client_name,
             custom_endpoints=custom_endpoints,
             ssl_config=ssl_config,
-            log_communication_on_error=log_communication_on_error
+            log_communication_on_error=log_communication_on_error,
+            max_tries=max_tries
         )
 
         self._token = token
@@ -873,7 +905,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                  client_name: str = None,
                  custom_endpoints: dict = None,
                  ssl_config: SSLConfig = None,
-                 log_communication_on_error: bool = None):
+                 log_communication_on_error: bool = None,
+                 max_tries: int = None):
         """
         Constructor
 
@@ -891,6 +924,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                           will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
+        :param max_tries: Max tries for BACKOFF. Default is 2.
         """
         super().__init__(
             root_url=root_url,
@@ -901,7 +935,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
             client_name=client_name,
             custom_endpoints=custom_endpoints,
             ssl_config=ssl_config,
-            log_communication_on_error=log_communication_on_error
+            log_communication_on_error=log_communication_on_error,
+            max_tries=max_tries
         )
 
         self._env_var = env_var
@@ -1062,7 +1097,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                  client_name: str = None,
                  custom_endpoints: dict = None,
                  ssl_config: SSLConfig = None,
-                 log_communication_on_error: bool = None):
+                 log_communication_on_error: bool = None,
+                 max_tries: int = None):
         """
         Constructor
 
@@ -1084,6 +1120,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                           will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
+        :param max_tries: Max tries for BACKOFF. Default is 2.
         """
         super().__init__(
             root_url=root_url,
@@ -1094,7 +1131,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
             client_name=client_name,
             custom_endpoints=custom_endpoints,
             ssl_config=ssl_config,
-            log_communication_on_error=log_communication_on_error
+            log_communication_on_error=log_communication_on_error,
+            max_tries=max_tries
         )
 
         self._username = username
@@ -1266,7 +1304,8 @@ class AuthenticatedAPIHandler(AbstractAPI):
                          timeout=api_handler._timeout,
                          client_name=api_handler._client_name,
                          ssl_config=api_handler.ssl_config,
-                         log_communication_on_error=api_handler._log_communication_on_error)
+                         log_communication_on_error=api_handler._log_communication_on_error,
+                         max_tries=api_handler._get_max_tries())
 
         self._api_handler = api_handler
         self._api_name = api_name
