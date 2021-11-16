@@ -267,6 +267,18 @@ hiro_app_client: HiroApp = HiroApp(
 )
 ```
 
+## Setting retries on http requests
+
+Because this library is using `backoff` to handle retries, the amount of tries for a successful request / response has
+to be set prior to initialization of the library itself. Therefore the environment variable `BACKOFF_MAX_TRIES` is used.
+
+Example:
+```shell
+BACKOFF_MAX_TRIES=1
+```
+
+See https://pypi.org/project/backoff/ for more information.
+
 ## SSL Configuration
 
 SSL parameters are configured using the class `SSLConfig`. This class translates the parameters given to the required
