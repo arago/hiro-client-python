@@ -1,3 +1,18 @@
+# 4.6.2
+
+* Added documentation of new APIs
+
+* Content- / Media-Type handling
+
+  * Throw WrongContentTypeError when an unexpected (or missing) Content-Type is returned.
+  * Check for Content-Type of error results for constructing HTTPError.
+
+* Error handling
+
+  * Separate error message extraction, so it can be overwritten per API.
+  * Try to handle different message formats by guessing, where their error message might be.
+  * Intercept special error messages for API `ki``.
+
 # v4.6.1
 
 * Updated CHANGELOG.md
