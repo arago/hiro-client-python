@@ -115,7 +115,8 @@ class AbstractAPI:
                  headers: dict = None,
                  timeout: int = 600,
                  client_name: str = None,
-                 ssl_config: SSLConfig = None):
+                 ssl_config: SSLConfig = None,
+                 log_communication_on_error: bool = None):
         """
         Constructor
 
@@ -126,8 +127,10 @@ class AbstractAPI:
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
                             is given with another value for "User-Agent". Default is "python-hiro-client".
-        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
+        :param ssl_config: Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
+        :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
+               detected. Default is not to do this.
         """
 
         if not root_url:
@@ -137,6 +140,7 @@ class AbstractAPI:
         self._proxies = proxies
         self._raise_exceptions = raise_exceptions
         self._timeout = timeout
+        self._log_communication_on_error = log_communication_on_error or False
 
         self.ssl_config = ssl_config if ssl_config else SSLConfig()
 
@@ -436,7 +440,10 @@ class AbstractAPI:
                 body = str(body, encoding or 'utf8')
             return body
 
-        if logger.isEnabledFor(logging.DEBUG):
+        ok = self._check_response_ok(res)
+
+        if (not ok and self._log_communication_on_error) or logger.isEnabledFor(
+                logging.DEBUG):
             log_message = f'''
 ################ request ################
 {res.request.method} {res.request.url}
@@ -448,7 +455,7 @@ class AbstractAPI:
 {_body_str(res.text, res.encoding) if response_body else "(body hidden)"}
 '''
 
-            if not res.ok:
+            if not ok:
                 logger.error(log_message)
             else:
                 logger.debug(log_message)
@@ -521,6 +528,15 @@ class AbstractAPI:
                 f"Expected media-type '{expected_media_type}' in Content-Type header, but got '{media_type}'."
             )
 
+    def _check_response_ok(self, res: requests.Response) -> bool:
+        """
+        Do not rely on res.ok. Everything not between 200 and 399 is an error.
+
+        :param res: The response object
+        :return: True on good response, false otherwise.
+        """
+        return 200 <= res.status_code < 400
+
     ###############################################################################################################
     # Response and token handling
     # Child classes have to override those classes for special handling like token and header handling.
@@ -563,7 +579,8 @@ class AbstractTokenApiHandler(AbstractAPI):
                  timeout: int = 600,
                  client_name: str = None,
                  custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None):
+                 ssl_config: SSLConfig = None,
+                 log_communication_on_error: bool = None):
         """
         Constructor
 
@@ -589,6 +606,8 @@ class AbstractTokenApiHandler(AbstractAPI):
                from /api/version. Example see above.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
+        :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
+               detected. Default is not to do this.
         """
         super().__init__(root_url=root_url,
                          raise_exceptions=raise_exceptions,
@@ -596,7 +615,8 @@ class AbstractTokenApiHandler(AbstractAPI):
                          timeout=timeout,
                          headers=headers,
                          client_name=client_name,
-                         ssl_config=ssl_config)
+                         ssl_config=ssl_config,
+                         log_communication_on_error=log_communication_on_error)
 
         self._version_info = None
         self.custom_endpoints = custom_endpoints
@@ -772,7 +792,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                  timeout: int = 600,
                  client_name: str = None,
                  custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None):
+                 ssl_config: SSLConfig = None,
+                 log_communication_on_error: bool = None):
         """
         Constructor
 
@@ -788,6 +809,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                /api/version.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
+        :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
+               detected. Default is not to do this.
         """
         super().__init__(
             root_url=root_url,
@@ -797,7 +820,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
             headers=headers,
             client_name=client_name,
             custom_endpoints=custom_endpoints,
-            ssl_config=ssl_config
+            ssl_config=ssl_config,
+            log_communication_on_error=log_communication_on_error
         )
 
         self._token = token
@@ -833,7 +857,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                  timeout: int = 600,
                  client_name: str = None,
                  custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None):
+                 ssl_config: SSLConfig = None,
+                 log_communication_on_error: bool = None):
         """
         Constructor
 
@@ -849,6 +874,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                /api/version.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
+        :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
+               detected. Default is not to do this.
         """
         super().__init__(
             root_url=root_url,
@@ -858,7 +885,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
             timeout=timeout,
             client_name=client_name,
             custom_endpoints=custom_endpoints,
-            ssl_config=ssl_config
+            ssl_config=ssl_config,
+            log_communication_on_error=log_communication_on_error
         )
 
         self._env_var = env_var
@@ -1018,7 +1046,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                  timeout: int = 600,
                  client_name: str = None,
                  custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None):
+                 ssl_config: SSLConfig = None,
+                 log_communication_on_error: bool = None):
         """
         Constructor
 
@@ -1038,6 +1067,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                /api/version.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
+        :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
+               detected. Default is not to do this.
         """
         super().__init__(
             root_url=root_url,
@@ -1047,7 +1078,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
             timeout=timeout,
             client_name=client_name,
             custom_endpoints=custom_endpoints,
-            ssl_config=ssl_config
+            ssl_config=ssl_config,
+            log_communication_on_error=log_communication_on_error
         )
 
         self._username = username
@@ -1218,7 +1250,8 @@ class AuthenticatedAPIHandler(AbstractAPI):
                          headers=api_handler._headers,
                          timeout=api_handler._timeout,
                          client_name=api_handler._client_name,
-                         ssl_config=api_handler.ssl_config)
+                         ssl_config=api_handler.ssl_config,
+                         log_communication_on_error=api_handler._log_communication_on_error)
 
         self._api_handler = api_handler
         self._api_name = api_name
