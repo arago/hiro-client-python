@@ -11,7 +11,7 @@
 
   * Separate error message extraction, so it can be overwritten per API.
   * Try to handle different message formats by guessing, where their error message might be.
-  * Intercept special error messages for API `ki``.
+  * Intercept special error messages for API `ki`.
 
 # v4.6.1
 
