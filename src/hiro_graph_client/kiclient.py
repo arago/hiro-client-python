@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 
 from hiro_graph_client.clientlib import AuthenticatedAPIHandler, AbstractTokenApiHandler
 
@@ -34,3 +35,15 @@ class HiroKi(AuthenticatedAPIHandler):
         """
         url = self.endpoint + '/check'
         return self.post(url, data)
+
+    def _get_error_message(self, json_result: dict) -> str:
+        """
+        Intercept special error messages. These have a key 'status' in their dict.
+
+        :param json_result: The incoming JSON containing error information.
+        :return: The error message.
+        """
+        if 'status' in json_result:
+            return json.dumps(json_result)
+
+        return super()._get_error_message(json_result)

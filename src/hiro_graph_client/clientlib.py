@@ -474,14 +474,21 @@ class AbstractAPI:
             if res.content:
                 try:
                     AbstractAPI._check_content_type(res, 'application/json')
-                    json_result: dict = res.json()
-                    message = json_result['error']['message']
-                    http_error_msg += ": " + message
+                    http_error_msg += ": " + self._get_error_message(res.json())
                 except (json.JSONDecodeError, KeyError, WrongContentTypeError):
                     if '_TOKEN' not in res.text:
                         http_error_msg += ": " + str(res.text)
 
             raise requests.exceptions.HTTPError(http_error_msg, response=err.response) from err
+
+    def _get_error_message(self, json_result: dict) -> str:
+        """
+        Extract error message from {"error": { "message": "(errormessage)" }}
+
+        :param json_result: The json dict containing the error message.
+        :return: The extracted error message.
+        """
+        return json_result['error']['message']
 
     @staticmethod
     def _check_content_type(res: requests.Response, expected_media_type: str) -> None:
