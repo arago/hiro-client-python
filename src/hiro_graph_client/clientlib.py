@@ -490,9 +490,9 @@ class AbstractAPI:
         :return: The extracted error message.
         """
         if 'error' in json_result:
-            error_block = json_result['error']
+            error_block = json_result.get('error')
             if isinstance(error_block, dict):
-                error_message = error_block['message']
+                error_message = error_block.get('message')
                 return error_message if isinstance(error_message, str) else json.dumps(error_block)
             if isinstance(error_block, str):
                 return error_block
