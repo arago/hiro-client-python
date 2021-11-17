@@ -18,6 +18,9 @@ Currently implemented are
   * `HiroAuth` for `auth`
   * `HiroGraph` for `graph`
   * `HiroIam` for `iam`
+  * `HiroKi` for `ki`
+  * `HiroAuthz` for `authz`
+  * `HiroVariables` for `variables`
 
 and for the websockets
 

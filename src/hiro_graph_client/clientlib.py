@@ -13,23 +13,23 @@ from urllib.parse import quote, urlencode
 import backoff
 import requests
 import requests.packages.urllib3.exceptions
+
 from hiro_graph_client.version import __version__
+
+logger = logging.getLogger(__name__)
+""" The logger for this module """
 
 BACKOFF_ARGS = [
     backoff.expo,
     requests.exceptions.RequestException
 ]
 BACKOFF_KWARGS = {
-    'max_tries': 2,
     'jitter': backoff.random_jitter,
     'giveup': lambda e: e.response is not None and e.response.status_code < 500
 }
 
-logger = logging.getLogger(__name__)
-""" The logger for this module """
 
-
-def accept_all_certs():
+def accept_all_certs() -> None:
     """
     Globally disable InsecureRequestWarning
     """
@@ -107,6 +107,8 @@ class AbstractAPI:
 
     _client_name: str = "python-hiro-client"
 
+    _max_tries: int = 2
+
     def __init__(self,
                  root_url: str,
                  raise_exceptions: bool = True,
@@ -114,7 +116,9 @@ class AbstractAPI:
                  headers: dict = None,
                  timeout: int = 600,
                  client_name: str = None,
-                 ssl_config: SSLConfig = None):
+                 ssl_config: SSLConfig = None,
+                 log_communication_on_error: bool = None,
+                 max_tries: int = None):
         """
         Constructor
 
@@ -125,8 +129,11 @@ class AbstractAPI:
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
                             is given with another value for "User-Agent". Default is "python-hiro-client".
-        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
-                          will be used.
+        :param ssl_config: Optional configuration for SSL connections. If this is omitted, the defaults of `requests`
+                           lib will be used.
+        :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
+               detected. Default is not to do this.
+        :param max_tries: Max tries for BACKOFF. Default is 2.
         """
 
         if not root_url:
@@ -136,6 +143,7 @@ class AbstractAPI:
         self._proxies = proxies
         self._raise_exceptions = raise_exceptions
         self._timeout = timeout
+        self._log_communication_on_error = log_communication_on_error or False
 
         self.ssl_config = ssl_config if ssl_config else SSLConfig()
 
@@ -154,6 +162,12 @@ class AbstractAPI:
         if headers:
             self._headers.update({self._capitalize_header(k): v for k, v in headers.items()})
 
+        if max_tries is not None:
+            self._max_tries = max_tries
+
+    def _get_max_tries(self):
+        return self._max_tries
+
     def get_root_url(self):
         return self._root_url
 
@@ -169,7 +183,6 @@ class AbstractAPI:
     # Basic requests
     ###############################################################################################################
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
     def get_binary(self, url: str, accept: str = None) -> Iterator[bytes]:
         """
         Implementation of GET for binary data.
@@ -178,155 +191,223 @@ class AbstractAPI:
         :param accept: Mimetype for accept. Will be set to */* if not given.
         :return: Yields over raw chunks of the response payload.
         """
-        with requests.get(url,
-                          headers=self._get_headers(
-                              {"Content-Type": None, "Accept": (accept or "*/*")}
-                          ),
-                          verify=self.ssl_config.get_verify(),
-                          cert=self.ssl_config.get_cert(),
-                          timeout=self._timeout,
-                          stream=True,
-                          proxies=self._get_proxies()) as res:
-            self._log_communication(res, response_body=False)
-            self._check_response(res)
-            self._check_status_error(res)
 
-            yield from res.iter_content(chunk_size=65536)
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _get_binary() -> Iterator[bytes]:
+            with requests.get(url,
+                              headers=self._get_headers(
+                                  {"Content-Type": None, "Accept": (accept or "*/*")}
+                              ),
+                              verify=self.ssl_config.get_verify(),
+                              cert=self.ssl_config.get_cert(),
+                              timeout=self._timeout,
+                              stream=True,
+                              proxies=self._get_proxies()) as res:
+                self._log_communication(res, response_body=False)
+                self._check_response(res)
+                self._check_status_error(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def post_binary(self, url: str, data: Any, content_type: str = None) -> dict:
+                yield from res.iter_content(chunk_size=65536)
+
+        yield from _get_binary()
+
+    def post_binary(self,
+                    url: str,
+                    data: Any,
+                    content_type: str = None,
+                    expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of POST for binary data.
 
         :param url: Url to use
         :param data: The payload to POST. This can be anything 'requests.post(data=...)' supports.
         :param content_type: The content type of the data. Defaults to "application/octet-stream" internally if unset.
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
-        res = requests.post(url,
-                            data=data,
-                            headers=self._get_headers(
-                                {"Content-Type": (content_type or "application/octet-stream")}
-                            ),
-                            verify=self.ssl_config.get_verify(),
-                            cert=self.ssl_config.get_cert(),
-                            timeout=self._timeout,
-                            proxies=self._get_proxies())
-        self._log_communication(res, request_body=False)
-        return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def put_binary(self, url: str, data: Any, content_type: str = None) -> Union[dict, str]:
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _post_binary() -> Any:
+            res = requests.post(url,
+                                data=data,
+                                headers=self._get_headers(
+                                    {"Content-Type": (content_type or "application/octet-stream")}
+                                ),
+                                verify=self.ssl_config.get_verify(),
+                                cert=self.ssl_config.get_cert(),
+                                timeout=self._timeout,
+                                proxies=self._get_proxies())
+            self._log_communication(res, request_body=False)
+            return self._parse_response(res, expected_media_type)
+
+        return _post_binary()
+
+    def put_binary(self,
+                   url: str,
+                   data: Any,
+                   content_type: str = None,
+                   expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of PUT for binary data.
 
         :param url: Url to use
         :param data: The payload to PUT. This can be anything 'requests.put(data=...)' supports.
         :param content_type: The content type of the data. Defaults to "application/octet-stream" internally if unset.
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
-        res = requests.put(url,
-                           data=data,
-                           headers=self._get_headers(
-                               {"Content-Type": (content_type or "application/octet-stream")}
-                           ),
-                           verify=self.ssl_config.get_verify(),
-                           cert=self.ssl_config.get_cert(),
-                           timeout=self._timeout,
-                           proxies=self._get_proxies())
-        self._log_communication(res, request_body=False)
-        return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def get(self, url: str) -> dict:
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _put_binary() -> Any:
+            res = requests.put(url,
+                               data=data,
+                               headers=self._get_headers(
+                                   {"Content-Type": (content_type or "application/octet-stream")}
+                               ),
+                               verify=self.ssl_config.get_verify(),
+                               cert=self.ssl_config.get_cert(),
+                               timeout=self._timeout,
+                               proxies=self._get_proxies())
+            self._log_communication(res, request_body=False)
+            return self._parse_response(res, expected_media_type)
+
+        return _put_binary()
+
+    def get(self,
+            url: str,
+            expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of GET
 
         :param url: Url to use
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
-        res = requests.get(url,
-                           headers=self._get_headers({"Content-Type": None}),
-                           verify=self.ssl_config.get_verify(),
-                           cert=self.ssl_config.get_cert(),
-                           timeout=self._timeout,
-                           proxies=self._get_proxies())
-        self._log_communication(res)
-        return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def post(self, url: str, data: Any) -> dict:
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _get() -> Any:
+            res = requests.get(url,
+                               headers=self._get_headers({"Content-Type": None}),
+                               verify=self.ssl_config.get_verify(),
+                               cert=self.ssl_config.get_cert(),
+                               timeout=self._timeout,
+                               proxies=self._get_proxies())
+            self._log_communication(res)
+            return self._parse_response(res, expected_media_type)
+
+        return _get()
+
+    def post(self,
+             url: str,
+             data: Any,
+             expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of POST
 
         :param url: Url to use
         :param data: The payload to POST
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
-        res = requests.post(url,
-                            json=data,
-                            headers=self._get_headers(),
-                            verify=self.ssl_config.get_verify(),
-                            cert=self.ssl_config.get_cert(),
-                            timeout=self._timeout,
-                            proxies=self._get_proxies())
-        self._log_communication(res)
-        return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def put(self, url: str, data: Any) -> dict:
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _post() -> Any:
+            res = requests.post(url,
+                                json=data,
+                                headers=self._get_headers(),
+                                verify=self.ssl_config.get_verify(),
+                                cert=self.ssl_config.get_cert(),
+                                timeout=self._timeout,
+                                proxies=self._get_proxies())
+            self._log_communication(res)
+            return self._parse_response(res, expected_media_type)
+
+        return _post()
+
+    def put(self,
+            url: str,
+            data: Any,
+            expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of PUT
 
         :param url: Url to use
         :param data: The payload to PUT
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
-        res = requests.put(url,
-                           json=data,
-                           headers=self._get_headers(),
-                           verify=self.ssl_config.get_verify(),
-                           cert=self.ssl_config.get_cert(),
-                           timeout=self._timeout,
-                           proxies=self._get_proxies())
-        self._log_communication(res)
-        return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def patch(self, url: str, data: Any) -> dict:
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _put() -> Any:
+            res = requests.put(url,
+                               json=data,
+                               headers=self._get_headers(),
+                               verify=self.ssl_config.get_verify(),
+                               cert=self.ssl_config.get_cert(),
+                               timeout=self._timeout,
+                               proxies=self._get_proxies())
+            self._log_communication(res)
+            return self._parse_response(res, expected_media_type)
+
+        return _put()
+
+    def patch(self,
+              url: str,
+              data: Any,
+              expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of PATCH
 
         :param url: Url to use
         :param data: The payload to PUT
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
-        res = requests.patch(url,
-                             json=data,
-                             headers=self._get_headers(),
-                             verify=self.ssl_config.get_verify(),
-                             cert=self.ssl_config.get_cert(),
-                             timeout=self._timeout,
-                             proxies=self._get_proxies())
-        self._log_communication(res)
-        return self._parse_json_response(res)
 
-    @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS)
-    def delete(self, url: str) -> dict:
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _patch() -> Any:
+            res = requests.patch(url,
+                                 json=data,
+                                 headers=self._get_headers(),
+                                 verify=self.ssl_config.get_verify(),
+                                 cert=self.ssl_config.get_cert(),
+                                 timeout=self._timeout,
+                                 proxies=self._get_proxies())
+            self._log_communication(res)
+            return self._parse_response(res, expected_media_type)
+
+        return _patch()
+
+    def delete(self,
+               url: str,
+               expected_media_type: str = 'application/json') -> Any:
         """
         Implementation of DELETE
 
         :param url: Url to use
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
         :return: The payload of the response
         """
-        res = requests.delete(url,
-                              headers=self._get_headers({"Content-Type": None}),
-                              verify=self.ssl_config.get_verify(),
-                              cert=self.ssl_config.get_cert(),
-                              timeout=self._timeout,
-                              proxies=self._get_proxies())
-        self._log_communication(res)
-        return self._parse_json_response(res)
+
+        @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
+        def _delete() -> Any:
+            res = requests.delete(url,
+                                  headers=self._get_headers({"Content-Type": None}),
+                                  verify=self.ssl_config.get_verify(),
+                                  cert=self.ssl_config.get_cert(),
+                                  timeout=self._timeout,
+                                  proxies=self._get_proxies())
+            self._log_communication(res)
+            return self._parse_response(res, expected_media_type)
+
+        return _delete()
 
     ###############################################################################################################
     # Tool methods for requests
@@ -385,18 +466,30 @@ class AbstractAPI:
         params_cleaned = {k: AbstractAPI._bool_to_external_str(v) for k, v in params.items() if v is not None}
         return ('?' + urlencode(params_cleaned, quote_via=quote, safe="/,")) if params_cleaned else ""
 
-    def _parse_json_response(self, res: requests.Response) -> dict:
+    def _parse_response(self,
+                        res: requests.Response,
+                        expected_media_type: str = 'application/json') -> Any:
         """
         Parse the response of the backend.
 
         :param res: The result payload
-        :return: The result payload
+        :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
+               '*/*', any media_type is accepted.
+        :return: The result payload. A json type when the result media_type within Content-Type is 'application/json'
+                 (usually a dict), a str otherwise.
         :raises RequestException: On HTTP errors.
+        :raises WrongContentTypeError: When the Media-Type of the Content-Type of the Response is not
+                *expected_media_type*.
         """
         try:
             self._check_response(res)
             self._check_status_error(res)
-            return res.json()
+            if expected_media_type not in ['*', '*/*']:
+                AbstractAPI._check_content_type(res, expected_media_type)
+            if expected_media_type.lower() == 'application/json':
+                return res.json()
+            else:
+                return str(res.text)
         except (json.JSONDecodeError, ValueError):
             return {"error": {"message": res.text, "code": 999}}
 
@@ -432,7 +525,10 @@ class AbstractAPI:
                 body = str(body, encoding or 'utf8')
             return body
 
-        if logger.isEnabledFor(logging.DEBUG):
+        ok = self._check_response_ok(res)
+
+        if (not ok and self._log_communication_on_error) or logger.isEnabledFor(
+                logging.DEBUG):
             log_message = f'''
 ################ request ################
 {res.request.method} {res.request.url}
@@ -444,7 +540,7 @@ class AbstractAPI:
 {_body_str(res.text, res.encoding) if response_body else "(body hidden)"}
 '''
 
-            if not res.ok:
+            if not ok:
                 logger.error(log_message)
             else:
                 logger.debug(log_message)
@@ -469,14 +565,62 @@ class AbstractAPI:
 
             if res.content:
                 try:
-                    json_result: dict = res.json()
-                    message = json_result['error']['message']
-                    http_error_msg += ": " + message
-                except (json.JSONDecodeError, KeyError):
+                    AbstractAPI._check_content_type(res, 'application/json')
+                    http_error_msg += ": " + self._get_error_message(res.json())
+                except (json.JSONDecodeError, KeyError, WrongContentTypeError):
                     if '_TOKEN' not in res.text:
                         http_error_msg += ": " + str(res.text)
 
             raise requests.exceptions.HTTPError(http_error_msg, response=err.response) from err
+
+    def _get_error_message(self, json_result: dict) -> str:
+        """
+        Extract error message from {"error": { "message": "(errormessage)" }} or {"error":"(errormessage)" } if
+        possible. Return the complete JSON as str if not.
+
+        :param json_result: The json dict containing the error message.
+        :return: The extracted error message.
+        """
+        if 'error' in json_result:
+            error_block = json_result.get('error')
+            if isinstance(error_block, dict):
+                error_message = error_block.get('message')
+                return error_message if isinstance(error_message, str) else json.dumps(error_block)
+            if isinstance(error_block, str):
+                return error_block
+
+        return json.dumps(json_result)
+
+    @staticmethod
+    def _check_content_type(res: requests.Response, expected_media_type: str) -> None:
+        """
+        Raise an Exception if the Content-Type header of the response does not contain the *expected_media_type*.
+        Compares only the media-type portion of the header (by splitting at ';').
+
+        :param res: The response object
+        :param expected_media_type: The expected Media-Type.
+        :raise WrongContentTypeError: When the Media-Type of the Content-Type is not *expected_media_type* or
+               the header is is missing completely.
+        """
+        content_type = res.headers.get('Content-Type')
+        if not content_type:
+            raise WrongContentTypeError("Response has no Content-Type.")
+
+        media_type = content_type.lower().split(';')[0]
+
+        if media_type != expected_media_type.lower():
+            raise WrongContentTypeError(
+                f"Expected media-type '{expected_media_type}' in Content-Type header, but got '{media_type}'."
+            )
+
+    def _check_response_ok(self, res: requests.Response) -> bool:
+        """
+        Do not rely on res.ok. Everything not between 200 and 399 is an error.
+
+        :param res: The response object
+        :return: True on good response, false otherwise.
+        """
+        return 200 <= res.status_code < 400
 
     ###############################################################################################################
     # Response and token handling
@@ -520,7 +664,9 @@ class AbstractTokenApiHandler(AbstractAPI):
                  timeout: int = 600,
                  client_name: str = None,
                  custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None):
+                 ssl_config: SSLConfig = None,
+                 log_communication_on_error: bool = None,
+                 max_tries: int = None):
         """
         Constructor
 
@@ -546,6 +692,9 @@ class AbstractTokenApiHandler(AbstractAPI):
                from /api/version. Example see above.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
+        :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
+               detected. Default is not to do this.
+        :param max_tries: Max tries for BACKOFF. Default is 2.
         """
         super().__init__(root_url=root_url,
                          raise_exceptions=raise_exceptions,
@@ -553,7 +702,9 @@ class AbstractTokenApiHandler(AbstractAPI):
                          timeout=timeout,
                          headers=headers,
                          client_name=client_name,
-                         ssl_config=ssl_config)
+                         ssl_config=ssl_config,
+                         log_communication_on_error=log_communication_on_error,
+                         max_tries=max_tries)
 
         self._version_info = None
         self.custom_endpoints = custom_endpoints
@@ -729,7 +880,9 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                  timeout: int = 600,
                  client_name: str = None,
                  custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None):
+                 ssl_config: SSLConfig = None,
+                 log_communication_on_error: bool = None,
+                 max_tries: int = None):
         """
         Constructor
 
@@ -745,6 +898,9 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                /api/version.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
+        :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
+               detected. Default is not to do this.
+        :param max_tries: Max tries for BACKOFF. Default is 2.
         """
         super().__init__(
             root_url=root_url,
@@ -754,7 +910,9 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
             headers=headers,
             client_name=client_name,
             custom_endpoints=custom_endpoints,
-            ssl_config=ssl_config
+            ssl_config=ssl_config,
+            log_communication_on_error=log_communication_on_error,
+            max_tries=max_tries
         )
 
         self._token = token
@@ -790,7 +948,9 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                  timeout: int = 600,
                  client_name: str = None,
                  custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None):
+                 ssl_config: SSLConfig = None,
+                 log_communication_on_error: bool = None,
+                 max_tries: int = None):
         """
         Constructor
 
@@ -806,6 +966,9 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                /api/version.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
+        :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
+               detected. Default is not to do this.
+        :param max_tries: Max tries for BACKOFF. Default is 2.
         """
         super().__init__(
             root_url=root_url,
@@ -815,7 +978,9 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
             timeout=timeout,
             client_name=client_name,
             custom_endpoints=custom_endpoints,
-            ssl_config=ssl_config
+            ssl_config=ssl_config,
+            log_communication_on_error=log_communication_on_error,
+            max_tries=max_tries
         )
 
         self._env_var = env_var
@@ -975,7 +1140,9 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                  timeout: int = 600,
                  client_name: str = None,
                  custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None):
+                 ssl_config: SSLConfig = None,
+                 log_communication_on_error: bool = None,
+                 max_tries: int = None):
         """
         Constructor
 
@@ -995,6 +1162,9 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                /api/version.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
+        :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
+               detected. Default is not to do this.
+        :param max_tries: Max tries for BACKOFF. Default is 2.
         """
         super().__init__(
             root_url=root_url,
@@ -1004,7 +1174,9 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
             timeout=timeout,
             client_name=client_name,
             custom_endpoints=custom_endpoints,
-            ssl_config=ssl_config
+            ssl_config=ssl_config,
+            log_communication_on_error=log_communication_on_error,
+            max_tries=max_tries
         )
 
         self._username = username
@@ -1175,7 +1347,9 @@ class AuthenticatedAPIHandler(AbstractAPI):
                          headers=api_handler._headers,
                          timeout=api_handler._timeout,
                          client_name=api_handler._client_name,
-                         ssl_config=api_handler.ssl_config)
+                         ssl_config=api_handler.ssl_config,
+                         log_communication_on_error=api_handler._log_communication_on_error,
+                         max_tries=api_handler._get_max_tries())
 
         self._api_handler = api_handler
         self._api_name = api_name
@@ -1244,5 +1418,13 @@ class TokenUnauthorizedError(AuthenticationTokenError):
 class FixedTokenError(AuthenticationTokenError):
     """
     Child of *AuthenticationTokenErrors*. Used when tokens are fixed and cannot be refreshed.
+    """
+    pass
+
+
+class WrongContentTypeError(Exception):
+    """
+    When the Content-Type of the result is unexpected, i.e. 'application/json' was expected, but something else got
+    returned.
     """
     pass

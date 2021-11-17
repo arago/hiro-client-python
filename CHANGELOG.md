@@ -1,3 +1,23 @@
+# v4.7.0
+
+* Content- / Media-Type handling
+
+    * Throw `WrongContentTypeError` when an unexpected (or missing) Content-Type is returned.
+    * Check for Content-Type of error results for constructing HTTPError.
+
+* Error handling
+
+    * Separate error message extraction, so it can be overwritten per API.
+    * Try to handle different message formats by guessing, where their error message might be.
+    * Intercept special error messages for API `ki`.
+    * Flag `log_communication_on_error` to enable logging of communication when an error is detected in the response.
+
+* Add parameter `max_tries` to TokenHandlers.
+
+# v4.6.2
+
+* Added documentation of new APIs
+
 # v4.6.1
 
 * Updated CHANGELOG.md
@@ -5,11 +25,10 @@
 # v4.6.0
 
 * Added the following APIS:
-  * KI
-  * AuthZ
-  * Variables
+    * KI
+    * AuthZ
+    * Variables
 * Adjust return value typing with API methods that return lists of dicts.
-
 
 # v4.5.2
 
@@ -24,8 +43,7 @@ BUGFIX
 
 # v4.5.0
 
-* GitHub repository got renamed from `python-hiro-clients` to `hiro-client-python`.
-No other technical changes.
+* GitHub repository got renamed from `python-hiro-clients` to `hiro-client-python`. No other technical changes.
 
 # v4.4.0
 
@@ -44,10 +62,9 @@ No other technical changes.
 
 # v4.2.13
 
-* You need to explicitly set `query_params={'allscopes': 'true'}` if you
-  want to enable it for EventWebSockets. If this is left out of the
-  query_params, it will be added as 'allscopes': 'false'.
-  
+* You need to explicitly set `query_params={'allscopes': 'true'}` if you want to enable it for EventWebSockets. If this
+  is left out of the query_params, it will be added as 'allscopes': 'false'.
+
 # v4.2.12
 
 * Use typing to make sure, that `query_params=` for WebSockets is of type `Dict[str, str]`.
@@ -68,7 +85,7 @@ No other technical changes.
 
 # v4.2.8
 
-* WebSockets have new option `query_params` to add arbitrary query parameters to the initial websocket request.  
+* WebSockets have new option `query_params` to add arbitrary query parameters to the initial websocket request.
 
 # v4.2.7
 
@@ -91,7 +108,7 @@ Changes to `AbstractAuthenticatedWebSocketHandler`:
 
 Generic
 
-* Update README.md to show usage of `client_name`. 
+* Update README.md to show usage of `client_name`.
 
 # v4.2.6
 
