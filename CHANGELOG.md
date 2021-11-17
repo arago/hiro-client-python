@@ -1,6 +1,4 @@
-# 4.6.2
-
-* Added documentation of new APIs
+# v4.7.0
 
 * Content- / Media-Type handling
 
@@ -15,6 +13,10 @@
     * Flag `log_communication_on_error` to enable logging of communication when an error is detected in the response.
 
 * Add parameter `max_tries` to TokenHandlers.
+
+# v4.6.2
+
+* Added documentation of new APIs
 
 # v4.6.1
 
