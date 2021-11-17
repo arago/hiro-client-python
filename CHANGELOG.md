@@ -1,3 +1,17 @@
+# v4.7.1
+
+* Updated some code documentation in `HiroGraph` that became obsolete.
+ 
+* Updated graph queries in `HiroGraph`:
+
+  * For vertex and gremlin queries: Skip unnecessary fields in query
+    payload.
+  * Add parameter `count` to vertex query.
+
+* Renamed default _client_name to `hiro-graph-client` (name of the lib on PyPI).
+
+
+
 # v4.7.0
 
 * Content- / Media-Type handling

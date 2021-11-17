@@ -31,7 +31,8 @@ class HiroGraph(AuthenticatedAPIHandler):
               limit=-1,
               offset=0,
               order: str = None,
-              meta: bool = None) -> dict:
+              meta: bool = None,
+              count: bool = None) -> dict:
         """
         https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/post_query_vertices
 
@@ -41,17 +42,25 @@ class HiroGraph(AuthenticatedAPIHandler):
         :param offset: offset where to start returning entries
         :param order: order by a field asc|desc, e.g. ogit/name desc
         :param meta: List detailed metainformations in result payload
+        :param count: Just return the number of found items. Result payload is like
+               {"items":[&lt;number of items found as int&gt;]}.
         :return: Result payload
         """
         url = self.endpoint + '/query/vertices'
-        data = {"query": str(query),
-                "limit": limit,
-                "fields": (quote_plus(fields.replace(" ", ""), safe="/,") if fields else ""),
-                "count": False,
-                "listMeta": self._bool_to_external_str(meta),
-                "offset": offset}
-        if order is not None:
+
+        data = {"query": str(query)}
+        if fields:
+            data['fields'] = quote_plus(fields.replace(" ", ""), safe="/,")
+        if limit is not None:
+            data['limit'] = limit
+        if offset:
+            data['offset'] = offset
+        if order:
             data['order'] = order
+        if meta is not None:
+            data['listMeta'] = meta
+        if count is not None:
+            data['count'] = count
         return self.post(url, data)
 
     def query_gremlin(self,
@@ -71,11 +80,15 @@ class HiroGraph(AuthenticatedAPIHandler):
         :return: Result payload
         """
         url = self.endpoint + '/query/gremlin'
+
         data = {"query": str(query),
-                "root": root,
-                "fields": (quote_plus(fields.replace(" ", ""), safe="/,") if fields else ""),
-                "includeDeleted": self._bool_to_external_str(include_deleted),
-                "listMeta": self._bool_to_external_str(meta)}
+                "root": root}
+        if fields:
+            data['fields'] = quote_plus(fields.replace(" ", ""), safe="/,")
+        if include_deleted is not None:
+            data['include_deleted'] = include_deleted
+        if meta is not None:
+            data['listMeta'] = meta
         return self.post(url, data)
 
     def create_node(self, data: dict, obj_type: str, return_id=False) -> Union[dict, str]:

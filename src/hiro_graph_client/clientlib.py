@@ -105,7 +105,7 @@ class AbstractAPI:
 
     ssl_config: SSLConfig
 
-    _client_name: str = "python-hiro-client"
+    _client_name: str = "hiro-graph-client"
 
     _max_tries: int = 2
 
@@ -128,7 +128,7 @@ class AbstractAPI:
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
-                            is given with another value for "User-Agent". Default is "python-hiro-client".
+                            is given with another value for "User-Agent". Default is "hiro-graph-client".
         :param ssl_config: Optional configuration for SSL connections. If this is omitted, the defaults of `requests`
                            lib will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
@@ -578,6 +578,8 @@ class AbstractAPI:
         Extract error message from {"error": { "message": "(errormessage)" }} or {"error":"(errormessage)" } if
         possible. Return the complete JSON as str if not.
 
+        Child API classes should overwrite this method if their error messages differ.
+
         :param json_result: The json dict containing the error message.
         :return: The extracted error message.
         """
@@ -616,6 +618,8 @@ class AbstractAPI:
     def _check_response_ok(self, res: requests.Response) -> bool:
         """
         Do not rely on res.ok. Everything not between 200 and 399 is an error.
+
+        Child API classes should overwrite this method if other custom and valid status codes might occur there.
 
         :param res: The response object
         :return: True on good response, false otherwise.
@@ -687,7 +691,7 @@ class AbstractTokenApiHandler(AbstractAPI):
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
-                            is given with another value for "User-Agent". Default is "python-hiro-client".
+                            is given with another value for "User-Agent". Default is "hiro-graph-client".
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
                from /api/version. Example see above.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
@@ -893,7 +897,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
-                            is given with another value for "User-Agent". Default is "python-hiro-client".
+                            is given with another value for "User-Agent". Default is "hiro-graph-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
@@ -961,7 +965,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
-                            is given with another value for "User-Agent". Default is "python-hiro-client".
+                            is given with another value for "User-Agent". Default is "hiro-graph-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
@@ -1157,7 +1161,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
-                            is given with another value for "User-Agent". Default is "python-hiro-client".
+                            is given with another value for "User-Agent". Default is "hiro-graph-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
