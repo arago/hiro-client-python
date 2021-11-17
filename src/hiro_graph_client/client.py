@@ -53,8 +53,6 @@ class HiroGraph(AuthenticatedAPIHandler):
             data['fields'] = quote_plus(fields.replace(" ", ""), safe="/,")
         if limit is not None:
             data['limit'] = limit
-        if meta is not None:
-            data['listMeta'] = meta
         if offset:
             data['offset'] = offset
         if order:
