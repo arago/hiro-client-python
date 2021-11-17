@@ -47,7 +47,7 @@ class AbstractIOCarrier:
     then closed.
     """
     __io_base: IO = None
-    """ Private reference to the IO object. Starts with value None and needs to be set in method *start()*. """
+    """ Private reference to the IO object. Starts with value None and needs to be set via property *io_base()*. """
 
     def __enter__(self) -> IO:
         """ To be able to use *with <child of AbstractIOCarrier> as io_item:* """
@@ -68,7 +68,7 @@ class AbstractIOCarrier:
     @io_base.setter
     def io_base(self, io_base: IO) -> None:
         """
-        Property setter io_base. This property has to be set in *start()* by the child class.
+        Property setter io_base.
         """
         self.__io_base = io_base
 
@@ -122,8 +122,8 @@ class BasicFileIOCarrier(AbstractIOCarrier):
 
 class SessionData:
     """
-    Contains caches and session parameters and the token handler.
-    At the moment it carries *xid_cache*, an *edge_store* and a *content_store*. And the *token_handler*.
+    Contains caches and session parameters.
+    At the moment it carries *xid_cache*, an *edge_store* and a *content_store*.
     """
     xid_cache: dict
     """Cache for xid:id"""
@@ -255,8 +255,8 @@ class HiroBatchRunner:
 
         :param entity: Entity that gets handled (vertex, edge, timeseries etc.)
         :param action: Action to execute on these entities (create, update, delete)
+        :param session_data: Carries session data and caches.
         :param connection: The hiro client to use.
-        :param session_data: Carries session data like caches.
         """
         self.connection = connection
         self.entity = entity
@@ -349,7 +349,7 @@ class HiroBatchRunner:
 
         ogit_id = self.get_vertex_id(attributes, id_key, xid_key)
 
-        if ogit_id is None or not ogit_id:
+        if not ogit_id:
             raise SourceValueError(
                 "\"{}\" not found or empty in attributes and cannot be determined by any \"{}\"".format(id_key,
                                                                                                         xid_key))
@@ -376,8 +376,9 @@ class HiroBatchRunner:
     @staticmethod
     def for_each_attribute(attributes: dict, *funcs) -> dict:
         """
-        Create a copy of *attributes* where a list of functions is applied to each item. Also does not copy any
-        attribute whose key is empty or starts with '_'.
+        Iterate over *attributes* and apply a list of functions to each item. Skips any attribute whose key is
+        empty or starts with '_'. Returns a dict with the results after the *funcs* have been applied, leaving the
+        original *attributes* unchanged.
 
         :param attributes: Dict of attributes.
         :param funcs: Set of functions to apply to each element of *attributes*.
@@ -556,7 +557,7 @@ class HiroBatchRunner:
         :param attributes: A dict of attributes to handle.
         :return: A response dict - usually directly the structure received from the backend.
         """
-        raise RuntimeError("Cannot _run within HiroCommandBatch directly.")
+        raise RuntimeError("Cannot call abstract method 'run_item()' within HiroCommandBatch directly.")
 
 
 class CreateVerticesRunner(HiroBatchRunner):
@@ -838,8 +839,7 @@ class HiroGraphBatch:
         """
         Constructor
 
-        Use the connection to HIRO HiroGraph either by giving a predefined *hiro_token* or by
-        specifying all other parameters needed for authentication.
+        HiroGraphBatch is using API HiroGraph internally.
 
         :param api_handler: External API handler.
         :param callback: required when multi_command() is used, optional otherwise: Callback object for results.
@@ -1060,7 +1060,9 @@ class HiroGraphBatch:
 
     def _reader(self, collected_results: list) -> None:
         """
-        Thread executor function. Read items from the *self.result_queue* and call the callback function with them.
+        Thread executor function. Read items from the *self.result_queue*. Since either *self.callback*
+        or *collected_results* is set usually, the results either get passed through the callback function or get
+        collected in *collected_results*.
 
         Thread exits when *self.result_queue.get()* reads None.
         """
@@ -1074,7 +1076,7 @@ class HiroGraphBatch:
     def _worker(self, session: SessionData) -> None:
         """
         Thread executor function. Create a connection, then read data from the *self.request_queue* and execute
-        the command with the attributes and session the data from the queue provides.
+        the command with the attributes from the queue and the session provided.
 
         Thread exits when *self.request_queue.get()* reads None.
 
@@ -1117,7 +1119,7 @@ class HiroGraphBatch:
             },
             ...
 
-        with payload being a list of dict containing the attributes to _run with that command.
+        with payload being a list of dict containing the attributes to run with that command.
 
         :param command_iter: An iterator for a dict of pairs "[command]:payload".
         :return a list with results when no callback is set, None otherwise.

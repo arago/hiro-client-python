@@ -578,6 +578,8 @@ class AbstractAPI:
         Extract error message from {"error": { "message": "(errormessage)" }} or {"error":"(errormessage)" } if
         possible. Return the complete JSON as str if not.
 
+        Child API classes should overwrite this method if their error messages differ.
+
         :param json_result: The json dict containing the error message.
         :return: The extracted error message.
         """
@@ -616,6 +618,8 @@ class AbstractAPI:
     def _check_response_ok(self, res: requests.Response) -> bool:
         """
         Do not rely on res.ok. Everything not between 200 and 399 is an error.
+
+        Child API classes should overwrite this method if other custom and valid status codes might occur there.
 
         :param res: The response object
         :return: True on good response, false otherwise.
