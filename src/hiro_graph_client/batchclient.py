@@ -1020,20 +1020,21 @@ class HiroGraphBatch:
                         handle_session_data = True
 
                     try:
-                        if command in self.command_map:
-                            if isinstance(attributes, list):
-                                for attribute_entry in attributes:
-                                    parallel_workers = _request_queue_put(
-                                        command,
-                                        attribute_entry,
-                                        parallel_workers)
-                            else:
+                        if command not in self.command_map:
+                            raise SourceValueError("No such command \"{}\".".format(command))
+
+                        if isinstance(attributes, list):
+                            for attribute_entry in attributes:
                                 parallel_workers = _request_queue_put(
                                     command,
-                                    attributes,
+                                    attribute_entry,
                                     parallel_workers)
                         else:
-                            raise SourceValueError("No such command \"{}\".".format(command))
+                            parallel_workers = _request_queue_put(
+                                command,
+                                attributes,
+                                parallel_workers)
+
                     except SourceValueError as err:
                         sub_result, sub_code = HiroBatchRunner.error_message(
                             Entity.UNDEFINED,
