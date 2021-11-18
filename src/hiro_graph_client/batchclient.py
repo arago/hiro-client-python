@@ -817,18 +817,17 @@ class HiroGraphBatch:
     use_xid_cache: bool
     """Use xid caching. Default is True when omitted or set to None."""
 
-    commands = [
-        "create_vertices",
-        "update_vertices",
-        "handle_vertices",
-        "handle_vertices_combined",
-        "delete_vertices",
-        "create_edges",
-        "delete_edges",
-        "add_timeseries",
-        "add_attachments"
-    ]
-    """This is the list of commands (method names) that HiroGraphBatch handles."""
+    command_map = {
+        "create_vertices": CreateVerticesRunner,
+        "update_vertices": UpdateVerticesRunner,
+        "handle_vertices": HandleVerticesRunner,
+        "delete_vertices": DeleteVerticesRunner,
+        "create_edges": CreateEdgesRunner,
+        "delete_edges": DeleteEdgesRunner,
+        "add_timeseries": AddTimeseriesRunner,
+        "add_attachments": AddAttachmentRunner
+    }
+    """This is the map of commands that HiroGraphBatch handles."""
 
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,
@@ -861,143 +860,6 @@ class HiroGraphBatch:
         self.max_parallel_workers = max_parallel_workers
 
         self.use_xid_cache = False if use_xid_cache is False else True
-
-    def __prepare_session_and_connection(self,
-                                         session: SessionData,
-                                         connection: HiroGraph) -> Tuple[SessionData, HiroGraph]:
-        """
-        Initialize session and connection if either of them is unset.
-
-        :param session: Predefined session - if any.
-        :param connection:  Predefined connection - if any.
-        :return: A tuple of (SessionData, HiroGraph)
-        """
-        if not session:
-            session = SessionData(self.use_xid_cache)
-        if not connection:
-            connection = HiroGraph(api_handler=self._api_handler)
-        return session, connection
-
-    def create_vertices(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
-        """
-        Create vertex from *attributes*.
-
-        :param attributes: Dict containing the attributes for the vertex.
-        :param connection: optional: Connection to use. A new connection will be used if this is not set.
-        :param session: optional: Persistent data for the current session. Use a local session if this is not set.
-        """
-        session, connection = self.__prepare_session_and_connection(session, connection)
-        return CreateVerticesRunner(session, connection).run(attributes, self.result_queue)
-
-    def update_vertices(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
-        """
-        Update vertex from *attributes*.
-
-        Attributes needs at least a key "ogit/_id" or "ogit/_xid" to find the vertex to be updated.
-        It then sanitizes the payload by ignoring every attribute starting with "ogit/_" (unless "ogit/_owner",
-        "ogit/_content" or "ogit/_tags") of the dict before attempting to update.
-
-        :param attributes: Dict containing the attributes for the vertex.
-        :param connection: optional: Connection to use. A new connection will be used if this is not set.
-        :param session: optional: Persistent data for the current session. Use a local session if this is not set.
-        """
-        session, connection = self.__prepare_session_and_connection(session, connection)
-        return UpdateVerticesRunner(session, connection).run(attributes, self.result_queue)
-
-    def delete_vertices(self, attributes: dict, connection: HiroGraph, session: SessionData = None):
-        """
-        Delete vertex given by *attributes*.
-
-        Attributes needs at least a key "ogit/_id" or "ogit/_xid" to find the vertex to be deleted.
-
-        :param attributes: Dict containing the attributes for the vertex.
-        :param connection: optional: Connection to use. A new connection will be used if this is not set.
-        :param session: optional: Persistent data for the current session. Use a local session if this is not set.
-        """
-        session, connection = self.__prepare_session_and_connection(session, connection)
-        return DeleteVerticesRunner(session, connection).run(attributes, self.result_queue)
-
-    def handle_vertices(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
-        """
-        Handles vertex from *attributes*. Tries to update or create.
-
-        When attributes contain "ogit/_id" or "ogit/_xid", they will be used to update an
-        existing vertex, otherwise the attributes will be used to create a new vertex.
-
-        :param attributes: Dict containing the attributes for the vertex.
-        :param connection: optional: Connection to use. A new connection will be used if this is not set.
-        :param session: optional: Persistent data for the current session. Use a local session if this is not set.
-        """
-        session, connection = self.__prepare_session_and_connection(session, connection)
-        return HandleVerticesRunner(session, connection).run(attributes, self.result_queue)
-
-    def create_edges(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
-        """
-        Create edge from *attributes*.
-
-        Attributes needs a key "from:ogit/_id" or "from:ogit/_xid" and
-        "to:ogit/_id" or "to:ogit/_xid" as well as "verb" to be able to determine the vertices to connect.
-
-        :param attributes: Dict containing the fields "from:...,verb,to:..." for the edge.
-        :param connection: optional: Connection to use. A new connection will be used if this is not set.
-        :param session: optional: Persistent data for the current session. Use a local session if this is not set.
-        """
-        session, connection = self.__prepare_session_and_connection(session, connection)
-        return CreateEdgesRunner(session, connection).run(attributes, self.result_queue)
-
-    def delete_edges(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
-        """
-        Delete edge given by *attributes*.
-
-        Attributes needs a key "from:ogit/_id" or "from:ogit/_xid" and
-        "to:ogit/_id" or "to:ogit/_xid" as well as "verb" to be able to determine the edge between the vertices to
-        delete.
-
-        :param attributes: Dict containing the "from:...,verb,to:..." fields for the edge.
-        :param connection: optional: Connection to use. A new connection will be used if this is not set.
-        :param session: optional: Persistent data for the current session. Use a local session if this is not set.
-        """
-        session, connection = self.__prepare_session_and_connection(session, connection)
-        return DeleteEdgesRunner(session, connection).run(attributes, self.result_queue)
-
-    def add_timeseries(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
-        """
-        Update vertices with timeseries data.
-
-        Attributes needs at least a key "ogit/_id" or "ogit/_xid" to find the vertex to be updated.
-
-        :param attributes: Contains the timeseries items.
-        :param connection: optional: Connection to use. A new connection will be used if this is not set.
-        :param session: optional: Persistent data for the current session. Use a local session if this is not set.
-        """
-        session, connection = self.__prepare_session_and_connection(session, connection)
-        return AddTimeseriesRunner(session, connection).run(attributes, self.result_queue)
-
-    def add_attachments(self, attributes: dict, connection: HiroGraph = None, session: SessionData = None):
-        """
-        Add attachment to vertex.
-
-        Attributes needs at least a key "ogit/_id" or "ogit/_xid" to find the vertex to be updated, and a dict
-        '_content_data' containing the payload to update under key 'data' - use an IO class of AbstractIOCarrier
-        for streaming.
-
-        Example:
-        ::
-
-            {
-                "ogit/_id": "",
-                "_content_data": {
-                    "data": "(payload)",
-                    "mimetype": "(content-type)"
-                }
-            }
-
-        :param attributes: Contains the attachment data.
-        :param connection: optional: Connection to use. A new connection will be used if this is not set.
-        :param session: optional: Persistent data for the current session. Use a local session if this is not set.
-        """
-        session, connection = self.__prepare_session_and_connection(session, connection)
-        return AddAttachmentRunner(session, connection).run(attributes, self.result_queue)
 
     def _edges_from_session(self, session: SessionData) -> None:
         """
@@ -1086,9 +948,10 @@ class HiroGraphBatch:
         connection = HiroGraph(self._api_handler)
 
         for command, attributes in iter(self.request_queue.get, None):
-            func = getattr(self, command, None)
-            if func:
-                func(attributes, connection, session)
+            runner_ref = self.command_map.get(command)
+            if runner_ref is not None:
+                runner_ref(session, connection).run(attributes, self.result_queue)
+
             self.request_queue.task_done()
 
     def multi_command(self, command_iter: Iterator[dict]) -> Optional[list]:
@@ -1157,7 +1020,7 @@ class HiroGraphBatch:
                         handle_session_data = True
 
                     try:
-                        if command in self.commands:
+                        if command in self.command_map:
                             if isinstance(attributes, list):
                                 for attribute_entry in attributes:
                                     parallel_workers = _request_queue_put(
