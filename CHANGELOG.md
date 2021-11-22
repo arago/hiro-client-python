@@ -1,3 +1,7 @@
+# v4.7.2
+
+* Fixed bad call of patch() methods in IAM API.
+
 # v4.7.1
 
 * Updated some code documentation in `HiroGraph` that became obsolete.
