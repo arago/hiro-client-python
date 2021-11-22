@@ -92,7 +92,7 @@ class HiroIam(AuthenticatedAPIHandler):
         :return: Dict with the result
         """
         url = self.endpoint + "/accounts/" + quote_plus(node_id) + "/activate"
-        return self.patch(url)
+        return self.patch(url, data=None)
 
     def get_account_avatar(self, account_id: str) -> Iterator[bytes]:
         """
@@ -133,7 +133,7 @@ class HiroIam(AuthenticatedAPIHandler):
         }
 
         url = self.endpoint + "/accounts/" + quote_plus(account_id) + "/deactivate" + self._get_query_part(query)
-        return self.patch(url)
+        return self.patch(url, data=None)
 
     def put_account_password(self, account_id: str, data: dict) -> dict:
         """
