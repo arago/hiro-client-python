@@ -1,3 +1,7 @@
+# v4.7.3
+
+* Refactoring of `HiroGraphBatch`. Removed obsolete methods.
+
 # v4.7.2
 
 * Fixed bad call of patch() methods in IAM API.
