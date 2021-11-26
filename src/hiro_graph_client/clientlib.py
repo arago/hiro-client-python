@@ -1303,11 +1303,14 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
 
     def _check_response(self, res: requests.Response) -> None:
         """
-        This is a dummy method. No response checking here.
+        Response checking. When a refresh_token is present and status_code is 401, raise TokenUnauthorizedError.
+        This can happen when a refresh-token is not valid anymore.
 
         :param res: The result payload
+        :raise TokenUnauthorizedError: Raised to trigger a retry via self.get_token() in self.refresh_token().
         """
-        return
+        if res.status_code == 401 and self._token_info.refresh_token:
+            raise TokenUnauthorizedError(str(res.text), 401)
 
     def _handle_token(self) -> Optional[str]:
         """
