@@ -1,3 +1,8 @@
+# v4.7.4
+
+* [bugfix] Catch 401 when using PasswordAuthTokenHandler and refresh_token.
+  Raise TokenUnauthorizedError when this happens to trigger a retry.
+
 # v4.7.3
 
 * Refactoring of `HiroGraphBatch`. Removed obsolete methods.
