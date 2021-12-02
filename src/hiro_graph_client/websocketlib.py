@@ -166,7 +166,7 @@ class AbstractAuthenticatedWebSocketHandler:
         :param error: The Exception to store.
         """
         self._reader_status = ReaderStatus.FAILED
-        logger.error("Reader thread encountered error: %s", str(error))
+        logger.error("Reader encountered error: %s", str(error))
 
     def _check_message(self, ws: WebSocketApp, message: str) -> None:
         """
@@ -265,6 +265,11 @@ class AbstractAuthenticatedWebSocketHandler:
         # logger.exception(error)
 
         try:
+            # A '[Errno 9] Bad file descriptor' is expected when closing the websocket
+            # internally.
+            if self._reader_status == ReaderStatus.DONE and isinstance(error, OSError) and error.errno == 9:
+                return
+
             self._set_error(error)
             self.on_error(ws, error)
         except Exception as err:
