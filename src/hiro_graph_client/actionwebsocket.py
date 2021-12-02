@@ -488,8 +488,8 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
     A handler for actions
     """
 
-    submitStore: ActionStore
-    resultStore: ActionStore
+    submitStore: ActionStore = None
+    resultStore: ActionStore = None
 
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,
@@ -509,8 +509,10 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         self.resultStore = ActionStore()
 
     def __del__(self):
-        self.submitStore.stop_scheduler()
-        self.resultStore.stop_scheduler()
+        if self.submitStore:
+            self.submitStore.stop_scheduler()
+        if self.resultStore:
+            self.resultStore.stop_scheduler()
 
     def __finish_submit(self, action_id: str, action_handler_result: Optional[ActionHandlerResult]):
         """
