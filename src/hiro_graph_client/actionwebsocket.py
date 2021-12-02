@@ -534,10 +534,10 @@ class AbstractActionWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
         self.submitStore.start_scheduler()
         self.resultStore.start_scheduler()
 
-    def stop(self, timeout: int = None) -> None:
+    def stop(self) -> None:
         self.submitStore.stop_scheduler()
         self.resultStore.stop_scheduler()
-        super().stop(timeout)
+        super().stop()
 
     ###############################################################################################################
     # Websocket Events
