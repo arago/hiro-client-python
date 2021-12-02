@@ -1,3 +1,8 @@
+# v4.7.5
+
+* [budgfix] Handle `self.submitStore` and `self.resultStore` properly on shutdown in AbstractActionWebSocketHandler.
+  They might not have been initialized at all when startup fails.
+
 # v4.7.4
 
 * [bugfix] Catch 401 when using PasswordAuthTokenHandler and refresh_token.
