@@ -89,7 +89,6 @@ class AbstractAuthenticatedWebSocketHandler:
     _protocol: str
     _url: str
 
-    _timeout: int
     _auto_reconnect: bool
 
     _ws: Optional[WebSocketApp] = None
@@ -140,7 +139,6 @@ class AbstractAuthenticatedWebSocketHandler:
 
         self._api_handler = api_handler
 
-        self._timeout = timeout
         self._auto_reconnect = auto_reconnect
 
         self._reader_status = ReaderStatus.NONE
