@@ -367,35 +367,35 @@ class AbstractAuthenticatedWebSocketHandler:
         except Exception as err:
             raise WebSocketException("Cannot create WebSocketApp.") from err
 
+    def _stop(self, wait_for_finish: bool = True) -> None:
+        """
+        Intentionally closes this websocket. When called by the same thread as *self.run_forever()*,
+        *wait_for_finish* needs to be set to False or the method will deadlock.
+        """
+        with self._ws_guard:
+            if not self._ws:
+                return
+
+        with self._reader_guard:
+            self._reader_status = ReaderStatus.DONE
+            self._close()
+            with self._backoff_condition:
+                self._backoff_condition.notify()
+            if wait_for_finish:
+                self._reader_guard.wait()
+
     def stop(self) -> None:
         """
         Intentionally closes this websocket. This needs to be called from another thread than *self.run_forever()* or
         it will deadlock.
         """
-        with self._ws_guard:
-            if not self._ws:
-                return
-
-        with self._reader_guard:
-            self._reader_status = ReaderStatus.DONE
-            self._close()
-            with self._backoff_condition:
-                self._backoff_condition.notify()
-            self._reader_guard.wait()
+        self._stop(wait_for_finish=True)
 
     def signal_stop(self) -> None:
         """
         Intentionally closes this websocket without waiting. This is meant to be used in signal handlers.
         """
-        with self._ws_guard:
-            if not self._ws:
-                return
-
-        with self._reader_guard:
-            self._reader_status = ReaderStatus.DONE
-            self._close()
-            with self._backoff_condition:
-                self._backoff_condition.notify()
+        self._stop(wait_for_finish=False)
 
     def restart(self) -> None:
         """
