@@ -367,10 +367,13 @@ class AbstractAuthenticatedWebSocketHandler:
         except Exception as err:
             raise WebSocketException("Cannot create WebSocketApp.") from err
 
-    def _stop(self, wait_for_finish: bool = True) -> None:
+    def _stop(self, wait_for_finish: bool) -> None:
         """
-        Intentionally closes this websocket. When called by the same thread as *self.run_forever()*,
-        *wait_for_finish* needs to be set to False or the method will deadlock.
+        Intentionally closes this websocket. When called by the same thread as *self.run_forever()*
+        (i.e. by signal interrupt), *wait_for_finish* needs to be set to False or the method will deadlock.
+
+        :param wait_for_finish: Waits until *self.run_forever()* has returned. Set this to False for calls via signal
+                                interrupts.
         """
         with self._ws_guard:
             if not self._ws:
