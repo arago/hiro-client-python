@@ -179,7 +179,7 @@ class AbstractAuthenticatedWebSocketHandler:
         :param error: The Exception to store.
         """
         self._reader_status = ReaderStatus.FAILED
-        logger.error("Reader encountered error: %s", str(error))
+        logger.error("Reader encountered error: %s %s", error.__class__.__name__, str(error))
 
     def _check_message(self, ws: WebSocketApp, message: str) -> None:
         """
@@ -447,10 +447,10 @@ class AbstractAuthenticatedWebSocketHandler:
 
             self.on_close(self._ws)
 
-            self._reader_guard.notify_all()
+            with self._ws_guard:
+                self._ws = None
 
-        with self._ws_guard:
-            self._ws = None
+            self._reader_guard.notify_all()
 
     def is_active(self) -> bool:
         """
