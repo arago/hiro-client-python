@@ -367,13 +367,12 @@ class AbstractAuthenticatedWebSocketHandler:
         except Exception as err:
             raise WebSocketException("Cannot create WebSocketApp.") from err
 
-    def _stop(self, wait_for_finish: bool) -> None:
+    def _stop(self, wait_for_shutdown: bool = True) -> None:
         """
         Intentionally closes this websocket. When called by the same thread as *self.run_forever()*
-        (i.e. by signal interrupt), *wait_for_finish* needs to be set to False or the method will deadlock.
+        (i.e. by signal handler), *wait_for_shutdown* needs to be set to False or the method will deadlock.
 
-        :param wait_for_finish: Waits until *self.run_forever()* has returned. Set this to False for calls via signal
-                                interrupts.
+        :param wait_for_shutdown: Wait until *self.run_forever()* has returned. Default is True.
         """
         with self._ws_guard:
             if not self._ws:
@@ -384,21 +383,21 @@ class AbstractAuthenticatedWebSocketHandler:
             self._close()
             with self._backoff_condition:
                 self._backoff_condition.notify()
-            if wait_for_finish:
+            if wait_for_shutdown:
                 self._reader_guard.wait()
 
     def stop(self) -> None:
         """
-        Intentionally closes this websocket. This needs to be called from another thread than *self.run_forever()* or
-        it will deadlock.
+        Intentionally closes this websocket and waits for *self.run_forever()* to return. Call this from another thread
+        than *self.run_forever()*.
         """
-        self._stop(wait_for_finish=True)
+        self._stop(wait_for_shutdown=True)
 
     def signal_stop(self) -> None:
         """
         Intentionally closes this websocket without waiting. This is meant to be used in signal handlers.
         """
-        self._stop(wait_for_finish=False)
+        self._stop(wait_for_shutdown=False)
 
     def restart(self) -> None:
         """

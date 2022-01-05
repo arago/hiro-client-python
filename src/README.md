@@ -13,19 +13,20 @@ For more information about HIRO Automation, look at https://www.arago.co/
 
 For more information about the APIs this library covers, see https://developer.hiro.arago.co/7.0/api/
 
-Currently implemented are 
-  * `HiroApp` for `app`
-  * `HiroAuth` for `auth`
-  * `HiroGraph` for `graph`
-  * `HiroIam` for `iam`
-  * `HiroKi` for `ki`
-  * `HiroAuthz` for `authz`
-  * `HiroVariables` for `variables`
+Currently implemented are
+
+* `HiroApp` for `app`
+* `HiroAuth` for `auth`
+* `HiroGraph` for `graph`
+* `HiroIam` for `iam`
+* `HiroKi` for `ki`
+* `HiroAuthz` for `authz`
+* `HiroVariables` for `variables`
 
 and for the websockets
 
-  * `AbstractEventWebSocketHandler` for `event-ws`
-  * `AbstractActionWebSocketHandler` for `action-ws`
+* `AbstractEventWebSocketHandler` for `event-ws`
+* `AbstractActionWebSocketHandler` for `action-ws`
 
 ## Quickstart
 
@@ -273,7 +274,8 @@ SSL parameters are configured using the class `SSLConfig`. This class translates
 fields for the `requests` library of Python (parameters `cert` and `verify` there). This configuration is given to the
 TokenApiHandlers and will be used by the clients attached to it as well.
 
-If this is not set, the default settings of the library `requests` will be used, which is to verify any server certificates by using system defaults.
+If this is not set, the default settings of the library `requests` will be used, which is to verify any server
+certificates by using system defaults.
 
 #### Example: Disable verification
 
@@ -1210,6 +1212,46 @@ are either handled quickly or being buffered to avoid clogging the websocket. Th
 possible to handle each incoming message asynchronously in its own thread and have those threads send results back if
 needed (See multithreaded example in [Action WebSocket](#action-websocket)).
 
+### Closing WebSockets
+
+To shut these WebSockets (_ws_) down cleanly, please consider these scenarios:
+
+#### Default behaviour
+
+The library reacts on *KeyboardInterrupt* (SIGINT) and closes the WebSocket cleanly with closing message to the sever
+when such an interrupt is received. If another signal (like SIGTERM) is received, the program will stop immediately
+without any closing message back to the server.
+
+#### Signal handling
+
+When installing signal handlers, you need to use *ws.signal_stop()* to shut the WebSocket down. Do NOT use
+*ws.stop()* or the closing process will deadlock. This is because the signal interrupt is executed in the same thread
+as *ws.run_forever()*.
+
+Example:
+
+```python
+import signal
+
+[...]
+
+with ActionWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN')) as ws:
+    def signal_handler(signum, handler):
+        ws.signal_stop()
+
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGHUP, signal_handler)  # This signal might not be available on MS Windows 
+
+    ws.run_forever()
+```
+
+#### Closing from a separate thread
+
+When closing the WebSocket from another thread than the one running *ws.run_forever()*, you should use *ws.stop()*. This
+ensures, that the shutdown is synchronized and *ws.stop()* will return after the WebSocket has been closed.
+
 ### Event WebSocket
 
 This websocket receives notifications about changes to vertices that match a certain filter.
@@ -1240,23 +1282,17 @@ class EventsWebSocket(AbstractEventsWebSocketHandler):
         print("Delete:\n" + str(message))
 
 
-def wait_for_keypress(websocket: EventsWebSocket):
-    input("Press [Enter] to stop.\n")
-    websocket.stop()
-
-
 events_filter = EventsFilter(filter_id='testfilter', filter_content="(element.ogit/_type=ogit/MARS/Machine)")
 
 with EventsWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN'),
                      events_filters=[events_filter],
                      query_params={"allscopes": "false", "delta": "false"}) as ws:
-    threading.Thread(daemon=True, target=wait_for_keypress, args=(ws,)).start()
-    ws.run_forever()
+    ws.run_forever() # Use KeyboardInterrupt (Ctrl-C) to exit. 
 
 ```
 
 If you do not set the parameter `scope=`, the default scope of your account will be used. If you need to set the scope
-by hand, use the following: 
+by hand, use the following:
 
 ```python
 [...]
@@ -1269,8 +1305,7 @@ with EventsWebSocket(api_handler=api_handler,
                      events_filters=[events_filter],
                      scopes=[default_scope],
                      query_params={"allscopes": "false", "delta": "false"}) as ws:
-    threading.Thread(daemon=True, target=wait_for_keypress, args=(ws,)).start()
-    ws.run_forever()
+    ws.run_forever() # Use KeyboardInterrupt (Ctrl-C) to exit. 
 
 ```
 
@@ -1306,18 +1341,12 @@ class ActionWebSocket(AbstractActionWebSocketHandler):
         pass
 
 
-def wait_for_keypress(websocket: ActionWebSocket):
-    input("Press [Enter] to stop.\n")
-    websocket.stop()
-
-
 with ActionWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN')) as ws:
-    threading.Thread(daemon=True, target=wait_for_keypress, args=(ws,)).start()
-    ws.run_forever()
+    ws.run_forever() # Use KeyboardInterrupt (Ctrl-C) to exit. 
 
 ```
 
-Multithreaded example using a thread executor:
+Multithreading example using a thread executor:
 
 ```python
 import threading
@@ -1362,13 +1391,7 @@ class ActionWebSocket(AbstractActionWebSocketHandler):
         pass
 
 
-def wait_for_keypress(websocket: ActionWebSocket):
-    input("Press [Enter] to stop.\n")
-    websocket.stop()
-
-
 with ActionWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN')) as ws:
-    threading.Thread(daemon=True, target=wait_for_keypress, args=(ws,)).start()
-    ws.run_forever()
+    ws.run_forever() # Use KeyboardInterrupt (Ctrl-C) to exit. 
 
 ```
