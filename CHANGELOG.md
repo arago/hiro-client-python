@@ -1,3 +1,18 @@
+#v4.8.0
+
+* Refactoring of `websocketlib.py`:
+
+  * Removed unnecessary extra thread.
+  * Debugged shutdown of WebSockets via signals and threads.
+  * Updated documentation:
+    * On signal handling.
+    * On clean shutdown of WebSockets.
+    * Adjusted the example code for WebSockets.
+
+
+* Allow `-` or `_` as build number separator on test tags, i.e. `t4.8.0_0` and `t4.8.0-0` are handled
+  identical now.
+
 # v4.7.5
 
 * [budgfix] Handle `self.submitStore` and `self.resultStore` properly on shutdown in AbstractActionWebSocketHandler.

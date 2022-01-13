@@ -248,4 +248,5 @@ $RECYCLE.BIN/
 **/config.ini
 **/config.py
 
+**/*.egg-info
 

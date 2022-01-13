@@ -24,7 +24,7 @@ def create_version(package: str) -> str:
     with os.popen('git describe --tags --long --always') as stream:
         internal_version = stream.read().strip()
 
-    regex_pattern = '@?([tv])((?:[0-9]+\\.){2,}[0-9]+)-([0-9]+)'
+    regex_pattern = '@?([tv])((?:[0-9]+\\.){2,}[0-9]+)[-_]([0-9]+)'
 
     match = re.search(regex_pattern, internal_version)
     if not match:

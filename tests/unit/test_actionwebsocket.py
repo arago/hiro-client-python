@@ -24,12 +24,12 @@ class ActionWebSocket(AbstractActionWebSocketHandler):
         super().start()
         self._executor = concurrent.futures.ThreadPoolExecutor()
 
-    def stop(self, timeout: int = None) -> None:
+    def stop(self) -> None:
         """ Shut the executor down """
         if self._executor:
             self._executor.shutdown()
         self._executor = None
-        super().stop(timeout)
+        super().stop()
 
     def handle_submit_action(self, action_id: str, capability: str, parameters: dict):
         """ Runs asynchronously in its own thread. """
