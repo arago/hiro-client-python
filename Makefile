@@ -9,7 +9,9 @@ PYTHON := python3
 # For user installations, set 'export PIPARGS=--user' or execute 'make <argument> PIPARGS=--user'
 #
 PIPARGS ?=
-PIP_INSTALL_ARGS = $(PIPARGS) --use-feature=in-tree-build
+# when using pip < 22.1
+# PIP_INSTALL_ARGS = $(PIPARGS) --use-feature=in-tree-build
+PIP_INSTALL_ARGS = $(PIPARGS)
 export PATH := $(HOME)/.local/bin:$(PATH)
 
 #
