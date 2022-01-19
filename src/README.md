@@ -788,14 +788,15 @@ commands: list = [
 #### handle_vertices_combined
 
 Same as [handle_vertices](#handle_vertices) above, but also collect additional information about edge connections,
-timeseries and data attachments that might be given in their attributes.
+timeseries, data attachments and linked automation issues that might be given in their attributes.
 
 The execution of this command has two stages:
 
 1) Use the vertex attributes and execute [handle_vertices](#handle_vertices) on _all_ vertices given, ignoring all
    attributes that start with `_`. Store the `ogit/_id`s of the handled vertices for stage two.
 2) When stage one is finished, take those remaining attributes, reformat them if necessary and
-   execute [create_edges](#create_edges),   [add_timeseries](#add_timeseries) or [add_attachments](#add_attachments)
+   execute [create_edges](#create_edges),   [add_timeseries](#add_timeseries), [add_attachments](#add_attachments) or,
+   for the automation issues, [handle_vertices](#handle_vertices)
    with them, using the `ogit/_id`s of the associated vertices from stage one.
 
 Each stage executes its activities in parallel, so what has been written about dependencies
@@ -830,6 +831,15 @@ The following additional attributes are supported:
 
   See also [add_attachments](#add_attachments)
 
+
+* Connected issues are given as a dict or a list of dicts using the key `_issue_data` which contains the attributes for one or more `ogit/Automation/AutomationIssue`. Additional attributes for the issue(s) will be set as needed:
+    * `ogit/_type`: Will be set automatically to `ogit/Automation/AutomationIssue`
+    * `ogit/Automation/originNode`: Will be set to the `ogit/_id` of the vertex that has been created in stage 1).
+    * `ogit/subject`: If this is missing in the issue data, a default value will be created either from the `ogit/_xid`
+      or its `ogit/_id` of the vertex from stage 1).
+
+  See also [create_vertices](#create_vertices)
+
 General structure:
 
 ```python
@@ -843,6 +853,8 @@ commands: list = [
                 "_timeseries_data": {
                 },
                 "_content_data": {
+                }
+                "_issue_data": {
                 }
             }
         ]
@@ -978,6 +990,43 @@ commands: list = [
                     "mimetype": "text/plain",
                     "data": BasicFileIOCarrier('<filename>')
                 }
+            }
+        ]
+    }
+]
+```
+
+Example for issue data:
+
+```python
+commands: list = [
+    {
+        "handle_vertices_combined": [
+            {
+                "ogit/_xid": "crew:NCC-1701-D:picard",
+                "ogit/_type": "ogit/Forum/Profile",
+                "ogit/name": "Jean-Luc Picard",
+                "ogit/Forum/username": "Picard",
+                "_issue_data": {
+                    "ogit/subject": "Handle Worf.",
+                    "/ProcessIssue": "processme"
+                }
+            },
+            {
+                "ogit/_xid": "crew:NCC-1701-D:worf",
+                "ogit/_type": "ogit/Forum/Profile",
+                "ogit/name": "Worf",
+                "ogit/Forum/username": "Worf",
+                "_issue_data": [
+                    {
+                        "ogit/subject": "Listen to Picard.",
+                        "/ProcessIssue": "processme"
+                    },
+                    {
+                        "ogit/subject": "Obey Picard.",
+                        "/ProcessIssue": "processme"
+                    }
+                ]
             }
         ]
     }
@@ -1287,7 +1336,7 @@ events_filter = EventsFilter(filter_id='testfilter', filter_content="(element.og
 with EventsWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN'),
                      events_filters=[events_filter],
                      query_params={"allscopes": "false", "delta": "false"}) as ws:
-    ws.run_forever() # Use KeyboardInterrupt (Ctrl-C) to exit. 
+    ws.run_forever()  # Use KeyboardInterrupt (Ctrl-C) to exit. 
 
 ```
 
@@ -1305,7 +1354,7 @@ with EventsWebSocket(api_handler=api_handler,
                      events_filters=[events_filter],
                      scopes=[default_scope],
                      query_params={"allscopes": "false", "delta": "false"}) as ws:
-    ws.run_forever() # Use KeyboardInterrupt (Ctrl-C) to exit. 
+    ws.run_forever()  # Use KeyboardInterrupt (Ctrl-C) to exit. 
 
 ```
 
@@ -1342,7 +1391,7 @@ class ActionWebSocket(AbstractActionWebSocketHandler):
 
 
 with ActionWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN')) as ws:
-    ws.run_forever() # Use KeyboardInterrupt (Ctrl-C) to exit. 
+    ws.run_forever()  # Use KeyboardInterrupt (Ctrl-C) to exit. 
 
 ```
 
@@ -1392,6 +1441,6 @@ class ActionWebSocket(AbstractActionWebSocketHandler):
 
 
 with ActionWebSocket(api_handler=FixedTokenApiHandler('HIRO_TOKEN')) as ws:
-    ws.run_forever() # Use KeyboardInterrupt (Ctrl-C) to exit. 
+    ws.run_forever()  # Use KeyboardInterrupt (Ctrl-C) to exit. 
 
 ```
