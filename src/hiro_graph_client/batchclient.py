@@ -139,7 +139,7 @@ class SessionData:
     """Stores a copy of '_content_data' under the value of 'ogit/_id' as key."""
 
     issue_store: dict
-    """Stores a tuple of '_issue_data' and ogit/_xid or ogit/_id under the value of 'ogit/_id' as key."""
+    """Stores a copy of '_issue_data' under the value of 'ogit/_id' as key."""
 
     def __init__(self, enable_cache: bool = True):
         """
@@ -212,7 +212,7 @@ class SessionData:
             self.content_store[ogit_id] = content_data.copy()
 
         if None not in [self.issue_store, ogit_id, issue_data]:
-            self.issue_store[ogit_id] = (issue_data.copy(), ogit_xid or ogit_id)
+            self.issue_store[ogit_id] = issue_data.copy()
 
     def unregister_by_response(self, response: dict) -> None:
         """
@@ -938,10 +938,7 @@ class HiroGraphBatch:
 
         :param session: The session with the issue data.
         """
-        for ogit_id, issue_store_data in session.issue_store.items():
-
-            issue_data = issue_store_data[0]
-            origin_id = issue_store_data[1]
+        for ogit_id, issue_data in session.issue_store.items():
 
             if isinstance(issue_data, dict):
                 issue_data = [issue_data]
@@ -949,9 +946,9 @@ class HiroGraphBatch:
                 counter = 0
                 for issue in issue_data:
                     counter += 1
+
                     issue.update({
                         "ogit/_type": "ogit/Automation/AutomationIssue",
-                        "ogit/subject": issue.get('ogit/subject') or f"AutomationIssue {counter} for {origin_id}.",
                         "ogit/Automation/originNode": ogit_id
                     })
 
