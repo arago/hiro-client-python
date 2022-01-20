@@ -13,7 +13,7 @@ For more information about HIRO Automation, look at https://www.arago.co/
 
 For more information about the APIs this library covers, see https://developer.hiro.arago.co/7.0/api/
 
-Currently implemented are
+Currently, implemented are
 
 * `HiroApp` for `app`
 * `HiroAuth` for `auth`
@@ -804,6 +804,8 @@ at [Input Data Format](#input-data-format) still applies for each stage.
 
 The following additional attributes are supported:
 
+`_edge_data`:
+
 * Edge attributes are given as a list with a key `_edge_data`. This list contains dicts with the following attributes:
     * `verb`: (required) Verb for that edge for the vertex of the current row.
     * `direction`: ("in"/"out") from the view of the current vertex. "in" points towards, "out"
@@ -814,64 +816,6 @@ The following additional attributes are supported:
 
   See also [create_edges](#create_edges), but take note, that the structure of `_edge_data` is reformatted internally to
   match the data needed for create_edges.
-
-
-* Timeseries attributes are given as a list with a key `_timeseries_data`. This list contains dicts of
-    * `timestamp` for epoch in ms.
-    * `value` for the timeseries value.
-
-  See also [add_timeseries](#add_timeseries), but take note, that the key of the list is called just `items` there.
-
-
-* Content attributes are given as a dict with a key `_content_data` which contains:
-    * `data`: Content to upload. This can be anything the Python library `requests` supports as attribute `data=`
-      in  `requests.post(data=...)`. If you set an IO object as data, it will be streamed. Also take a look at the
-      class `AbstractIOCarrier` to transparently handle opening and closing of IO sources - see [IOCarrier](#iocarrier).
-    * `mimetype`: (optional) Content-Type of the content.
-
-  See also [add_attachments](#add_attachments)
-
-
-* Connected issues are given as a dict or a list of dicts using the key `_issue_data` which contains the attributes for
-  one or more `ogit/Automation/AutomationIssue`. Attributes of the issue can be set freely inside `_issue_data` (
-  i.e. `ogit/_scope`, `ogit/_owner` or process variables like `/ProcessIssue` etc.), but some attributes there will be
-  handled in a special way:
-    * `ogit/_type`: Will be set automatically to `ogit/Automation/AutomationIssue`.
-    * `ogit/Automation/originNode`: Will be set to the `ogit/_id` of the vertex that has been created in stage 1).
-    * `ogit/subject`: If this is missing in the issue data, a default value will be created either from the `ogit/_xid`
-      or its `ogit/_id` of the vertex from stage 1).
-
-  See also [create_vertices](#create_vertices)
-
-  __Note__
-
-  This method is meant as a convenience to always create `ogit/Automation/AutomationIssue` linked to the vertex created
-  just before in stage 1). If you want to make `ogit/Automation/AutomationIssue` independently, create them as vertices
-  on their own. In this case, to find the `ogit/Automation/originNode` of a vertex with an unknown `ogit/_id`, you can
-  use the attribute key `xid:ogit/Automation/originNode` to find the vertex via its `ogit/_xid`.
-  See [create_vertices](#create_vertices) for more information about that special key.
-
-General structure:
-
-```python
-commands: list = [
-    {
-        "handle_vertices_combined": [
-            {
-                "<vertex attribute>": "<some value>",
-                "_edge_data": {
-                },
-                "_timeseries_data": {
-                },
-                "_content_data": {
-                }
-                "_issue_data": {
-                }
-            }
-        ]
-    }
-]
-```
 
 Example for edge data:
 
@@ -933,6 +877,14 @@ commands: list = [
 ]
 ```
 
+`_timeseries_data`:
+
+* Timeseries attributes are given as a list with a key `_timeseries_data`. This list contains dicts of
+    * `timestamp` for epoch in ms.
+    * `value` for the timeseries value.
+
+  See also [add_timeseries](#add_timeseries), but take note, that the key of the list is called just `items` there.
+
 Example for timeseries data:
 
 ```python
@@ -976,7 +928,17 @@ commands: list = [
 ]
 ```
 
-Example for attachment data:
+`_content_data`:
+
+* Content attributes are given as a dict with a key `_content_data` which contains:
+    * `data`: Content to upload. This can be anything the Python library `requests` supports as attribute `data=`
+      in  `requests.post(data=...)`. If you set an IO object as data, it will be streamed. Also take a look at the
+      class `AbstractIOCarrier` to transparently handle opening and closing of IO sources - see [IOCarrier](#iocarrier).
+    * `mimetype`: (optional) Content-Type of the content.
+
+  See also [add_attachments](#add_attachments)
+
+Example for content/attachment data:
 
 ```python
 commands: list = [
@@ -1006,6 +968,26 @@ commands: list = [
     }
 ]
 ```
+
+`_issue_data`:
+
+* Connected issues are given as a dict or a list of dicts using the key `_issue_data` which contains the attributes for
+  one or more `ogit/Automation/AutomationIssue`. Attributes of the issue can be set freely inside `_issue_data` (
+  i.e. `ogit/_scope`, `ogit/_owner` or process variables like `/ProcessIssue` etc.).
+    * The following attributes will always be set, overwriting any other values given:
+        * `ogit/_type`: Will be set automatically to `ogit/Automation/AutomationIssue`.
+        * `ogit/Automation/originNode`: Will be set to the `ogit/_id` of the vertex that has been created in stage 1).
+
+  __Note__
+
+  This method is meant as a convenience to create `ogit/Automation/AutomationIssue` linked to the vertex created just
+  before in stage 1). If you want to connect the `ogit/Automation/AutomationIssue` to another vertex, create the issues
+  as vertices on their own and do not use `handle_vertices_combined` but `create_vertices` for them. To find
+  the `ogit/Automation/originNode` of a vertex with an unknown `ogit/_id`, you can use the attribute
+  key `xid:ogit/Automation/originNode` to find the vertex via its `ogit/_xid`. See [create_vertices](#create_vertices)
+  for more information about that special key.
+
+See also [create_vertices](#create_vertices)
 
 Example for issue data:
 
@@ -1038,6 +1020,28 @@ commands: list = [
                         "/ProcessIssue": "processme"
                     }
                 ]
+            }
+        ]
+    }
+]
+```
+
+Any of the special attributes above can be combined into one data structure for this command if needed:
+
+```python
+commands: list = [
+    {
+        "handle_vertices_combined": [
+            {
+                "<vertex attribute>": "<some value>",
+                "_edge_data": {
+                },
+                "_timeseries_data": {
+                },
+                "_content_data": {
+                }
+                "_issue_data": {
+                }
             }
         ]
     }
