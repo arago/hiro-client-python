@@ -832,13 +832,24 @@ The following additional attributes are supported:
   See also [add_attachments](#add_attachments)
 
 
-* Connected issues are given as a dict or a list of dicts using the key `_issue_data` which contains the attributes for one or more `ogit/Automation/AutomationIssue`. Additional attributes for the issue(s) will be set as needed:
-    * `ogit/_type`: Will be set automatically to `ogit/Automation/AutomationIssue`
+* Connected issues are given as a dict or a list of dicts using the key `_issue_data` which contains the attributes for
+  one or more `ogit/Automation/AutomationIssue`. Attributes of the issue can be set freely inside `_issue_data` (
+  i.e. `ogit/_scope`, `ogit/_owner` or process variables like `/ProcessIssue` etc.), but some attributes there will be
+  handled in a special way:
+    * `ogit/_type`: Will be set automatically to `ogit/Automation/AutomationIssue`.
     * `ogit/Automation/originNode`: Will be set to the `ogit/_id` of the vertex that has been created in stage 1).
     * `ogit/subject`: If this is missing in the issue data, a default value will be created either from the `ogit/_xid`
       or its `ogit/_id` of the vertex from stage 1).
 
   See also [create_vertices](#create_vertices)
+
+  __Note__
+
+  This method is meant as a convenience to always create `ogit/Automation/AutomationIssue` linked to the vertex created
+  just before in stage 1). If you want to make `ogit/Automation/AutomationIssue` independently, create them as vertices
+  on their own. In this case, to find the `ogit/Automation/originNode` of a vertex with an unknown `ogit/_id`, you can
+  use the attribute key `xid:ogit/Automation/originNode` to find the vertex via its `ogit/_xid`.
+  See [create_vertices](#create_vertices) for more information about that special key.
 
 General structure:
 
