@@ -1,7 +1,8 @@
 # HIRO Client Python
 
-This is a client library to access data of the HIRO Graph. It also allows uploads
-of huge batches of data in parallel.
+This is a client library to access data of the HIRO Graph.
+
+To process large batches of data, take a look at [hiro-batch-client](https://github.com/arago/hiro-client-python/tree/separate_hiro_batch_client).
 
 ## Installation
 
@@ -43,4 +44,4 @@ Look at [README.md in src](src).
 
 
 
-(c) 2021 arago GmbH (https://www.arago.co/)
+(c) 2022 arago GmbH (https://www.arago.co/)
