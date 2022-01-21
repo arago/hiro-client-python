@@ -232,7 +232,7 @@ Each chunk is 64k by default.
 To stream such an attachment to a file, see the example below:
 
 ```python
-ogit_id = '<ogit/_id of a vertex of type ogit/_type:"ogit/Attachment">'
+ogit_id = '<ogit/_id of a vertex>'
 data_iter = hiro_client.get_attachment(ogit_id)
 
 with io.start("attachment.bin", "wb") as file:
@@ -243,7 +243,7 @@ with io.start("attachment.bin", "wb") as file:
 To read the complete data in memory, see this example:
 
 ```python
-ogit_id = '<ogit/_id of a vertex of type ogit/_type:"ogit/Attachment">'
+ogit_id = '<ogit/_id of a vertex>'
 data_iter = hiro_client.get_attachment(ogit_id)
 
 attachment = b''.join(data_iter)
