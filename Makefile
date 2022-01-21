@@ -15,14 +15,6 @@ PIP_INSTALL_ARGS = $(PIPARGS)
 export PATH := $(HOME)/.local/bin:$(PATH)
 
 #
-# GIT values
-#
-GIT_VERSION ?= ${shell git describe --tags --long --always}
-RPM_VERSION ?= ${shell echo $(GIT_VERSION) | cut -b2- | cut -d"-" -f1}
-RPM_RELEASE ?= ${shell echo $(GIT_VERSION) | cut -d"-" -f2}
-IMAGE_TAG := $(if $(GIT_BRANCH),$(GIT_BRANCH),$(RPM_VERSION)_$(RPM_RELEASE))
-
-#
 # Name of the package, version and several paths of the source code
 #
 PACKAGENAME := hiro_graph_client
