@@ -123,7 +123,8 @@ class BasicFileIOCarrier(AbstractIOCarrier):
 class SessionData:
     """
     Contains caches and session parameters.
-    At the moment it carries *xid_cache*, an *edge_store* and a *content_store*.
+    At the moment it carries *xid_cache*, an *edge_store*, a *content_store* and an *issue_store*.
+    The latter are for the command 'handle_vertices_combined'.
     """
     xid_cache: dict
     """Cache for xid:id"""
@@ -137,6 +138,9 @@ class SessionData:
     content_store: dict
     """Stores a copy of '_content_data' under the value of 'ogit/_id' as key."""
 
+    issue_store: dict
+    """Stores a copy of '_issue_data' under the value of 'ogit/_id' as key."""
+
     def __init__(self, enable_cache: bool = True):
         """
         Constructor
@@ -147,6 +151,7 @@ class SessionData:
         self.edge_store = {}
         self.content_store = {}
         self.timeseries_store = {}
+        self.issue_store = {}
 
     def get_id(self, ogit_xid: str) -> Optional[str]:
         """
@@ -182,7 +187,7 @@ class SessionData:
 
         Registers a new xid:id mapping in the *xid_cache* unless it or any params are None.
 
-        Saves any edge data, content data and timeseries data from the attributes under the ogit/_id given by the
+        Saves any edge data, content data, timeseries and issue data from the attributes under the ogit/_id given by the
         response.
 
         :param attributes: Original attributes from the Runner command
@@ -193,6 +198,7 @@ class SessionData:
         edge_data = attributes.get("_edge_data")
         timeseries_data = attributes.get("_timeseries_data")
         content_data = attributes.get("_content_data")
+        issue_data = attributes.get("_issue_data")
 
         self.register_xid(ogit_id, ogit_xid)
 
@@ -204,6 +210,9 @@ class SessionData:
 
         if None not in [self.content_store, ogit_id, content_data]:
             self.content_store[ogit_id] = content_data.copy()
+
+        if None not in [self.issue_store, ogit_id, issue_data]:
+            self.issue_store[ogit_id] = issue_data.copy()
 
     def unregister_by_response(self, response: dict) -> None:
         """
@@ -223,6 +232,9 @@ class SessionData:
 
         if self.content_store:
             self.content_store.pop(ogit_id, None)
+
+        if self.issue_store:
+            self.issue_store.pop(ogit_id, None)
 
         if self.xid_cache:
             for k, v in self.xid_cache.items():
@@ -920,6 +932,28 @@ class HiroGraphBatch:
 
             self.request_queue.put(('add_attachments', attributes))
 
+    def _issues_from_session(self, session: SessionData) -> None:
+        """
+        Handle issue vertices from the data saved in a session.
+
+        :param session: The session with the issue data.
+        """
+        for ogit_id, issue_data in session.issue_store.items():
+
+            if isinstance(issue_data, dict):
+                issue_data = [issue_data]
+            if isinstance(issue_data, list):
+                counter = 0
+                for issue in issue_data:
+                    counter += 1
+
+                    issue.update({
+                        "ogit/_type": "ogit/Automation/AutomationIssue",
+                        "ogit/Automation/originNode": ogit_id
+                    })
+
+                    self.request_queue.put(('create_vertices', issue))
+
     def _reader(self, collected_results: list) -> None:
         """
         Thread executor function. Read items from the *self.result_queue*. Since either *self.callback*
@@ -1050,6 +1084,10 @@ class HiroGraphBatch:
                 self._edges_from_session(session)
                 self._timeseries_from_session(session)
                 self._attachments_from_session(session)
+                # Ensure, that all data related to the original vertex has been sent
+                # before creating any issues.
+                self.request_queue.join()
+                self._issues_from_session(session)
 
             self.request_queue.join()
             self.result_queue.join()
