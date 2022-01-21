@@ -1,3 +1,7 @@
+# v5.0.0
+
+* Externalize `batchclient.py` as its own project at https://github.com/arago/hiro-batch-client-python.
+
 # v4.9.0
 
 * Added batch handling of issues. `handle_vertices_combined` recognizes `_issue_data` now for issues
