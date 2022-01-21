@@ -1,3 +1,9 @@
+# v4.9.0
+
+* Added batch handling of issues. `handle_vertices_combined` recognizes `_issue_data` now for issues
+  directly linked to vertices.
+* Updated documentation.
+
 # v4.8.0
 
 * Refactoring of `websocketlib.py`:
