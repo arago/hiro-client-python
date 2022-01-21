@@ -222,8 +222,6 @@ well. Some calls are a bit more complicated though and explained in more detail 
 
 ### Attachments
 
-Attachments are only available with vertices of type `ogit/_type: "ogit/Attachment"`.
-
 To upload data to such a vertex, use `HiroGraph.post_attachment(data=...)`. The parameter `data=` will be given directly
 to the call of the Python library `requests` as  `requests.post(data=...)`. To stream data, set `data` to an object of
 type `IO`. See the documentation of the Python library `requests` for more details.
