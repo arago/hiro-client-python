@@ -4,6 +4,7 @@ This is a client library to access data of the [HIRO Graph](#graph-client-hirogr
 
 This library also contains classes for handling the [WebSockets](#websockets) `event-ws` and `action-ws` API.
 
+To process large batches of data, take a look at [hiro-batch-client](https://github.com/arago/hiro-client-python/tree/separate_hiro_batch_client).
 
 For more information about HIRO Automation, look at https://www.arago.co/
 

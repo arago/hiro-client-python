@@ -2,7 +2,7 @@
 
 This is a client library to access data of the HIRO Graph.
 
-To process large batches of data, take a look at 
+To process large batches of data, take a look at [hiro-batch-client](https://github.com/arago/hiro-client-python/tree/separate_hiro_batch_client).
 
 ## Installation
 
