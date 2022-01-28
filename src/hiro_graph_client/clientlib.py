@@ -666,9 +666,11 @@ class AbstractAPI:
 class AbstractTokenApiHandler(AbstractAPI):
     """
     Root class for all TokenApiHandler classes. This class also handles resolving the current api endpoints.
+    Also creates the requests.Session which will be shared among the API Modules using this TokenApiHandler.
     """
 
     _pool_maxsize = 10
+    """Default pool_maxsize for requests.adapters.HTTPAdapter."""
 
     def __init__(self,
                  root_url: str,
@@ -710,12 +712,15 @@ class AbstractTokenApiHandler(AbstractAPI):
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
-        :param pool_maxsize: Size of a connection pool for a single connection. Default is 10.
+        :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
+               Default is 10.
         """
         session = requests.Session()
-        adapter = requests.adapters.HTTPAdapter(pool_maxsize=pool_maxsize or self._pool_maxsize)
-        session.mount('https://', adapter)
-        session.mount('http://', adapter)
+        adapter = requests.adapters.HTTPAdapter(
+            pool_maxsize=pool_maxsize or self._pool_maxsize,
+            pool_connections=1
+        )
+        session.mount(root_url, adapter)
 
         super().__init__(root_url=root_url,
                          session=session,
@@ -924,7 +929,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
-        :param pool_maxsize: Size of a connection pool for a single connection. Default is 10.
+        :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
+               Default is 10.
         """
         super().__init__(
             root_url=root_url,
@@ -995,7 +1001,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
-        :param pool_maxsize: Size of a connection pool for a single connection. Default is 10.
+        :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
+               Default is 10.
         """
         super().__init__(
             root_url=root_url,
@@ -1194,7 +1201,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
-        :param pool_maxsize: Size of a connection pool for a single connection. Default is 10.
+        :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
+               Default is 10.
         """
         super().__init__(
             root_url=root_url,
