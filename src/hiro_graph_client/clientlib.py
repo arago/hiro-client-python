@@ -689,6 +689,9 @@ class AbstractTokenApiHandler(AbstractAPI):
                "action-ws": ("/api/action-ws/1.0", "action-1.0.0")
            }
 
+        This object creates the *requests.Session* and *requests.adapters.HTTPAdapter* for this *root_url*. The
+        *pool_maxsize* of such a session can be set via the parameter in the constructor. When a TokenApiHandler is
+        shared between different API objects (like HiroGraph, HiroApp, etc.), this session and its pool are also shared.
 
         :param root_url: Root url for HIRO, like https://core.arago.co.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
