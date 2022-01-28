@@ -675,7 +675,8 @@ class AbstractTokenApiHandler(AbstractAPI):
                  ssl_config: SSLConfig = None,
                  log_communication_on_error: bool = None,
                  max_tries: int = None,
-                 pool_maxsize: int = None):
+                 pool_maxsize: int = None,
+                 pool_block: bool = None):
         """
         Constructor
 
@@ -709,11 +710,14 @@ class AbstractTokenApiHandler(AbstractAPI):
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
                Default is 10.
+        :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
+               but do not cache them. See requests.adapters.HTTPAdapter.
         """
         session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
             pool_maxsize=pool_maxsize or self._pool_maxsize,
-            pool_connections=1
+            pool_connections=1,
+            pool_block=pool_block or False
         )
         session.mount(root_url, adapter)
 
@@ -905,7 +909,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                  ssl_config: SSLConfig = None,
                  log_communication_on_error: bool = None,
                  max_tries: int = None,
-                 pool_maxsize: int = None):
+                 pool_maxsize: int = None,
+                 pool_block: bool = None):
         """
         Constructor
 
@@ -926,6 +931,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
                Default is 10.
+        :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
+               but do not cache them. See requests.adapters.HTTPAdapter.
         """
         super().__init__(
             root_url=root_url,
@@ -938,7 +945,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
             ssl_config=ssl_config,
             log_communication_on_error=log_communication_on_error,
             max_tries=max_tries,
-            pool_maxsize=pool_maxsize
+            pool_maxsize=pool_maxsize,
+            pool_block=pool_block
         )
 
         self._token = token
@@ -977,7 +985,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                  ssl_config: SSLConfig = None,
                  log_communication_on_error: bool = None,
                  max_tries: int = None,
-                 pool_maxsize: int = None):
+                 pool_maxsize: int = None,
+                 pool_block: bool = None):
         """
         Constructor
 
@@ -998,6 +1007,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
                Default is 10.
+        :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
+               but do not cache them. See requests.adapters.HTTPAdapter.
         """
         super().__init__(
             root_url=root_url,
@@ -1010,7 +1021,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
             ssl_config=ssl_config,
             log_communication_on_error=log_communication_on_error,
             max_tries=max_tries,
-            pool_maxsize=pool_maxsize
+            pool_maxsize=pool_maxsize,
+            pool_block=pool_block
         )
 
         self._env_var = env_var
@@ -1173,7 +1185,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                  ssl_config: SSLConfig = None,
                  log_communication_on_error: bool = None,
                  max_tries: int = None,
-                 pool_maxsize: int = None):
+                 pool_maxsize: int = None,
+                 pool_block: bool = None):
         """
         Constructor
 
@@ -1198,6 +1211,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
                Default is 10.
+        :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
+               but do not cache them. See requests.adapters.HTTPAdapter.
         """
         super().__init__(
             root_url=root_url,
@@ -1210,7 +1225,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
             ssl_config=ssl_config,
             log_communication_on_error=log_communication_on_error,
             max_tries=max_tries,
-            pool_maxsize=pool_maxsize
+            pool_maxsize=pool_maxsize,
+            pool_block=pool_block
         )
 
         self._username = username
