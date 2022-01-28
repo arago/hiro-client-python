@@ -53,7 +53,7 @@ install:
 #######################################################################################################################
 test: install
 	$(PIP) install $(PIP_INSTALL_ARGS) pytest
-	export PYTHONPATH=$(PYTHONPATH) && $(PYTHON) -m pytest -s --junitxml=$(TESTFILE)
+	export PYTHONPATH=$(SRCPATH) && $(PYTHON) -m pytest -s --junitxml=$(TESTFILE)
 
 
 #######################################################################################################################

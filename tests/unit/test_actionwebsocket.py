@@ -1,9 +1,10 @@
 import concurrent.futures
 import threading
+import time
 
 from hiro_graph_client.actionwebsocket import AbstractActionWebSocketHandler
-from hiro_graph_client.clientlib import PasswordAuthTokenApiHandler, AbstractTokenApiHandler, accept_all_certs
-from testconfig import CONFIG
+from hiro_graph_client.clientlib import PasswordAuthTokenApiHandler, AbstractTokenApiHandler, SSLConfig
+from .testconfig import CONFIG
 
 
 def __init__(self, api_handler: AbstractTokenApiHandler):
@@ -55,17 +56,16 @@ class TestActionWebsocket:
         client_id=CONFIG.get('CLIENT_ID'),
         client_secret=CONFIG.get('CLIENT_SECRET'),
         secure_logging=False,
-        client_name="Test-client"
+        client_name="Test-client",
+        ssl_config=SSLConfig(verify=False)
     )
 
     @staticmethod
     def wait_for_keypress(ws: ActionWebSocket):
-        input("Press [Enter] to stop.\n")
+        time.sleep(3)
         ws.stop()
 
     def test_actions(self):
-        accept_all_certs()
-
         with ActionWebSocket(api_handler=self.api_handler) as ws:
             threading.Thread(daemon=True,
                              target=lambda _ws: TestActionWebsocket.wait_for_keypress(_ws),

@@ -1,9 +1,10 @@
+import threading
+import time
 from typing import List, Dict
 
-from hiro_graph_client.clientlib import PasswordAuthTokenApiHandler, AbstractTokenApiHandler, accept_all_certs
+from hiro_graph_client.clientlib import PasswordAuthTokenApiHandler, AbstractTokenApiHandler, SSLConfig
 from hiro_graph_client.eventswebsocket import AbstractEventsWebSocketHandler, EventMessage, EventsFilter
-
-from testconfig import CONFIG
+from .testconfig import CONFIG
 
 
 class EventsWebSocket(AbstractEventsWebSocketHandler):
@@ -33,17 +34,25 @@ class TestEventsWebsocket:
         client_id=CONFIG.get('CLIENT_ID'),
         client_secret=CONFIG.get('CLIENT_SECRET'),
         secure_logging=False,
-        client_name="Test-Event-Websocket"
+        client_name="Test-Event-Websocket",
+        ssl_config=SSLConfig(verify=False)
     )
 
-    def test_events(self):
-        accept_all_certs()
+    @staticmethod
+    def wait_for_keypress(ws: EventsWebSocket):
+        time.sleep(3)
+        ws.stop()
 
+    def test_events(self):
         events_filter = EventsFilter(filter_id='testfilter', filter_content="(element.ogit/_type=ogit/MARS/Machine)")
 
         with EventsWebSocket(api_handler=self.api_handler,
                              events_filters=[events_filter],
                              scopes=['ckqjksu370f4108834zpixcoi_ckqjkt42s0fgf0883pf0cb0hx'],
-                             query_params={'delta': 'true'}):
-            input("Press [Enter] to stop.\n")
-            # sleep(10)
+                             query_params={'delta': 'true'}) as ws:
+
+            threading.Thread(daemon=True,
+                             target=lambda _ws: TestEventsWebsocket.wait_for_keypress(_ws),
+                             args=(ws,)).start()
+
+            ws.run_forever()
