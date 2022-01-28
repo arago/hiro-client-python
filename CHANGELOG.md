@@ -1,3 +1,12 @@
+# v5.1.0
+
+* Use connection pooling via requests.Session.
+  * Set `pool_connections=1`, `pool_maxsize=10` by default (the latter can be changed).
+  * Option `pool_block` to block any connections that would exceed the `pool_maxsize`.
+* Removed obsolete `accept_all_certs()`.
+* Fixed pytest in Makefile target.
+* Added information about `requests.Session` and the `pool_maxsize` to documentation.
+
 # v5.0.0
 
 * Externalize `batchclient.py` as its own project at https://github.com/arago/hiro-batch-client-python.
