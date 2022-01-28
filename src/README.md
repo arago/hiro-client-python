@@ -1,10 +1,12 @@
 # HIRO Graph API Client
 
-This is a client library to access data of the [HIRO Graph](#graph-client-hirograph). 
+This is a client library to access data of the [HIRO Graph](#graph-client-hirograph).
 
 This library also contains classes for handling the [WebSockets](#websockets) `event-ws` and `action-ws` API.
 
-To process large batches of data, take a look at "hiro-batch-client". - (PyPI: [hiro-batch-client](https://pypi.org/project/hiro-batch-client/), GitHub: [hiro-batch-client-python](https://github.com/arago/hiro-batch-client-python))
+To process large batches of data, take a look at "hiro-batch-client". - (
+PyPI: [hiro-batch-client](https://pypi.org/project/hiro-batch-client/),
+GitHub: [hiro-batch-client-python](https://github.com/arago/hiro-batch-client-python))
 
 For more information about HIRO Automation, look at https://www.arago.co/
 
@@ -59,8 +61,8 @@ print(query_result)
 ## TokenApiHandler
 
 Authorization against the HIRO Graph is done via tokens. These tokens are handled by classes of
-type `AbstractTokenApiHandler` in this library. Each of the Hiro-Client-Object (`HiroGraph`,
-, `HiroApp`, etc.) need to have some kind of TokenApiHandler at construction.
+type `AbstractTokenApiHandler` in this library. Each of the Hiro-Client-Object (`HiroGraph`, , `HiroApp`, etc.) need to
+have some kind of TokenApiHandler at construction.
 
 This TokenApiHandler is also responsible to determine the most up-to-date endpoints for the API calls. You can supply a
 custom list of endpoints by using the dict parameter `custom_endpoints=` on construction.
@@ -142,8 +144,9 @@ print(query_result)
 
 ## Handler sharing
 
-When you need to access multiple APIs, it is a good idea to share the TokenApiHandler between them. This avoids
-unnecessary api version requests and unnecessary token requests with the PasswordAuthTokenApiHandler for instance.
+When you need to access multiple APIs of HIRO, share the TokenApiHandler between the API objects to avoid unnecessary
+requests for token- and version-information against HIRO. The TokenApiHandler will share a `requests.Session`, token-
+and version-request-handling, and the token string itself between them.
 
 ```python
 from hiro_graph_client import HiroGraph, HiroApp, PasswordAuthTokenApiHandler

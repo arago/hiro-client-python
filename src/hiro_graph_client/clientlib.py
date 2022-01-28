@@ -12,6 +12,7 @@ from urllib.parse import quote, urlencode
 
 import backoff
 import requests
+import requests.adapters
 import requests.packages.urllib3.exceptions
 
 from hiro_graph_client.version import __version__
@@ -27,15 +28,6 @@ BACKOFF_KWARGS = {
     'jitter': backoff.random_jitter,
     'giveup': lambda e: e.response is not None and e.response.status_code < 500
 }
-
-
-def accept_all_certs() -> None:
-    """
-    Globally disable InsecureRequestWarning
-    """
-    AbstractAPI.accept_all_certs = True
-
-    requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
 
 ###################################################################################################################
@@ -109,8 +101,12 @@ class AbstractAPI:
 
     _max_tries: int = 2
 
+    _session: requests.Session
+    """Reference to the requests.Session containing the connection pool"""
+
     def __init__(self,
                  root_url: str,
+                 session: requests.Session,
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
@@ -119,10 +115,12 @@ class AbstractAPI:
                  ssl_config: SSLConfig = None,
                  log_communication_on_error: bool = None,
                  max_tries: int = None):
+
         """
         Constructor
 
         :param root_url: Root uri of the HIRO API, like *https://core.arago.co*.
+        :param session: The requests.Session object for the connection pool. Required.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
@@ -144,11 +142,13 @@ class AbstractAPI:
         self._raise_exceptions = raise_exceptions
         self._timeout = timeout
         self._log_communication_on_error = log_communication_on_error or False
+        self._session = session
 
         self.ssl_config = ssl_config if ssl_config else SSLConfig()
 
         if not self.ssl_config.verify:
-            accept_all_certs()
+            AbstractAPI.accept_all_certs = True
+            requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
         if client_name:
             self._client_name = client_name
@@ -194,15 +194,15 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _get_binary() -> Iterator[bytes]:
-            with requests.get(url,
-                              headers=self._get_headers(
-                                  {"Content-Type": None, "Accept": (accept or "*/*")}
-                              ),
-                              verify=self.ssl_config.get_verify(),
-                              cert=self.ssl_config.get_cert(),
-                              timeout=self._timeout,
-                              stream=True,
-                              proxies=self._get_proxies()) as res:
+            with self._session.get(url,
+                                   headers=self._get_headers(
+                                       {"Content-Type": None, "Accept": (accept or "*/*")}
+                                   ),
+                                   verify=self.ssl_config.get_verify(),
+                                   cert=self.ssl_config.get_cert(),
+                                   timeout=self._timeout,
+                                   stream=True,
+                                   proxies=self._get_proxies()) as res:
                 self._log_communication(res, response_body=False)
                 self._check_response(res)
                 self._check_status_error(res)
@@ -229,15 +229,15 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _post_binary() -> Any:
-            res = requests.post(url,
-                                data=data,
-                                headers=self._get_headers(
-                                    {"Content-Type": (content_type or "application/octet-stream")}
-                                ),
-                                verify=self.ssl_config.get_verify(),
-                                cert=self.ssl_config.get_cert(),
-                                timeout=self._timeout,
-                                proxies=self._get_proxies())
+            res = self._session.post(url,
+                                     data=data,
+                                     headers=self._get_headers(
+                                         {"Content-Type": (content_type or "application/octet-stream")}
+                                     ),
+                                     verify=self.ssl_config.get_verify(),
+                                     cert=self.ssl_config.get_cert(),
+                                     timeout=self._timeout,
+                                     proxies=self._get_proxies())
             self._log_communication(res, request_body=False)
             return self._parse_response(res, expected_media_type)
 
@@ -261,15 +261,15 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _put_binary() -> Any:
-            res = requests.put(url,
-                               data=data,
-                               headers=self._get_headers(
-                                   {"Content-Type": (content_type or "application/octet-stream")}
-                               ),
-                               verify=self.ssl_config.get_verify(),
-                               cert=self.ssl_config.get_cert(),
-                               timeout=self._timeout,
-                               proxies=self._get_proxies())
+            res = self._session.put(url,
+                                    data=data,
+                                    headers=self._get_headers(
+                                        {"Content-Type": (content_type or "application/octet-stream")}
+                                    ),
+                                    verify=self.ssl_config.get_verify(),
+                                    cert=self.ssl_config.get_cert(),
+                                    timeout=self._timeout,
+                                    proxies=self._get_proxies())
             self._log_communication(res, request_body=False)
             return self._parse_response(res, expected_media_type)
 
@@ -289,12 +289,12 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _get() -> Any:
-            res = requests.get(url,
-                               headers=self._get_headers({"Content-Type": None}),
-                               verify=self.ssl_config.get_verify(),
-                               cert=self.ssl_config.get_cert(),
-                               timeout=self._timeout,
-                               proxies=self._get_proxies())
+            res = self._session.get(url,
+                                    headers=self._get_headers({"Content-Type": None}),
+                                    verify=self.ssl_config.get_verify(),
+                                    cert=self.ssl_config.get_cert(),
+                                    timeout=self._timeout,
+                                    proxies=self._get_proxies())
             self._log_communication(res)
             return self._parse_response(res, expected_media_type)
 
@@ -316,13 +316,13 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _post() -> Any:
-            res = requests.post(url,
-                                json=data,
-                                headers=self._get_headers(),
-                                verify=self.ssl_config.get_verify(),
-                                cert=self.ssl_config.get_cert(),
-                                timeout=self._timeout,
-                                proxies=self._get_proxies())
+            res = self._session.post(url,
+                                     json=data,
+                                     headers=self._get_headers(),
+                                     verify=self.ssl_config.get_verify(),
+                                     cert=self.ssl_config.get_cert(),
+                                     timeout=self._timeout,
+                                     proxies=self._get_proxies())
             self._log_communication(res)
             return self._parse_response(res, expected_media_type)
 
@@ -344,13 +344,13 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _put() -> Any:
-            res = requests.put(url,
-                               json=data,
-                               headers=self._get_headers(),
-                               verify=self.ssl_config.get_verify(),
-                               cert=self.ssl_config.get_cert(),
-                               timeout=self._timeout,
-                               proxies=self._get_proxies())
+            res = self._session.put(url,
+                                    json=data,
+                                    headers=self._get_headers(),
+                                    verify=self.ssl_config.get_verify(),
+                                    cert=self.ssl_config.get_cert(),
+                                    timeout=self._timeout,
+                                    proxies=self._get_proxies())
             self._log_communication(res)
             return self._parse_response(res, expected_media_type)
 
@@ -372,13 +372,13 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _patch() -> Any:
-            res = requests.patch(url,
-                                 json=data,
-                                 headers=self._get_headers(),
-                                 verify=self.ssl_config.get_verify(),
-                                 cert=self.ssl_config.get_cert(),
-                                 timeout=self._timeout,
-                                 proxies=self._get_proxies())
+            res = self._session.patch(url,
+                                      json=data,
+                                      headers=self._get_headers(),
+                                      verify=self.ssl_config.get_verify(),
+                                      cert=self.ssl_config.get_cert(),
+                                      timeout=self._timeout,
+                                      proxies=self._get_proxies())
             self._log_communication(res)
             return self._parse_response(res, expected_media_type)
 
@@ -398,12 +398,12 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _delete() -> Any:
-            res = requests.delete(url,
-                                  headers=self._get_headers({"Content-Type": None}),
-                                  verify=self.ssl_config.get_verify(),
-                                  cert=self.ssl_config.get_cert(),
-                                  timeout=self._timeout,
-                                  proxies=self._get_proxies())
+            res = self._session.delete(url,
+                                       headers=self._get_headers({"Content-Type": None}),
+                                       verify=self.ssl_config.get_verify(),
+                                       cert=self.ssl_config.get_cert(),
+                                       timeout=self._timeout,
+                                       proxies=self._get_proxies())
             self._log_communication(res)
             return self._parse_response(res, expected_media_type)
 
@@ -658,7 +658,11 @@ class AbstractAPI:
 class AbstractTokenApiHandler(AbstractAPI):
     """
     Root class for all TokenApiHandler classes. This class also handles resolving the current api endpoints.
+    Also creates the requests.Session which will be shared among the API Modules using this TokenApiHandler.
     """
+
+    _pool_maxsize = 10
+    """Default pool_maxsize for requests.adapters.HTTPAdapter."""
 
     def __init__(self,
                  root_url: str,
@@ -670,7 +674,9 @@ class AbstractTokenApiHandler(AbstractAPI):
                  custom_endpoints: dict = None,
                  ssl_config: SSLConfig = None,
                  log_communication_on_error: bool = None,
-                 max_tries: int = None):
+                 max_tries: int = None,
+                 pool_maxsize: int = None,
+                 pool_block: bool = None):
         """
         Constructor
 
@@ -684,6 +690,9 @@ class AbstractTokenApiHandler(AbstractAPI):
                "action-ws": ("/api/action-ws/1.0", "action-1.0.0")
            }
 
+        This object creates the *requests.Session* and *requests.adapters.HTTPAdapter* for this *root_url*. The
+        *pool_maxsize* of such a session can be set via the parameter in the constructor. When a TokenApiHandler is
+        shared between different API objects (like HiroGraph, HiroApp, etc.), this session and its pool are also shared.
 
         :param root_url: Root url for HIRO, like https://core.arago.co.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
@@ -699,8 +708,21 @@ class AbstractTokenApiHandler(AbstractAPI):
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
+        :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
+               Default is 10.
+        :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
+               but do not cache them. See requests.adapters.HTTPAdapter.
         """
+        session = requests.Session()
+        adapter = requests.adapters.HTTPAdapter(
+            pool_maxsize=pool_maxsize or self._pool_maxsize,
+            pool_connections=1,
+            pool_block=pool_block or False
+        )
+        session.mount(root_url, adapter)
+
         super().__init__(root_url=root_url,
+                         session=session,
                          raise_exceptions=raise_exceptions,
                          proxies=proxies,
                          timeout=timeout,
@@ -886,7 +908,9 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                  custom_endpoints: dict = None,
                  ssl_config: SSLConfig = None,
                  log_communication_on_error: bool = None,
-                 max_tries: int = None):
+                 max_tries: int = None,
+                 pool_maxsize: int = None,
+                 pool_block: bool = None):
         """
         Constructor
 
@@ -905,6 +929,10 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
+        :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
+               Default is 10.
+        :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
+               but do not cache them. See requests.adapters.HTTPAdapter.
         """
         super().__init__(
             root_url=root_url,
@@ -916,7 +944,9 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
             custom_endpoints=custom_endpoints,
             ssl_config=ssl_config,
             log_communication_on_error=log_communication_on_error,
-            max_tries=max_tries
+            max_tries=max_tries,
+            pool_maxsize=pool_maxsize,
+            pool_block=pool_block
         )
 
         self._token = token
@@ -954,7 +984,9 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                  custom_endpoints: dict = None,
                  ssl_config: SSLConfig = None,
                  log_communication_on_error: bool = None,
-                 max_tries: int = None):
+                 max_tries: int = None,
+                 pool_maxsize: int = None,
+                 pool_block: bool = None):
         """
         Constructor
 
@@ -973,6 +1005,10 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
+        :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
+               Default is 10.
+        :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
+               but do not cache them. See requests.adapters.HTTPAdapter.
         """
         super().__init__(
             root_url=root_url,
@@ -984,7 +1020,9 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
             custom_endpoints=custom_endpoints,
             ssl_config=ssl_config,
             log_communication_on_error=log_communication_on_error,
-            max_tries=max_tries
+            max_tries=max_tries,
+            pool_maxsize=pool_maxsize,
+            pool_block=pool_block
         )
 
         self._env_var = env_var
@@ -1146,7 +1184,9 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                  custom_endpoints: dict = None,
                  ssl_config: SSLConfig = None,
                  log_communication_on_error: bool = None,
-                 max_tries: int = None):
+                 max_tries: int = None,
+                 pool_maxsize: int = None,
+                 pool_block: bool = None):
         """
         Constructor
 
@@ -1169,6 +1209,10 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
+        :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
+               Default is 10.
+        :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
+               but do not cache them. See requests.adapters.HTTPAdapter.
         """
         super().__init__(
             root_url=root_url,
@@ -1180,7 +1224,9 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
             custom_endpoints=custom_endpoints,
             ssl_config=ssl_config,
             log_communication_on_error=log_communication_on_error,
-            max_tries=max_tries
+            max_tries=max_tries,
+            pool_maxsize=pool_maxsize,
+            pool_block=pool_block
         )
 
         self._username = username
@@ -1349,6 +1395,7 @@ class AuthenticatedAPIHandler(AbstractAPI):
             raise ValueError("Cannot authenticate against HIRO without *api_handler* and *api_name*.")
 
         super().__init__(root_url=api_handler._root_url,
+                         session=api_handler._session,
                          raise_exceptions=api_handler._raise_exceptions,
                          proxies=api_handler._proxies,
                          headers=api_handler._headers,
