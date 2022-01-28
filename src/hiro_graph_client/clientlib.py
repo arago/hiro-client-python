@@ -30,15 +30,6 @@ BACKOFF_KWARGS = {
 }
 
 
-def accept_all_certs() -> None:
-    """
-    Globally disable InsecureRequestWarning
-    """
-    AbstractAPI.accept_all_certs = True
-
-    requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
-
-
 ###################################################################################################################
 # SSL Configuration
 ###################################################################################################################
@@ -156,7 +147,8 @@ class AbstractAPI:
         self.ssl_config = ssl_config if ssl_config else SSLConfig()
 
         if not self.ssl_config.verify:
-            accept_all_certs()
+            AbstractAPI.accept_all_certs = True
+            requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
         if client_name:
             self._client_name = client_name
