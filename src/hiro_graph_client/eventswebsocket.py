@@ -356,7 +356,7 @@ class AbstractEventsWebSocketHandler(AbstractAuthenticatedWebSocketHandler):
                 replace_existing=True)
 
     def _token_refresh_thread(self):
-        logger.debug("Updating token for session")
+        logger.debug("Updating token for _session")
 
         message: dict = {
             "type": "token",

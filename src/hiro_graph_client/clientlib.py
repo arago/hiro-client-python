@@ -101,8 +101,7 @@ class AbstractAPI:
 
     _max_tries: int = 2
 
-    _session: requests.Session
-    """Reference to the requests.Session containing the connection pool"""
+    _timeout: int = 600
 
     def __init__(self,
                  root_url: str,
@@ -110,7 +109,7 @@ class AbstractAPI:
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
-                 timeout: int = 600,
+                 timeout: int = None,
                  client_name: str = None,
                  ssl_config: SSLConfig = None,
                  log_communication_on_error: bool = None,
@@ -137,14 +136,17 @@ class AbstractAPI:
         if not root_url:
             raise ValueError("'root_url' must not be empty.")
 
+        if not session:
+            raise ValueError("'session' must not be empty.")
+
         self._root_url = root_url
         self._proxies = proxies
         self._raise_exceptions = raise_exceptions
-        self._timeout = timeout
+        self._timeout = timeout or self._timeout
         self._log_communication_on_error = log_communication_on_error or False
         self._session = session
 
-        self.ssl_config = ssl_config if ssl_config else SSLConfig()
+        self.ssl_config = ssl_config or SSLConfig()
 
         if not self.ssl_config.verify:
             AbstractAPI.accept_all_certs = True
@@ -527,8 +529,7 @@ class AbstractAPI:
 
         ok = self._check_response_ok(res)
 
-        if (not ok and self._log_communication_on_error) or logger.isEnabledFor(
-                logging.DEBUG):
+        if (not ok and self._log_communication_on_error) or logger.isEnabledFor(logging.DEBUG):
             log_message = f'''
 ################ request ################
 {res.request.method} {res.request.url}
@@ -652,24 +653,29 @@ class AbstractAPI:
 
 
 ###################################################################################################################
-# TokenApiHandler classes
+# ConnectionHandler class
 ###################################################################################################################
 
-class AbstractTokenApiHandler(AbstractAPI):
+class GraphConnectionHandler(AbstractAPI):
     """
-    Root class for all TokenApiHandler classes. This class also handles resolving the current api endpoints.
-    Also creates the requests.Session which will be shared among the API Modules using this TokenApiHandler.
+    Contains information about a Graph Connection. This class also handles resolving the current api endpoints.
+    Also creates the requests.Session which will be shared among the API Modules using this connection.
     """
 
     _pool_maxsize = 10
     """Default pool_maxsize for requests.adapters.HTTPAdapter."""
+
+    _pool_block = False
+
+    __session: requests.Session
+    """Stores the connection _session"""
 
     def __init__(self,
                  root_url: str,
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
-                 timeout: int = 600,
+                 timeout: int = None,
                  client_name: str = None,
                  custom_endpoints: dict = None,
                  ssl_config: SSLConfig = None,
@@ -691,8 +697,8 @@ class AbstractTokenApiHandler(AbstractAPI):
            }
 
         This object creates the *requests.Session* and *requests.adapters.HTTPAdapter* for this *root_url*. The
-        *pool_maxsize* of such a session can be set via the parameter in the constructor. When a TokenApiHandler is
-        shared between different API objects (like HiroGraph, HiroApp, etc.), this session and its pool are also shared.
+        *pool_maxsize* of such a _session can be set via the parameter in the constructor. When a TokenApiHandler is
+        shared between different API objects (like HiroGraph, HiroApp, etc.), this _session and its pool are also shared.
 
         :param root_url: Root url for HIRO, like https://core.arago.co.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
@@ -700,29 +706,32 @@ class AbstractTokenApiHandler(AbstractAPI):
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
-                            is given with another value for "User-Agent". Default is "hiro-graph-client".
+               is given with another value for "User-Agent". Default is "hiro-graph-client".
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
                from /api/version. Example see above.
         :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
-                          will be used.
+               will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
-               Default is 10.
+               Default is 10. *pool_maxsize* is ignored when *_session* is set.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
-               but do not cache them. See requests.adapters.HTTPAdapter.
+               but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when *_session* is set.
         """
-        session = requests.Session()
+        if not root_url:
+            raise ValueError("'root_url' must not be empty.")
+
         adapter = requests.adapters.HTTPAdapter(
             pool_maxsize=pool_maxsize or self._pool_maxsize,
             pool_connections=1,
-            pool_block=pool_block or False
+            pool_block=pool_block or self._pool_block
         )
-        session.mount(root_url, adapter)
+        self.__session = requests.Session()
+        self.__session.mount(root_url, adapter)
 
         super().__init__(root_url=root_url,
-                         session=session,
+                         session=self.__session,
                          raise_exceptions=raise_exceptions,
                          proxies=proxies,
                          timeout=timeout,
@@ -844,6 +853,120 @@ class AbstractTokenApiHandler(AbstractAPI):
         url = self._root_url + '/api/version'
         return self.get(url)
 
+
+###################################################################################################################
+# TokenApiHandler classes
+###################################################################################################################
+
+class AbstractTokenApiHandler(AbstractAPI):
+    """
+    Root class for all TokenApiHandler classes. This adds token handling.
+    """
+
+    _connection_handler: GraphConnectionHandler
+    """Reference to an GraphConnectionHandler containing version information and requests.Session"""
+
+    def __init__(self,
+                 root_url: str = None,
+                 raise_exceptions: bool = True,
+                 proxies: dict = None,
+                 headers: dict = None,
+                 timeout: int = None,
+                 client_name: str = None,
+                 custom_endpoints: dict = None,
+                 ssl_config: SSLConfig = None,
+                 log_communication_on_error: bool = None,
+                 max_tries: int = None,
+                 pool_maxsize: int = None,
+                 pool_block: bool = None,
+                 connection_handler: GraphConnectionHandler = None):
+        """
+        Constructor
+
+        Example for custom_endpoints (see params below):
+
+        ::
+
+           {
+               "graph": "/api/graph/7.2",
+               "auth": "/api/auth/6.2",
+               "action-ws": ("/api/action-ws/1.0", "action-1.0.0")
+           }
+
+        This object creates the *requests.Session* and *requests.adapters.HTTPAdapter* for this *root_url*. The
+        *pool_maxsize* of such a _session can be set via the parameter in the constructor. When a TokenApiHandler is
+        shared between different API objects (like HiroGraph, HiroApp, etc.), this _session and its pool are also shared.
+
+        :param root_url: Root url for HIRO, like https://core.arago.co.
+        :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
+        :param proxies: Proxy configuration for *requests*. Default is None.
+        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param timeout: Optional timeout for requests. Default is 600 (10 min).
+        :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
+                            is given with another value for "User-Agent". Default is "hiro-graph-client".
+        :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
+               from /api/version. Example see above.
+        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
+                          will be used.
+        :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
+               detected. Default is not to do this.
+        :param max_tries: Max tries for BACKOFF. Default is 2.
+        :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
+               Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a _session.
+        :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
+               but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
+               *connection_handler* is set and already contains a _session.
+        :param connection_handler: Use an already existing connection handler. This feature allows for several distinct
+               TokenApiHandlers to operate on the same connection without querying unnecessary version information for
+               each or building their own requests.Sessions. Overrides all other parameters.
+        """
+        self._connection_handler = connection_handler or GraphConnectionHandler(
+            root_url=root_url,
+            raise_exceptions=raise_exceptions,
+            proxies=proxies,
+            headers=headers,
+            timeout=timeout,
+            client_name=client_name,
+            custom_endpoints=custom_endpoints,
+            ssl_config=ssl_config,
+            log_communication_on_error=log_communication_on_error,
+            max_tries=max_tries,
+            pool_maxsize=pool_maxsize,
+            pool_block=pool_block
+        )
+
+        super().__init__(
+            root_url=self._connection_handler._root_url,
+            session=self._connection_handler._session,
+            raise_exceptions=self._connection_handler._raise_exceptions,
+            proxies=self._connection_handler._proxies,
+            timeout=self._connection_handler._timeout,
+            headers=self._connection_handler._headers,
+            client_name=self._connection_handler._client_name,
+            ssl_config=self._connection_handler.ssl_config,
+            log_communication_on_error=self._connection_handler._log_communication_on_error,
+            max_tries=self._connection_handler._max_tries
+        )
+
+    ###############################################################################################################
+    # Access connection handler
+    ###############################################################################################################
+
+    def get_api_endpoint_of(self, api_name: str) -> str:
+        return self._connection_handler.get_api_endpoint_of(api_name)
+
+    def get_websocket_config(self, api_name: str) -> Tuple[
+        str,
+        str,
+        Optional[str],
+        Optional[int],
+        Optional[dict]
+    ]:
+        return self._connection_handler.get_websocket_config(api_name)
+
+    def get_version(self):
+        return self._connection_handler.get_version()
+
     ###############################################################################################################
     # Token handling
     ###############################################################################################################
@@ -898,8 +1021,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
     _token: str
 
     def __init__(self,
-                 root_url: str,
-                 token: str,
+                 root_url: str = None,
+                 token: str = None,
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
@@ -910,12 +1033,13 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                  log_communication_on_error: bool = None,
                  max_tries: int = None,
                  pool_maxsize: int = None,
-                 pool_block: bool = None):
+                 pool_block: bool = None,
+                 connection_handler: GraphConnectionHandler = None):
         """
         Constructor
 
-        :param root_url: Root url for HIRO, like https://core.arago.co.
         :param token: The fixed token to use.
+        :param root_url: Root url for HIRO, like https://core.arago.co.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
         :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
@@ -930,9 +1054,13 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
-               Default is 10.
+               Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a _session.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
-               but do not cache them. See requests.adapters.HTTPAdapter.
+               but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
+               *connection_handler* is set and already contains a _session.
+        :param connection_handler: Use an already existing connection handler. This feature allows for several distinct
+               TokenApiHandlers to operate on the same connection without querying unnecessary version information for
+               each or building their own requests.Sessions. Overrides all other connection specific parameters.
         """
         super().__init__(
             root_url=root_url,
@@ -946,7 +1074,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
             log_communication_on_error=log_communication_on_error,
             max_tries=max_tries,
             pool_maxsize=pool_maxsize,
-            pool_block=pool_block
+            pool_block=pool_block,
+            connection_handler=connection_handler
         )
 
         self._token = token
@@ -974,7 +1103,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
     _env_var: str
 
     def __init__(self,
-                 root_url: str,
+                 root_url: str = None,
                  env_var: str = 'HIRO_TOKEN',
                  raise_exceptions: bool = True,
                  proxies: dict = None,
@@ -986,7 +1115,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                  log_communication_on_error: bool = None,
                  max_tries: int = None,
                  pool_maxsize: int = None,
-                 pool_block: bool = None):
+                 pool_block: bool = None,
+                 connection_handler: GraphConnectionHandler = None):
         """
         Constructor
 
@@ -1006,9 +1136,13 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
-               Default is 10.
+               Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a _session.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
-               but do not cache them. See requests.adapters.HTTPAdapter.
+               but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
+               *connection_handler* is set and already contains a _session.
+        :param connection_handler: Use an already existing connection handler. This feature allows for several distinct
+               TokenApiHandlers to operate on the same connection without querying unnecessary version information for
+               each or building their own requests.Sessions. Overrides all other connection specific parameters.
         """
         super().__init__(
             root_url=root_url,
@@ -1022,7 +1156,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
             log_communication_on_error=log_communication_on_error,
             max_tries=max_tries,
             pool_maxsize=pool_maxsize,
-            pool_block=pool_block
+            pool_block=pool_block,
+            connection_handler=connection_handler
         )
 
         self._env_var = env_var
@@ -1170,11 +1305,11 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
     _secure_logging: bool = True
 
     def __init__(self,
-                 root_url: str,
-                 username: str,
-                 password: str,
-                 client_id: str,
-                 client_secret: str,
+                 root_url: str = None,
+                 username: str = None,
+                 password: str = None,
+                 client_id: str = None,
+                 client_secret: str = None,
                  secure_logging: bool = True,
                  raise_exceptions: bool = True,
                  proxies: dict = None,
@@ -1186,7 +1321,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                  log_communication_on_error: bool = None,
                  max_tries: int = None,
                  pool_maxsize: int = None,
-                 pool_block: bool = None):
+                 pool_block: bool = None,
+                 connection_handler: GraphConnectionHandler = None):
         """
         Constructor
 
@@ -1210,9 +1346,13 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
-               Default is 10.
+               Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a _session.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
-               but do not cache them. See requests.adapters.HTTPAdapter.
+               but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
+               *connection_handler* is set and already contains a _session.
+        :param connection_handler: Use an already existing connection handler. This feature allows for several distinct
+               TokenApiHandlers to operate on the same connection without querying unnecessary version information for
+               each or building their own requests.Sessions. Overrides all other connection specific parameters.
         """
         super().__init__(
             root_url=root_url,
@@ -1226,7 +1366,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
             log_communication_on_error=log_communication_on_error,
             max_tries=max_tries,
             pool_maxsize=pool_maxsize,
-            pool_block=pool_block
+            pool_block=pool_block,
+            connection_handler=connection_handler
         )
 
         self._username = username
