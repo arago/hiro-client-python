@@ -674,20 +674,17 @@ class GraphConnectionHandler(AbstractAPI):
 
     _version_info: dict = None
 
+    _lock: threading.RLock
+    """Reentrant mutex for thread safety"""
+
     def __init__(self,
                  root_url: str = None,
-                 raise_exceptions: bool = True,
-                 proxies: dict = None,
-                 headers: dict = None,
-                 timeout: int = None,
-                 client_name: str = None,
                  custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None,
-                 log_communication_on_error: bool = None,
-                 max_tries: int = None,
                  pool_maxsize: int = None,
                  pool_block: bool = None,
-                 connection_handler=None):
+                 connection_handler=None,
+                 *args,
+                 **kwargs):
         """
         Constructor
 
@@ -727,6 +724,8 @@ class GraphConnectionHandler(AbstractAPI):
         :param connection_handler: Copy parameters from this already existing connection handler. Overrides all other
                parameters.
         """
+        self._lock = threading.RLock()
+
         root_url = getattr(connection_handler, '_root_url', root_url)
 
         if not root_url:
@@ -743,15 +742,8 @@ class GraphConnectionHandler(AbstractAPI):
         super().__init__(
             root_url=root_url,
             session=session,
-            raise_exceptions=raise_exceptions,
-            proxies=proxies,
-            timeout=timeout,
-            headers=headers,
-            client_name=client_name,
-            ssl_config=ssl_config,
-            log_communication_on_error=log_communication_on_error,
-            max_tries=max_tries,
-            abstract_api=connection_handler
+            abstract_api=connection_handler,
+            **kwargs
         )
 
         self.custom_endpoints = getattr(connection_handler, '_custom_endpoints', custom_endpoints)
@@ -860,11 +852,12 @@ class GraphConnectionHandler(AbstractAPI):
         :param force_update: Force updating the internal cache with version_info via API request.
         :return: The result payload
         """
-        if not self._version_info or force_update:
-            url = self._root_url + '/api/version'
-            self._version_info = self.get(url)
+        with self._lock:
+            if not self._version_info or force_update:
+                url = self._root_url + '/api/version'
+                self._version_info = self.get(url)
 
-        return self._version_info
+            return self._version_info
 
 
 ###################################################################################################################
@@ -876,20 +869,7 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
     Root class for all TokenApiHandler classes. This adds token handling.
     """
 
-    def __init__(self,
-                 root_url: str = None,
-                 raise_exceptions: bool = True,
-                 proxies: dict = None,
-                 headers: dict = None,
-                 timeout: int = None,
-                 client_name: str = None,
-                 custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None,
-                 log_communication_on_error: bool = None,
-                 max_tries: int = None,
-                 pool_maxsize: int = None,
-                 pool_block: bool = None,
-                 connection_handler: GraphConnectionHandler = None):
+    def __init__(self, *args, **kwargs):
         """
         Constructor
 
@@ -933,21 +913,7 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
                unnecessary version information for each or building their own requests.Sessions. Overrides all other
                parameters.
         """
-        super().__init__(
-            root_url=root_url,
-            raise_exceptions=raise_exceptions,
-            proxies=proxies,
-            headers=headers,
-            timeout=timeout,
-            client_name=client_name,
-            custom_endpoints=custom_endpoints,
-            ssl_config=ssl_config,
-            log_communication_on_error=log_communication_on_error,
-            max_tries=max_tries,
-            pool_maxsize=pool_maxsize,
-            pool_block=pool_block,
-            connection_handler=connection_handler
-        )
+        super().__init__(*args, **kwargs)
 
     ###############################################################################################################
     # Token handling
@@ -1002,21 +968,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
 
     _token: str
 
-    def __init__(self,
-                 root_url: str = None,
-                 token: str = None,
-                 raise_exceptions: bool = True,
-                 proxies: dict = None,
-                 headers: dict = None,
-                 timeout: int = 600,
-                 client_name: str = None,
-                 custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None,
-                 log_communication_on_error: bool = None,
-                 max_tries: int = None,
-                 pool_maxsize: int = None,
-                 pool_block: bool = None,
-                 connection_handler: GraphConnectionHandler = None):
+    def __init__(self, token: str = None, *args, **kwargs):
         """
         Constructor
 
@@ -1046,21 +998,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                unnecessary version information for each or building their own requests.Sessions. Overrides all other
                parameters.
         """
-        super().__init__(
-            root_url=root_url,
-            raise_exceptions=raise_exceptions,
-            proxies=proxies,
-            timeout=timeout,
-            headers=headers,
-            client_name=client_name,
-            custom_endpoints=custom_endpoints,
-            ssl_config=ssl_config,
-            log_communication_on_error=log_communication_on_error,
-            max_tries=max_tries,
-            pool_maxsize=pool_maxsize,
-            pool_block=pool_block,
-            connection_handler=connection_handler
-        )
+        super().__init__(*args, **kwargs)
 
         self._token = token
 
@@ -1086,21 +1024,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
 
     _env_var: str
 
-    def __init__(self,
-                 root_url: str = None,
-                 env_var: str = 'HIRO_TOKEN',
-                 raise_exceptions: bool = True,
-                 proxies: dict = None,
-                 headers: dict = None,
-                 timeout: int = 600,
-                 client_name: str = None,
-                 custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None,
-                 log_communication_on_error: bool = None,
-                 max_tries: int = None,
-                 pool_maxsize: int = None,
-                 pool_block: bool = None,
-                 connection_handler: GraphConnectionHandler = None):
+    def __init__(self, env_var: str = 'HIRO_TOKEN', *args, **kwargs):
         """
         Constructor
 
@@ -1130,21 +1054,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                unnecessary version information for each or building their own requests.Sessions. Overrides all other
                parameters.
         """
-        super().__init__(
-            root_url=root_url,
-            raise_exceptions=raise_exceptions,
-            proxies=proxies,
-            headers=headers,
-            timeout=timeout,
-            client_name=client_name,
-            custom_endpoints=custom_endpoints,
-            ssl_config=ssl_config,
-            log_communication_on_error=log_communication_on_error,
-            max_tries=max_tries,
-            pool_maxsize=pool_maxsize,
-            pool_block=pool_block,
-            connection_handler=connection_handler
-        )
+        super().__init__(*args, **kwargs)
 
         self._env_var = env_var
 
@@ -1291,24 +1201,12 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
     _secure_logging: bool = True
 
     def __init__(self,
-                 root_url: str = None,
                  username: str = None,
                  password: str = None,
                  client_id: str = None,
                  client_secret: str = None,
                  secure_logging: bool = True,
-                 raise_exceptions: bool = True,
-                 proxies: dict = None,
-                 headers: dict = None,
-                 timeout: int = 600,
-                 client_name: str = None,
-                 custom_endpoints: dict = None,
-                 ssl_config: SSLConfig = None,
-                 log_communication_on_error: bool = None,
-                 max_tries: int = None,
-                 pool_maxsize: int = None,
-                 pool_block: bool = None,
-                 connection_handler: GraphConnectionHandler = None):
+                 *args, **kwargs):
         """
         Constructor
 
@@ -1342,21 +1240,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                unnecessary version information for each or building their own requests.Sessions. Overrides all other
                parameters.
         """
-        super().__init__(
-            root_url=root_url,
-            raise_exceptions=raise_exceptions,
-            proxies=proxies,
-            headers=headers,
-            timeout=timeout,
-            client_name=client_name,
-            custom_endpoints=custom_endpoints,
-            ssl_config=ssl_config,
-            log_communication_on_error=log_communication_on_error,
-            max_tries=max_tries,
-            pool_maxsize=pool_maxsize,
-            pool_block=pool_block,
-            connection_handler=connection_handler
-        )
+        super().__init__(*args, **kwargs)
 
         self._username = username
         self._password = password
