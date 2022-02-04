@@ -170,16 +170,23 @@ hiro_app_client: HiroApp = HiroApp(
 
 ## Connection sharing
 
-You can also let TokenApiHandlers share a common connection instead of letting each of them create their own. This might
-prove useful in a multithreading environment where tokens have to be set externally or change often (i.e. one token per
-user per thread). This also ensures, that version-requests happen only once when the connection is initialized.
+You can also let TokenApiHandlers share a common connection session instead of letting each of them create their own.
+This might prove useful in a multithreading environment where tokens have to be set externally or change often (i.e.
+one token per user per thread). This also ensures, that version-requests happen only once when the connection is
+initialized.
+
+Use the parameters `pool_maxsize` and `pool_block` to further tune the connection parameters for parallel access to 
+the backend. See [requests Session Objects](https://docs.python-requests.org/en/latest/user/advanced/#session-objects)
+and Python documentation of `requests.adapters.HTTPAdapter` for more information.
 
 ```python
 from hiro_graph_client import HiroGraph, HiroApp, FixedTokenApiHandler, GraphConnectionHandler
 
 connection_handler = GraphConnectionHandler(
     root_url="https://core.arago.co",
-    client_name="Your Graph Client 0.0.1" # optional parameter
+    pool_maxsize=200,                     # Optional: Max pool of cached connections for this connection session
+    pool_block=True,                      # Optional: Do not allow more parallel connections than pool_maxsize
+    client_name="Your Graph Client 0.0.1" # Optional: Will be used in the header 'User-Agent'
 )
 
 # Work with token of user 1

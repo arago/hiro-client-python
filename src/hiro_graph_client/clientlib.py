@@ -426,7 +426,7 @@ class AbstractAPI:
 
     def _get_proxies(self) -> dict:
         """
-        Create a copy of proxies if they exists or return None
+        Create a copy of proxies if they exist or return None
 
         :return: copy of self._proxies or None
         """
@@ -612,7 +612,7 @@ class AbstractAPI:
         :param res: The response object
         :param expected_media_type: The expected Media-Type.
         :raise WrongContentTypeError: When the Media-Type of the Content-Type is not *expected_media_type* or
-               the header is is missing completely.
+               the header is missing completely.
         """
         content_type = res.headers.get('Content-Type')
         if not content_type:
@@ -703,8 +703,8 @@ class GraphConnectionHandler(AbstractAPI):
            }
 
         This object creates the *requests.Session* and *requests.adapters.HTTPAdapter* for this *root_url*. The
-        *pool_maxsize* of such a _session can be set via the parameter in the constructor. When a TokenApiHandler is
-        shared between different API objects (like HiroGraph, HiroApp, etc.), this _session and its pool are also
+        *pool_maxsize* of such a session can be set via the parameter in the constructor. When a TokenApiHandler is
+        shared between different API objects (like HiroGraph, HiroApp, etc.), this session and its pool are also
         shared.
 
         :param root_url: Root url for HIRO, like https://core.arago.co.
@@ -716,17 +716,19 @@ class GraphConnectionHandler(AbstractAPI):
                is given with another value for "User-Agent". Default is "hiro-graph-client".
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
                from /api/version. Example see above.
-        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
-               will be used.
+        :param ssl_config: Optional configuration for SSL connections. If this is omitted, the defaults of `requests`
+               lib will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
-               Default is 10. *pool_maxsize* is ignored when *_session* is set.
+               Default is 10. *pool_maxsize* is ignored when *session* is set.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
-               but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when *_session* is set.
+               but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when *session* is set.
         :param connection_handler: Copy parameters from this already existing connection handler. Overrides all other
                parameters.
+        :param args: Unnamed parameters for parent class. See there.
+        :param kwargs: Named parameters for parent class. See there.
         """
         self._lock = threading.RLock()
 
@@ -891,8 +893,8 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
            }
 
         This object creates the *requests.Session* and *requests.adapters.HTTPAdapter* for this *root_url*. The
-        *pool_maxsize* of such a _session can be set via the parameter in the constructor. When a TokenApiHandler is
-        shared between different API objects (like HiroGraph, HiroApp, etc.), this _session and its pool are also
+        *pool_maxsize* of such a session can be set via the parameter in the constructor. When a TokenApiHandler is
+        shared between different API objects (like HiroGraph, HiroApp, etc.), this session and its pool are also
         shared.
 
         :param root_url: Root url for HIRO, like https://core.arago.co.
@@ -904,21 +906,23 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
                             is given with another value for "User-Agent". Default is "hiro-graph-client".
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
                from /api/version. Example see above.
-        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
+        :param ssl_config: Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
                Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a
-               _session.
+               session.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
                but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
-               *connection_handler* is set and already contains a _session.
+               *connection_handler* is set and already contains a session.
         :param connection_handler: Copy all parameters from this already existing connection handler. This feature
                allows for several distinct TokenApiHandlers to operate on the same connection without querying
                unnecessary version information for each or building their own requests.Sessions. Overrides all other
                parameters.
+        :param args: Unnamed parameters for parent class. See there.
+        :param kwargs: Named parameters for parent class. See there.
         """
         super().__init__(*args, **kwargs)
 
@@ -989,21 +993,23 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                             is given with another value for "User-Agent". Default is "hiro-graph-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
-        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
+        :param ssl_config: Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
                Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a
-               _session.
+               session.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
                but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
-               *connection_handler* is set and already contains a _session.
+               *connection_handler* is set and already contains a session.
         :param connection_handler: Copy all parameters from this already existing connection handler. This feature
                allows for several distinct TokenApiHandlers to operate on the same connection without querying
                unnecessary version information for each or building their own requests.Sessions. Overrides all other
                parameters.
+        :param args: Unnamed parameters for parent class. See there.
+        :param kwargs: Named parameters for parent class. See there.
         """
         super().__init__(*args, **kwargs)
 
@@ -1045,21 +1051,23 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                             is given with another value for "User-Agent". Default is "hiro-graph-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
-        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
+        :param ssl_config: Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
                Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a
-               _session.
+               session.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
                but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
-               *connection_handler* is set and already contains a _session.
+               *connection_handler* is set and already contains a session.
         :param connection_handler: Copy all parameters from this already existing connection handler. This feature
                allows for several distinct TokenApiHandlers to operate on the same connection without querying
                unnecessary version information for each or building their own requests.Sessions. Overrides all other
                parameters.
+        :param args: Unnamed parameters for parent class. See there.
+        :param kwargs: Named parameters for parent class. See there.
         """
         super().__init__(*args, **kwargs)
 
@@ -1189,7 +1197,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
     API Tokens will be fetched using this class. It does not handle any automatic token fetching, refresh or token
     expiry. This has to be checked and triggered by the *caller*.
 
-    The methods of this class are thread-safe so it can be shared between several HIRO objects.
+    The methods of this class are thread-safe, so it can be shared between several HIRO objects.
 
     It is built this way to avoid endless calling loops when resolving tokens.
     """
@@ -1231,7 +1239,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                             is given with another value for "User-Agent". Default is "hiro-graph-client".
         :param custom_endpoints: Optional map of [name:endpoint_path] that overrides or adds to the endpoints taken from
                /api/version.
-        :param ssl_config Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
+        :param ssl_config: Optional configuration for SSL connections. If this is omitted, the defaults of `requests` lib
                           will be used.
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
@@ -1246,6 +1254,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                allows for several distinct TokenApiHandlers to operate on the same connection without querying
                unnecessary version information for each or building their own requests.Sessions. Overrides all other
                parameters.
+        :param args: Unnamed parameters for parent class. See there.
+        :param kwargs: Named parameters for parent class. See there.
         """
         super().__init__(*args, **kwargs)
 
