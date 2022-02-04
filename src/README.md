@@ -177,7 +177,7 @@ initialized.
 
 Use the parameters `pool_maxsize` and `pool_block` to further tune the connection parameters for parallel access to 
 the backend. See [requests Session Objects](https://docs.python-requests.org/en/latest/user/advanced/#session-objects)
-and Python documentation of `requests.adapters.HTTPAdapter` for more information.
+and the Python documentation of `requests.adapters.HTTPAdapter` and `GraphConnectionHandler`.
 
 ```python
 from hiro_graph_client import HiroGraph, HiroApp, FixedTokenApiHandler, GraphConnectionHandler

@@ -1,3 +1,7 @@
+# v5.2.1
+
+* Update because of wrong documentation on https://pypi.org/project/hiro-graph-client/
+
 # v5.2.0
 
 * Separate connection sessions from token handlers. Introducing class `GraphConnectonHandler` which can be shared
