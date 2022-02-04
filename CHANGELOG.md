@@ -1,8 +1,14 @@
+# v5.2.0
+
+* Separate connection sessions from token handlers. Introducing class `GraphConnectonHandler` which can be shared
+  between `TokenApiHandler`s and API-Classes.
+* Updated documentation.
+
 # v5.1.0
 
 * Use connection pooling via requests.Session.
-  * Set `pool_connections=1`, `pool_maxsize=10` by default (the latter can be changed).
-  * Option `pool_block` to block any connections that would exceed the `pool_maxsize`.
+    * Set `pool_connections=1`, `pool_maxsize=10` by default (the latter can be changed).
+    * Option `pool_block` to block any connections that would exceed the `pool_maxsize`.
 * Removed obsolete `accept_all_certs()`.
 * Fixed pytest in Makefile target.
 * Added information about `requests.Session` and the `pool_maxsize` to documentation.
@@ -13,24 +19,23 @@
 
 # v4.9.0
 
-* Added batch handling of issues. `handle_vertices_combined` recognizes `_issue_data` now for issues
-  directly linked to vertices.
+* Added batch handling of issues. `handle_vertices_combined` recognizes `_issue_data` now for issues directly linked to
+  vertices.
 * Updated documentation.
 
 # v4.8.0
 
 * Refactoring of `websocketlib.py`:
 
-  * Removed unnecessary extra thread.
-  * Debugged shutdown of WebSockets via signals and threads.
-  * Updated documentation:
-    * On signal handling.
-    * On clean shutdown of WebSockets.
-    * Adjusted the example code for WebSockets.
+    * Removed unnecessary extra thread.
+    * Debugged shutdown of WebSockets via signals and threads.
+    * Updated documentation:
+        * On signal handling.
+        * On clean shutdown of WebSockets.
+        * Adjusted the example code for WebSockets.
 
 
-* Allow `-` or `_` as build number separator on test tags, i.e. `t4.8.0_0` and `t4.8.0-0` are handled
-  identical now.
+* Allow `-` or `_` as build number separator on test tags, i.e. `t4.8.0_0` and `t4.8.0-0` are handled identical now.
 
 # v4.7.5
 
@@ -39,8 +44,8 @@
 
 # v4.7.4
 
-* [bugfix] Catch 401 when using PasswordAuthTokenHandler and refresh_token.
-  Raise TokenUnauthorizedError when this happens to trigger a retry.
+* [bugfix] Catch 401 when using PasswordAuthTokenHandler and refresh_token. Raise TokenUnauthorizedError when this
+  happens to trigger a retry.
 
 # v4.7.3
 
@@ -53,16 +58,13 @@
 # v4.7.1
 
 * Updated some code documentation in `HiroGraph` that became obsolete.
- 
+
 * Updated graph queries in `HiroGraph`:
 
-  * For vertex and gremlin queries: Skip unnecessary fields in query
-    payload.
-  * Add parameter `count` to vertex query.
+    * For vertex and gremlin queries: Skip unnecessary fields in query payload.
+    * Add parameter `count` to vertex query.
 
 * Renamed default _client_name to `hiro-graph-client` (name of the lib on PyPI).
-
-
 
 # v4.7.0
 
