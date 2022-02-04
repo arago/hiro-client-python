@@ -132,7 +132,8 @@ class AbstractAPI:
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
-        :param abstract_api: Set all parameters by copying them from another instance. Overrides all other parameters.
+        :param abstract_api: Set all parameters by copying them from the instance given by this parameter. Overrides
+               all other parameters.
         """
         self._root_url = getattr(abstract_api, '_root_url', root_url)
         self._session = getattr(abstract_api, '_session', session)
@@ -671,6 +672,8 @@ class GraphConnectionHandler(AbstractAPI):
 
     _pool_block = False
 
+    _version_info: dict = None
+
     def __init__(self,
                  root_url: str = None,
                  raise_exceptions: bool = True,
@@ -683,7 +686,8 @@ class GraphConnectionHandler(AbstractAPI):
                  log_communication_on_error: bool = None,
                  max_tries: int = None,
                  pool_maxsize: int = None,
-                 pool_block: bool = None):
+                 pool_block: bool = None,
+                 connection_handler=None):
         """
         Constructor
 
@@ -720,7 +724,11 @@ class GraphConnectionHandler(AbstractAPI):
                Default is 10. *pool_maxsize* is ignored when *_session* is set.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
                but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when *_session* is set.
+        :param connection_handler: Copy parameters from this already existing connection handler. Overrides all other
+               parameters.
         """
+        root_url = getattr(connection_handler, '_root_url', root_url)
+
         if not root_url:
             raise ValueError("'root_url' must not be empty.")
 
@@ -732,19 +740,24 @@ class GraphConnectionHandler(AbstractAPI):
         session = requests.Session()
         session.mount(root_url, adapter)
 
-        super().__init__(root_url=root_url,
-                         session=session,
-                         raise_exceptions=raise_exceptions,
-                         proxies=proxies,
-                         timeout=timeout,
-                         headers=headers,
-                         client_name=client_name,
-                         ssl_config=ssl_config,
-                         log_communication_on_error=log_communication_on_error,
-                         max_tries=max_tries)
+        super().__init__(
+            root_url=root_url,
+            session=session,
+            raise_exceptions=raise_exceptions,
+            proxies=proxies,
+            timeout=timeout,
+            headers=headers,
+            client_name=client_name,
+            ssl_config=ssl_config,
+            log_communication_on_error=log_communication_on_error,
+            max_tries=max_tries,
+            abstract_api=connection_handler
+        )
 
-        self._version_info = None
-        self.custom_endpoints = custom_endpoints
+        self.custom_endpoints = getattr(connection_handler, '_custom_endpoints', custom_endpoints)
+        self._version_info = getattr(connection_handler, '_version_info', None)
+
+        self.get_version()
 
     @staticmethod
     def _remove_slash(endpoint: str) -> str:
@@ -840,13 +853,14 @@ class GraphConnectionHandler(AbstractAPI):
     # REST API operations
     ###############################################################################################################
 
-    def get_version(self) -> dict:
+    def get_version(self, force_update: bool = False) -> dict:
         """
         HIRO REST query API: `GET self._endpoint + '/api/version'`
 
+        :param force_update: Force updating the internal cache with version_info via API request.
         :return: The result payload
         """
-        if not self._version_info:
+        if not self._version_info or force_update:
             url = self._root_url + '/api/version'
             self._version_info = self.get(url)
 
@@ -857,13 +871,10 @@ class GraphConnectionHandler(AbstractAPI):
 # TokenApiHandler classes
 ###################################################################################################################
 
-class AbstractTokenApiHandler(AbstractAPI):
+class AbstractTokenApiHandler(GraphConnectionHandler):
     """
     Root class for all TokenApiHandler classes. This adds token handling.
     """
-
-    _connection_handler: GraphConnectionHandler
-    """Reference to an GraphConnectionHandler containing version information and requests.Session"""
 
     def __init__(self,
                  root_url: str = None,
@@ -917,11 +928,12 @@ class AbstractTokenApiHandler(AbstractAPI):
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
                but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
                *connection_handler* is set and already contains a _session.
-        :param connection_handler: Use an already existing connection handler. This feature allows for several distinct
-               TokenApiHandlers to operate on the same connection without querying unnecessary version information for
-               each or building their own requests.Sessions. Overrides all other parameters.
+        :param connection_handler: Copy all parameters from this already existing connection handler. This feature
+               allows for several distinct TokenApiHandlers to operate on the same connection without querying
+               unnecessary version information for each or building their own requests.Sessions. Overrides all other
+               parameters.
         """
-        self._connection_handler = connection_handler or GraphConnectionHandler(
+        super().__init__(
             root_url=root_url,
             raise_exceptions=raise_exceptions,
             proxies=proxies,
@@ -933,29 +945,9 @@ class AbstractTokenApiHandler(AbstractAPI):
             log_communication_on_error=log_communication_on_error,
             max_tries=max_tries,
             pool_maxsize=pool_maxsize,
-            pool_block=pool_block
+            pool_block=pool_block,
+            connection_handler=connection_handler
         )
-
-        super().__init__(abstract_api=self._connection_handler)
-
-    ###############################################################################################################
-    # Access connection handler
-    ###############################################################################################################
-
-    def get_api_endpoint_of(self, api_name: str) -> str:
-        return self._connection_handler.get_api_endpoint_of(api_name)
-
-    def get_websocket_config(self, api_name: str) -> Tuple[
-        str,
-        str,
-        Optional[str],
-        Optional[int],
-        Optional[dict]
-    ]:
-        return self._connection_handler.get_websocket_config(api_name)
-
-    def get_version(self):
-        return self._connection_handler.get_version()
 
     ###############################################################################################################
     # Token handling
@@ -1049,9 +1041,10 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
                but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
                *connection_handler* is set and already contains a _session.
-        :param connection_handler: Use an already existing connection handler. This feature allows for several distinct
-               TokenApiHandlers to operate on the same connection without querying unnecessary version information for
-               each or building their own requests.Sessions. Overrides all other connection specific parameters.
+        :param connection_handler: Copy all parameters from this already existing connection handler. This feature
+               allows for several distinct TokenApiHandlers to operate on the same connection without querying
+               unnecessary version information for each or building their own requests.Sessions. Overrides all other
+               parameters.
         """
         super().__init__(
             root_url=root_url,
@@ -1132,9 +1125,10 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
                but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
                *connection_handler* is set and already contains a _session.
-        :param connection_handler: Use an already existing connection handler. This feature allows for several distinct
-               TokenApiHandlers to operate on the same connection without querying unnecessary version information for
-               each or building their own requests.Sessions. Overrides all other connection specific parameters.
+        :param connection_handler: Copy all parameters from this already existing connection handler. This feature
+               allows for several distinct TokenApiHandlers to operate on the same connection without querying
+               unnecessary version information for each or building their own requests.Sessions. Overrides all other
+               parameters.
         """
         super().__init__(
             root_url=root_url,
@@ -1343,9 +1337,10 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
                but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
                *connection_handler* is set and already contains a _session.
-        :param connection_handler: Use an already existing connection handler. This feature allows for several distinct
-               TokenApiHandlers to operate on the same connection without querying unnecessary version information for
-               each or building their own requests.Sessions. Overrides all other connection specific parameters.
+        :param connection_handler: Copy all parameters from this already existing connection handler. This feature
+               allows for several distinct TokenApiHandlers to operate on the same connection without querying
+               unnecessary version information for each or building their own requests.Sessions. Overrides all other
+               parameters.
         """
         super().__init__(
             root_url=root_url,
