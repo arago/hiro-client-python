@@ -749,6 +749,7 @@ class GraphConnectionHandler(AbstractAPI):
             root_url=root_url,
             session=session,
             abstract_api=connection_handler,
+            *args,
             **kwargs
         )
 
