@@ -104,8 +104,8 @@ class AbstractAPI:
     _timeout: int = 600
 
     def __init__(self,
-                 root_url: str,
-                 session: requests.Session,
+                 root_url: str = None,
+                 session: requests.Session = None,
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
@@ -113,7 +113,8 @@ class AbstractAPI:
                  client_name: str = None,
                  ssl_config: SSLConfig = None,
                  log_communication_on_error: bool = None,
-                 max_tries: int = None):
+                 max_tries: int = None,
+                 abstract_api=None):
 
         """
         Constructor
@@ -131,41 +132,44 @@ class AbstractAPI:
         :param log_communication_on_error: Log socket communication when an error (status_code of HTTP Response) is
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
+        :param abstract_api: Set all parameters by copying them from another instance. Overrides all other parameters.
         """
+        self._root_url = getattr(abstract_api, '_root_url', root_url)
+        self._session = getattr(abstract_api, '_session', session)
 
-        if not root_url:
+        if not self._root_url:
             raise ValueError("'root_url' must not be empty.")
 
-        if not session:
+        if not self._session:
             raise ValueError("'session' must not be empty.")
 
-        self._root_url = root_url
-        self._proxies = proxies
-        self._raise_exceptions = raise_exceptions
-        self._timeout = timeout or self._timeout
-        self._log_communication_on_error = log_communication_on_error or False
-        self._session = session
+        self._proxies = getattr(abstract_api, '_proxies', proxies)
+        self._raise_exceptions = getattr(abstract_api, '_raise_exceptions', raise_exceptions)
+        self._timeout = getattr(abstract_api, '_timeout', timeout or self._timeout)
+        self._log_communication_on_error = getattr(abstract_api, '_log_communication_on_error',
+                                                   log_communication_on_error or False)
 
-        self.ssl_config = ssl_config or SSLConfig()
+        self.ssl_config = getattr(abstract_api, 'ssl_config', ssl_config or SSLConfig())
 
         if not self.ssl_config.verify:
             AbstractAPI.accept_all_certs = True
             requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
-        if client_name:
-            self._client_name = client_name
+        self._client_name = getattr(abstract_api, '_client_name', client_name or self._client_name)
 
-        self._headers = {
-            'Content-Type': 'application/json',
-            'Accept': 'text/plain, application/json',
-            'User-Agent': f"{self._client_name} {__version__}"
-        }
+        if abstract_api:
+            self._headers = getattr(abstract_api, '_headers', None)
+        else:
+            self._headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'text/plain, application/json',
+                'User-Agent': f"{self._client_name} {__version__}"
+            }
 
-        if headers:
-            self._headers.update({self._capitalize_header(k): v for k, v in headers.items()})
+            if headers:
+                self._headers.update({self._capitalize_header(k): v for k, v in headers.items()})
 
-        if max_tries is not None:
-            self._max_tries = max_tries
+        self._max_tries = getattr(abstract_api, '_max_tries', max_tries)
 
     def _get_max_tries(self):
         return self._max_tries
@@ -667,11 +671,8 @@ class GraphConnectionHandler(AbstractAPI):
 
     _pool_block = False
 
-    __session: requests.Session
-    """Stores the connection _session"""
-
     def __init__(self,
-                 root_url: str,
+                 root_url: str = None,
                  raise_exceptions: bool = True,
                  proxies: dict = None,
                  headers: dict = None,
@@ -698,7 +699,8 @@ class GraphConnectionHandler(AbstractAPI):
 
         This object creates the *requests.Session* and *requests.adapters.HTTPAdapter* for this *root_url*. The
         *pool_maxsize* of such a _session can be set via the parameter in the constructor. When a TokenApiHandler is
-        shared between different API objects (like HiroGraph, HiroApp, etc.), this _session and its pool are also shared.
+        shared between different API objects (like HiroGraph, HiroApp, etc.), this _session and its pool are also
+        shared.
 
         :param root_url: Root url for HIRO, like https://core.arago.co.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
@@ -727,11 +729,11 @@ class GraphConnectionHandler(AbstractAPI):
             pool_connections=1,
             pool_block=pool_block or self._pool_block
         )
-        self.__session = requests.Session()
-        self.__session.mount(root_url, adapter)
+        session = requests.Session()
+        session.mount(root_url, adapter)
 
         super().__init__(root_url=root_url,
-                         session=self.__session,
+                         session=session,
                          raise_exceptions=raise_exceptions,
                          proxies=proxies,
                          timeout=timeout,
@@ -766,10 +768,7 @@ class GraphConnectionHandler(AbstractAPI):
             if endpoint:
                 return self._remove_slash(self._root_url + endpoint)
 
-        if not self._version_info:
-            self._version_info = self.get_version()
-
-        api_entry: dict = self._version_info.get(api_name)
+        api_entry: dict = self.get_version().get(api_name)
 
         if not api_entry:
             raise ValueError("No API named '{}' found.".format(api_name))
@@ -830,10 +829,7 @@ class GraphConnectionHandler(AbstractAPI):
                 if endpoint:
                     return _construct_result(endpoint, protocol)
 
-        if not self._version_info:
-            self._version_info = self.get_version()
-
-        api_entry: dict = self._version_info.get(api_name)
+        api_entry: dict = self.get_version().get(api_name)
 
         if not api_entry:
             raise ValueError("No WS API named '{}' found.".format(api_name))
@@ -850,8 +846,11 @@ class GraphConnectionHandler(AbstractAPI):
 
         :return: The result payload
         """
-        url = self._root_url + '/api/version'
-        return self.get(url)
+        if not self._version_info:
+            url = self._root_url + '/api/version'
+            self._version_info = self.get(url)
+
+        return self._version_info
 
 
 ###################################################################################################################
@@ -895,7 +894,8 @@ class AbstractTokenApiHandler(AbstractAPI):
 
         This object creates the *requests.Session* and *requests.adapters.HTTPAdapter* for this *root_url*. The
         *pool_maxsize* of such a _session can be set via the parameter in the constructor. When a TokenApiHandler is
-        shared between different API objects (like HiroGraph, HiroApp, etc.), this _session and its pool are also shared.
+        shared between different API objects (like HiroGraph, HiroApp, etc.), this _session and its pool are also
+        shared.
 
         :param root_url: Root url for HIRO, like https://core.arago.co.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
@@ -912,7 +912,8 @@ class AbstractTokenApiHandler(AbstractAPI):
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
-               Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a _session.
+               Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a
+               _session.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
                but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
                *connection_handler* is set and already contains a _session.
@@ -935,18 +936,7 @@ class AbstractTokenApiHandler(AbstractAPI):
             pool_block=pool_block
         )
 
-        super().__init__(
-            root_url=self._connection_handler._root_url,
-            session=self._connection_handler._session,
-            raise_exceptions=self._connection_handler._raise_exceptions,
-            proxies=self._connection_handler._proxies,
-            timeout=self._connection_handler._timeout,
-            headers=self._connection_handler._headers,
-            client_name=self._connection_handler._client_name,
-            ssl_config=self._connection_handler.ssl_config,
-            log_communication_on_error=self._connection_handler._log_communication_on_error,
-            max_tries=self._connection_handler._max_tries
-        )
+        super().__init__(abstract_api=self._connection_handler)
 
     ###############################################################################################################
     # Access connection handler
@@ -1054,7 +1044,8 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
-               Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a _session.
+               Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a
+               _session.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
                but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
                *connection_handler* is set and already contains a _session.
@@ -1136,7 +1127,8 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
-               Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a _session.
+               Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a
+               _session.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
                but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
                *connection_handler* is set and already contains a _session.
@@ -1346,7 +1338,8 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
-               Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a _session.
+               Default is 10. *pool_maxsize* is ignored when *connection_handler* is set and already contains a
+               _session.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
                but do not cache them. See requests.adapters.HTTPAdapter. *pool_block* is ignored when
                *connection_handler* is set and already contains a _session.
@@ -1535,16 +1528,7 @@ class AuthenticatedAPIHandler(AbstractAPI):
         if not api_handler or not api_name:
             raise ValueError("Cannot authenticate against HIRO without *api_handler* and *api_name*.")
 
-        super().__init__(root_url=api_handler._root_url,
-                         session=api_handler._session,
-                         raise_exceptions=api_handler._raise_exceptions,
-                         proxies=api_handler._proxies,
-                         headers=api_handler._headers,
-                         timeout=api_handler._timeout,
-                         client_name=api_handler._client_name,
-                         ssl_config=api_handler.ssl_config,
-                         log_communication_on_error=api_handler._log_communication_on_error,
-                         max_tries=api_handler._get_max_tries())
+        super().__init__(abstract_api=api_handler)
 
         self._api_handler = api_handler
         self._api_name = api_name

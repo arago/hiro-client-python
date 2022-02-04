@@ -3,29 +3,27 @@ from .testconfig import CONFIG
 
 
 class TestClient:
-    # connection_handler = GraphConnectionHandler(
-    #     root_url=CONFIG.get('URL'),
-    #     ssl_config=SSLConfig(verify=False)
-    # )
-
-    hiro_api_handler = PasswordAuthTokenApiHandler(
+    connection_handler = GraphConnectionHandler(
         root_url=CONFIG.get('URL'),
-        username=CONFIG.get('USERNAME'),
-        password=CONFIG.get('PASSWORD'),
-        client_id=CONFIG.get('CLIENT_ID'),
-        client_secret=CONFIG.get('CLIENT_SECRET'),
-        secure_logging=False,
         ssl_config=SSLConfig(verify=False)
     )
 
-    hiro_api_handler2 = PasswordAuthTokenApiHandler(
-        root_url=CONFIG.get('URL'),
+    hiro_api_handler = PasswordAuthTokenApiHandler(
         username=CONFIG.get('USERNAME'),
         password=CONFIG.get('PASSWORD'),
         client_id=CONFIG.get('CLIENT_ID'),
         client_secret=CONFIG.get('CLIENT_SECRET'),
         secure_logging=False,
-        ssl_config=SSLConfig(verify=False)
+        connection_handler=connection_handler
+    )
+
+    hiro_api_handler2 = PasswordAuthTokenApiHandler(
+        username=CONFIG.get('USERNAME'),
+        password=CONFIG.get('PASSWORD'),
+        client_id=CONFIG.get('CLIENT_ID'),
+        client_secret=CONFIG.get('CLIENT_SECRET'),
+        secure_logging=False,
+        connection_handler=connection_handler
     )
 
     def test_simple_query(self):
