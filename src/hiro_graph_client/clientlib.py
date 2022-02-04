@@ -93,6 +93,10 @@ class AbstractAPI:
     tool methods for handling headers, url query parts and response error checking.
     """
 
+    _root_url: str = None
+
+    _session: requests.Session = None
+
     accept_all_certs: bool = False
 
     ssl_config: SSLConfig
@@ -727,17 +731,19 @@ class GraphConnectionHandler(AbstractAPI):
         self._lock = threading.RLock()
 
         root_url = getattr(connection_handler, '_root_url', root_url)
+        session = getattr(connection_handler, '_session', None)
 
         if not root_url:
             raise ValueError("'root_url' must not be empty.")
 
-        adapter = requests.adapters.HTTPAdapter(
-            pool_maxsize=pool_maxsize or self._pool_maxsize,
-            pool_connections=1,
-            pool_block=pool_block or self._pool_block
-        )
-        session = requests.Session()
-        session.mount(root_url, adapter)
+        if not session:
+            adapter = requests.adapters.HTTPAdapter(
+                pool_maxsize=pool_maxsize or self._pool_maxsize,
+                pool_connections=1,
+                pool_block=pool_block or self._pool_block
+            )
+            session = requests.Session()
+            session.mount(root_url, adapter)
 
         super().__init__(
             root_url=root_url,
