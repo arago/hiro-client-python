@@ -142,7 +142,7 @@ query_result = hiro_client.query('ogit\\/_type:"ogit/MARS/Machine"')
 print(query_result)
 ```
 
-## Handler sharing
+## Token Handler sharing
 
 When you need to access multiple APIs of HIRO, share the TokenApiHandler between the API objects to avoid unnecessary
 requests for token- and version-information against HIRO. The TokenApiHandler will share a `requests.Session`, token-
@@ -167,6 +167,48 @@ hiro_app_client: HiroApp = HiroApp(
     api_handler=hiro_api_handler
 )
 ```
+
+## Connection sharing
+
+You can also let TokenApiHandlers share a common connection instead of letting each of them create their own. This might
+prove useful in a multithreading environment where tokens have to be set externally or change often (i.e. one token per
+user per thread). This also ensures, that version-requests happen only once when the connection is initialized.
+
+```python
+from hiro_graph_client import HiroGraph, HiroApp, FixedTokenApiHandler, GraphConnectionHandler
+
+connection_handler = GraphConnectionHandler(
+    root_url="https://core.arago.co",
+    client_name="Your Graph Client 0.0.1" # optional parameter
+)
+
+# Work with token of user 1
+
+user1_client: HiroGraph = HiroGraph(
+    api_handler=FixedTokenApiHandler(
+        connection_handler=connection_handler,
+        token='token user 1'
+    )
+)
+
+# Work with token of user 2 (Shared Token Handler)
+
+user2_api_handler = FixedTokenApiHandler(
+    connection_handler=connection_handler,
+    token='token user 2'
+)
+
+user2_client: HiroGraph = HiroGraph(
+    api_handler=user2_api_handler
+)
+
+hiro_app_client: HiroApp = HiroApp(
+    api_handler=user2_api_handler
+)
+
+```
+
+Everything written in [Token Handler Sharing](#token-handler-sharing) still applies.
 
 ## SSL Configuration
 
