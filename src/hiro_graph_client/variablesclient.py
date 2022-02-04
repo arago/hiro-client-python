@@ -31,9 +31,9 @@ class HiroVariables(AuthenticatedAPIHandler):
 
         HIRO REST query API: `PUT self._endpoint`
 
-        :param data: Variable content.
-               See https://core.arago.co/help/specs/?url=definitions/variables.yaml#/[Variables]/put_
-        :param subtype Query variable. Value of ogit/subType. Optional.
+        :param data: Variable content. See
+               https://core.arago.co/help/specs/?url=definitions/variables.yaml#/[Variables]/put_
+        :param subtype: Query variable. Value of ogit/subType. Optional.
         :return: The result payload
         """
         query = {

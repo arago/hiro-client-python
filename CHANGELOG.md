@@ -1,3 +1,8 @@
+# v5.2.2
+
+* Debugged python code documentation.
+* Fixed copyright notices.
+
 # v5.2.1
 
 * Update because of wrong documentation on https://pypi.org/project/hiro-graph-client/

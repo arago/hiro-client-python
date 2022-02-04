@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath('../../src/hiro_graph_client'))
 # -- Project information -----------------------------------------------------
 
 project = 'hiro_graph_client'
-copyright = '2020, arago GmbH'
+copyright = '2020-present, arago GmbH'
 author = 'Wolfgang Hübner'
 
 # The full version, including alpha/beta/rc tags
