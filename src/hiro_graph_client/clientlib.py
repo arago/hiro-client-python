@@ -97,8 +97,6 @@ class AbstractAPI:
 
     _session: requests.Session = None
 
-    accept_all_certs: bool = False
-
     ssl_config: SSLConfig
 
     _client_name: str = "hiro-graph-client"
@@ -157,7 +155,6 @@ class AbstractAPI:
         self.ssl_config = getattr(abstract_api, 'ssl_config', ssl_config or SSLConfig())
 
         if not self.ssl_config.verify:
-            AbstractAPI.accept_all_certs = True
             requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
         self._client_name = getattr(abstract_api, '_client_name', client_name or self._client_name)
