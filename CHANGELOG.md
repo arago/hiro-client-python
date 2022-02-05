@@ -1,3 +1,7 @@
+# v5.2.3
+
+* Remove accept_all_certs for good. Directly use the flag in SSLConfig.
+
 # v5.2.2
 
 * Debugged python code documentation.
