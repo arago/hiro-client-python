@@ -121,11 +121,15 @@ class AbstractAPI:
         """
         Constructor
 
+        A note regarding headers: If you set a value in the dict to *None*, it will not show up in the HTTP-request
+        headers. Use this to erase entries from existing default headers or headers copied from *apstract_api* (when
+        given).
+
         :param root_url: Root uri of the HIRO API, like *https://core.arago.co*.
         :param session: The requests.Session object for the connection pool. Required.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
-        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param headers: Optional custom HTTP headers. Will be merged with the internal default headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
                is given with another value for "User-Agent". Default is "hiro-graph-client".
@@ -135,7 +139,7 @@ class AbstractAPI:
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param abstract_api: Set all parameters by copying them from the instance given by this parameter. Overrides
-               all other parameters.
+               all other parameters except headers, which will be merged with existing ones.
         """
         self._root_url = getattr(abstract_api, '_root_url', root_url)
         self._session = getattr(abstract_api, '_session', session)
@@ -160,16 +164,17 @@ class AbstractAPI:
         self._client_name = getattr(abstract_api, '_client_name', client_name or self._client_name)
 
         if abstract_api:
-            self._headers = getattr(abstract_api, '_headers', None)
+            initial_headers = getattr(abstract_api, '_headers', None)
+            if isinstance(initial_headers, dict):
+                initial_headers = initial_headers.copy()
         else:
-            self._headers = {
+            initial_headers = {
                 'Content-Type': 'application/json',
                 'Accept': 'text/plain, application/json',
                 'User-Agent': f"{self._client_name} {__version__}"
             }
 
-            if headers:
-                self._headers.update({self._capitalize_header(k): v for k, v in headers.items()})
+        self._headers = AbstractAPI._merge_headers(initial_headers, headers)
 
         self._max_tries = getattr(abstract_api, '_max_tries', max_tries)
 
@@ -429,6 +434,22 @@ class AbstractAPI:
         """
         return self._proxies.copy() if self._proxies else None
 
+    @staticmethod
+    def _merge_headers(headers: dict, override: dict) -> dict:
+        """
+        Merge headers with override.
+
+        :param headers: Headers to merge into.
+        :param override: Dict of headers that override *headers*. If a header key is set to value None,
+               it will be removed from *headers*.
+        :return: The merged headers.
+        """
+        if isinstance(headers, dict) and isinstance(override, dict):
+            headers.update({AbstractAPI._capitalize_header(k): v for k, v in override.items()})
+            headers = {k: v for k, v in headers.items() if v is not None}
+
+        return headers
+
     def _get_headers(self, override: dict = None) -> dict:
         """
         Create a header dict for requests. Uses abstract method *self._handle_token()*.
@@ -437,11 +458,8 @@ class AbstractAPI:
                it will be removed from the headers.
         :return: A dict containing header values for requests.
         """
-        headers = self._headers.copy()
 
-        if isinstance(override, dict):
-            headers.update({self._capitalize_header(k): v for k, v in override.items()})
-            headers = {k: v for k, v in headers.items() if v is not None}
+        headers = AbstractAPI._merge_headers(self._headers.copy(), override)
 
         token = self._handle_token()
         if token:
