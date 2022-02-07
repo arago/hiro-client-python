@@ -57,7 +57,7 @@ class SSLConfig:
         :param key_file: (optional) Key for the certificate file.
         :param ca_bundle_file: (optional) The ca_bundle for server certificate verification.
         """
-        self.verify = verify
+        self.verify = False if verify is False else True
         self.cert_file = cert_file
         self.key_file = key_file
         self.ca_bundle_file = ca_bundle_file
