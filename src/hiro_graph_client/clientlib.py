@@ -165,8 +165,6 @@ class AbstractAPI:
 
         if abstract_api:
             initial_headers = getattr(abstract_api, '_headers', None)
-            if isinstance(initial_headers, dict):
-                initial_headers = initial_headers.copy()
         else:
             initial_headers = {
                 'Content-Type': 'application/json',
