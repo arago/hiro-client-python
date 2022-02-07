@@ -57,7 +57,7 @@ class SSLConfig:
         :param key_file: (optional) Key for the certificate file.
         :param ca_bundle_file: (optional) The ca_bundle for server certificate verification.
         """
-        self.verify = verify
+        self.verify = False if verify is False else True
         self.cert_file = cert_file
         self.key_file = key_file
         self.ca_bundle_file = ca_bundle_file
@@ -96,8 +96,6 @@ class AbstractAPI:
     _root_url: str = None
 
     _session: requests.Session = None
-
-    accept_all_certs: bool = False
 
     ssl_config: SSLConfig
 
@@ -157,7 +155,6 @@ class AbstractAPI:
         self.ssl_config = getattr(abstract_api, 'ssl_config', ssl_config or SSLConfig())
 
         if not self.ssl_config.verify:
-            AbstractAPI.accept_all_certs = True
             requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
         self._client_name = getattr(abstract_api, '_client_name', client_name or self._client_name)

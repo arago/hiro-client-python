@@ -435,7 +435,7 @@ class AbstractAuthenticatedWebSocketHandler:
                                          http_proxy_auth=self._proxy_auth,
                                          sslopt={
                                              "cert_reqs": ssl.CERT_NONE
-                                         } if AbstractTokenApiHandler.accept_all_certs else None)
+                                         } if not self._api_handler.ssl_config.verify else None)
 
                 except Exception as error:
                     self._check_error(self._ws, error)

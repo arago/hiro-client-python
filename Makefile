@@ -1,8 +1,8 @@
 #
 # Python executables
 #
-PIP := pip3
-PYTHON := python3
+PIP := pip
+PYTHON := python
 
 #
 # Setting path for installations as user, i.e. pip install --user ....
