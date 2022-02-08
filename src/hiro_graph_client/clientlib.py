@@ -94,16 +94,34 @@ class AbstractAPI:
     """
 
     _root_url: str = None
+    """Servername and context path of the root of the API"""
 
     _session: requests.Session = None
+    """Reference to the session information"""
 
     ssl_config: SSLConfig
+    """Security configuration and location of certificate files"""
 
     _client_name: str = "hiro-graph-client"
+    """Used in header 'User-Agent'"""
 
     _max_tries: int = 2
+    """Retries for backoff"""
 
     _timeout: int = 600
+    """Timeout for requests-methods as needed by package 'requests'."""
+
+    _raise_exceptions: bool = True
+    """Raise an exception when the status-code of results indicates an error"""
+
+    _proxies: dict = None
+    """Proxy configuration as needed by package 'requests'."""
+
+    _headers: dict = {}
+    """Common headers for HTTP requests."""
+
+    _log_communication_on_error: bool = False
+    """Dump request and response into logging on errors"""
 
     def __init__(self,
                  root_url: str = None,
@@ -121,11 +139,15 @@ class AbstractAPI:
         """
         Constructor
 
+        A note regarding headers: If you set a value in the dict to *None*, it will not show up in the HTTP-request
+        headers. Use this to erase entries from existing default headers or headers copied from *apstract_api* (when
+        given).
+
         :param root_url: Root uri of the HIRO API, like *https://core.arago.co*.
         :param session: The requests.Session object for the connection pool. Required.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
-        :param headers: Optional custom HTTP headers. Will override the internal headers. Default is None.
+        :param headers: Optional custom HTTP headers. Will be merged with the internal default headers. Default is None.
         :param timeout: Optional timeout for requests. Default is 600 (10 min).
         :param client_name: Optional name for the client. Will also be part of the "User-Agent" header unless *headers*
                is given with another value for "User-Agent". Default is "hiro-graph-client".
@@ -135,10 +157,29 @@ class AbstractAPI:
                detected. Default is not to do this.
         :param max_tries: Max tries for BACKOFF. Default is 2.
         :param abstract_api: Set all parameters by copying them from the instance given by this parameter. Overrides
-               all other parameters.
+               all other parameters except headers, which will be merged with existing ones.
         """
-        self._root_url = getattr(abstract_api, '_root_url', root_url)
-        self._session = getattr(abstract_api, '_session', session)
+
+        if isinstance(abstract_api, AbstractAPI):
+            root_url = abstract_api._root_url
+            session = abstract_api._session
+            raise_exceptions = abstract_api._raise_exceptions
+            proxies = abstract_api._proxies
+            initial_headers = abstract_api._headers.copy()
+            timeout = abstract_api._timeout
+            client_name = abstract_api._client_name
+            ssl_config = abstract_api.ssl_config
+            log_communication_on_error = abstract_api._log_communication_on_error
+            max_tries = abstract_api._max_tries
+        else:
+            initial_headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'text/plain, application/json',
+                'User-Agent': f"{client_name or self._client_name} {__version__}"
+            }
+
+        self._root_url = root_url
+        self._session = session
 
         if not self._root_url:
             raise ValueError("'root_url' must not be empty.")
@@ -146,32 +187,19 @@ class AbstractAPI:
         if not self._session:
             raise ValueError("'session' must not be empty.")
 
-        self._proxies = getattr(abstract_api, '_proxies', proxies)
-        self._raise_exceptions = getattr(abstract_api, '_raise_exceptions', raise_exceptions)
-        self._timeout = getattr(abstract_api, '_timeout', timeout or self._timeout)
-        self._log_communication_on_error = getattr(abstract_api, '_log_communication_on_error',
-                                                   log_communication_on_error or False)
+        self._client_name = client_name or self._client_name
+        self._headers = AbstractAPI._merge_headers(initial_headers, headers)
 
-        self.ssl_config = getattr(abstract_api, 'ssl_config', ssl_config or SSLConfig())
+        self.ssl_config = ssl_config or SSLConfig()
 
         if not self.ssl_config.verify:
             requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
-        self._client_name = getattr(abstract_api, '_client_name', client_name or self._client_name)
-
-        if abstract_api:
-            self._headers = getattr(abstract_api, '_headers', None)
-        else:
-            self._headers = {
-                'Content-Type': 'application/json',
-                'Accept': 'text/plain, application/json',
-                'User-Agent': f"{self._client_name} {__version__}"
-            }
-
-            if headers:
-                self._headers.update({self._capitalize_header(k): v for k, v in headers.items()})
-
-        self._max_tries = getattr(abstract_api, '_max_tries', max_tries)
+        self._proxies = proxies
+        self._raise_exceptions = raise_exceptions
+        self._timeout = timeout or self._timeout
+        self._log_communication_on_error = log_communication_on_error or False
+        self._max_tries = max_tries
 
     def _get_max_tries(self):
         return self._max_tries
@@ -429,6 +457,22 @@ class AbstractAPI:
         """
         return self._proxies.copy() if self._proxies else None
 
+    @staticmethod
+    def _merge_headers(headers: dict, override: dict) -> dict:
+        """
+        Merge headers with override.
+
+        :param headers: Headers to merge into.
+        :param override: Dict of headers that override *headers*. If a header key is set to value None,
+               it will be removed from *headers*.
+        :return: The merged headers.
+        """
+        if isinstance(headers, dict) and isinstance(override, dict):
+            headers.update({AbstractAPI._capitalize_header(k): v for k, v in override.items()})
+            headers = {k: v for k, v in headers.items() if v is not None}
+
+        return headers
+
     def _get_headers(self, override: dict = None) -> dict:
         """
         Create a header dict for requests. Uses abstract method *self._handle_token()*.
@@ -437,11 +481,8 @@ class AbstractAPI:
                it will be removed from the headers.
         :return: A dict containing header values for requests.
         """
-        headers = self._headers.copy()
 
-        if isinstance(override, dict):
-            headers.update({self._capitalize_header(k): v for k, v in override.items()})
-            headers = {k: v for k, v in headers.items() if v is not None}
+        headers = AbstractAPI._merge_headers(self._headers.copy(), override)
 
         token = self._handle_token()
         if token:
@@ -672,8 +713,13 @@ class GraphConnectionHandler(AbstractAPI):
     """Default pool_maxsize for requests.adapters.HTTPAdapter."""
 
     _pool_block = False
+    """As used by requests.adapters.HTTPAdapter."""
 
     _version_info: dict = None
+    """Stores the result of /api/version"""
+
+    custom_endpoints: dict = None
+    """Override API endpoints."""
 
     _lock: threading.RLock
     """Reentrant mutex for thread safety"""
@@ -681,6 +727,7 @@ class GraphConnectionHandler(AbstractAPI):
     def __init__(self,
                  root_url: str = None,
                  custom_endpoints: dict = None,
+                 version_info: dict = None,
                  pool_maxsize: int = None,
                  pool_block: bool = None,
                  connection_handler=None,
@@ -709,6 +756,8 @@ class GraphConnectionHandler(AbstractAPI):
         :param root_url: Root url for HIRO, like https://core.arago.co.
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
                from /api/version. Example see above.
+        :param version_info: Optional full dict of the JSON result received via /api/version. Setting this will use it
+               as the valid API version information and avoids the internal API-call altogether.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
                Default is 10. *pool_maxsize* is ignored when *session* is set.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
@@ -720,20 +769,22 @@ class GraphConnectionHandler(AbstractAPI):
         """
         self._lock = threading.RLock()
 
-        root_url = getattr(connection_handler, '_root_url', root_url)
-        session = getattr(connection_handler, '_session', None)
+        if isinstance(connection_handler, GraphConnectionHandler):
+            root_url = connection_handler._root_url
+            session = connection_handler._session
+            custom_endpoints = connection_handler.custom_endpoints
+            version_info = connection_handler._version_info
+        else:
+            if not root_url:
+                raise ValueError("'root_url' must not be empty.")
 
-        if not root_url:
-            raise ValueError("'root_url' must not be empty.")
-
-        if not session:
             adapter = requests.adapters.HTTPAdapter(
                 pool_maxsize=pool_maxsize or self._pool_maxsize,
                 pool_connections=1,
                 pool_block=pool_block or self._pool_block
             )
             session = requests.Session()
-            session.mount(root_url, adapter)
+            session.mount(prefix=root_url, adapter=adapter)
 
         super().__init__(
             root_url=root_url,
@@ -743,8 +794,8 @@ class GraphConnectionHandler(AbstractAPI):
             **kwargs
         )
 
-        self.custom_endpoints = getattr(connection_handler, '_custom_endpoints', custom_endpoints)
-        self._version_info = getattr(connection_handler, '_version_info', None)
+        self.custom_endpoints = custom_endpoints
+        self._version_info = version_info
 
         self.get_version()
 
@@ -929,6 +980,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
     """
 
     _token: str
+    """Stores the fixed token."""
 
     def __init__(self, token: str = None, *args, **kwargs):
         """
@@ -966,6 +1018,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
     """
 
     _env_var: str
+    """Stores the name of the environment variable."""
 
     def __init__(self, env_var: str = 'HIRO_TOKEN', *args, **kwargs):
         """
@@ -1123,6 +1176,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
     _client_secret: str
 
     _secure_logging: bool = True
+    """Avoid logging of sensitive data."""
 
     def __init__(self,
                  username: str = None,
@@ -1299,7 +1353,10 @@ class AuthenticatedAPIHandler(AbstractAPI):
     """
 
     _api_handler: AbstractTokenApiHandler
+    """Stores the TokenApiHandler used for this API."""
+
     _api_name: str
+    """Name of the API."""
 
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,

@@ -1,3 +1,7 @@
+# v5.2.4
+
+* Merge headers in AbstractAPI instead of replacing them.
+
 # v5.2.3
 
 * Remove accept_all_certs for good. Directly use the flag in SSLConfig.
