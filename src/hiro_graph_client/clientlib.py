@@ -105,6 +105,14 @@ class AbstractAPI:
 
     _timeout: int = 600
 
+    _raise_exceptions: bool = True
+
+    _proxies: dict = None
+
+    _headers: dict = {}
+
+    _log_communication_on_error: bool = False
+
     def __init__(self,
                  root_url: str = None,
                  session: requests.Session = None,
@@ -141,8 +149,27 @@ class AbstractAPI:
         :param abstract_api: Set all parameters by copying them from the instance given by this parameter. Overrides
                all other parameters except headers, which will be merged with existing ones.
         """
-        self._root_url = getattr(abstract_api, '_root_url', root_url)
-        self._session = getattr(abstract_api, '_session', session)
+
+        if isinstance(abstract_api, AbstractAPI):
+            root_url = abstract_api._root_url
+            session = abstract_api._session
+            raise_exceptions = abstract_api._raise_exceptions
+            proxies = abstract_api._proxies
+            initial_headers = abstract_api._headers.copy()
+            timeout = abstract_api._timeout
+            client_name = abstract_api._client_name
+            ssl_config = abstract_api.ssl_config
+            log_communication_on_error = abstract_api._log_communication_on_error
+            max_tries = abstract_api._max_tries
+        else:
+            initial_headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'text/plain, application/json',
+                'User-Agent': f"{client_name or self._client_name} {__version__}"
+            }
+
+        self._root_url = root_url
+        self._session = session
 
         if not self._root_url:
             raise ValueError("'root_url' must not be empty.")
@@ -150,31 +177,19 @@ class AbstractAPI:
         if not self._session:
             raise ValueError("'session' must not be empty.")
 
-        self._proxies = getattr(abstract_api, '_proxies', proxies)
-        self._raise_exceptions = getattr(abstract_api, '_raise_exceptions', raise_exceptions)
-        self._timeout = getattr(abstract_api, '_timeout', timeout or self._timeout)
-        self._log_communication_on_error = getattr(abstract_api, '_log_communication_on_error',
-                                                   log_communication_on_error or False)
+        self._client_name = client_name or self._client_name
+        self._headers = AbstractAPI._merge_headers(initial_headers, headers)
 
-        self.ssl_config = getattr(abstract_api, 'ssl_config', ssl_config or SSLConfig())
+        self.ssl_config = ssl_config or SSLConfig()
 
         if not self.ssl_config.verify:
             requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
-        self._client_name = getattr(abstract_api, '_client_name', client_name or self._client_name)
-
-        if abstract_api:
-            initial_headers = getattr(abstract_api, '_headers', None)
-        else:
-            initial_headers = {
-                'Content-Type': 'application/json',
-                'Accept': 'text/plain, application/json',
-                'User-Agent': f"{self._client_name} {__version__}"
-            }
-
-        self._headers = AbstractAPI._merge_headers(initial_headers, headers)
-
-        self._max_tries = getattr(abstract_api, '_max_tries', max_tries)
+        self._proxies = proxies
+        self._raise_exceptions = raise_exceptions
+        self._timeout = timeout or self._timeout
+        self._log_communication_on_error = log_communication_on_error or False
+        self._max_tries = max_tries
 
     def _get_max_tries(self):
         return self._max_tries
@@ -691,12 +706,15 @@ class GraphConnectionHandler(AbstractAPI):
 
     _version_info: dict = None
 
+    custom_endpoints: dict = None
+
     _lock: threading.RLock
     """Reentrant mutex for thread safety"""
 
     def __init__(self,
                  root_url: str = None,
                  custom_endpoints: dict = None,
+                 version_info: dict = None,
                  pool_maxsize: int = None,
                  pool_block: bool = None,
                  connection_handler=None,
@@ -725,6 +743,8 @@ class GraphConnectionHandler(AbstractAPI):
         :param root_url: Root url for HIRO, like https://core.arago.co.
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
                from /api/version. Example see above.
+        :param version_info: Optional full dict of the JSON result received via /api/version. Setting this will use it
+               as the valid API version information and avoids the internal API-call altogether.
         :param pool_maxsize: Size of a connection pool for a single connection. See requests.adapters.HTTPAdapter.
                Default is 10. *pool_maxsize* is ignored when *session* is set.
         :param pool_block: Block any connections that exceed the pool_maxsize. Default is False: Allow more connections,
@@ -736,20 +756,22 @@ class GraphConnectionHandler(AbstractAPI):
         """
         self._lock = threading.RLock()
 
-        root_url = getattr(connection_handler, '_root_url', root_url)
-        session = getattr(connection_handler, '_session', None)
+        if isinstance(connection_handler, GraphConnectionHandler):
+            root_url = connection_handler._root_url
+            session = connection_handler._session
+            custom_endpoints = connection_handler.custom_endpoints
+            version_info = connection_handler._version_info
+        else:
+            if not root_url:
+                raise ValueError("'root_url' must not be empty.")
 
-        if not root_url:
-            raise ValueError("'root_url' must not be empty.")
-
-        if not session:
             adapter = requests.adapters.HTTPAdapter(
                 pool_maxsize=pool_maxsize or self._pool_maxsize,
                 pool_connections=1,
                 pool_block=pool_block or self._pool_block
             )
             session = requests.Session()
-            session.mount(root_url, adapter)
+            session.mount(prefix=root_url, adapter=adapter)
 
         super().__init__(
             root_url=root_url,
@@ -759,8 +781,8 @@ class GraphConnectionHandler(AbstractAPI):
             **kwargs
         )
 
-        self.custom_endpoints = getattr(connection_handler, '_custom_endpoints', custom_endpoints)
-        self._version_info = getattr(connection_handler, '_version_info', None)
+        self.custom_endpoints = custom_endpoints
+        self._version_info = version_info
 
         self.get_version()
 
