@@ -94,24 +94,34 @@ class AbstractAPI:
     """
 
     _root_url: str = None
+    """Servername and context path of the root of the API"""
 
     _session: requests.Session = None
+    """Reference to the session information"""
 
     ssl_config: SSLConfig
+    """Security configuration and location of certificate files"""
 
     _client_name: str = "hiro-graph-client"
+    """Used in header 'User-Agent'"""
 
     _max_tries: int = 2
+    """Retries for backoff"""
 
     _timeout: int = 600
+    """Timeout for requests-methods as needed by package 'requests'."""
 
     _raise_exceptions: bool = True
+    """Raise an exception when the status-code of results indicates an error"""
 
     _proxies: dict = None
+    """Proxy configuration as needed by package 'requests'."""
 
     _headers: dict = {}
+    """Common headers for HTTP requests."""
 
     _log_communication_on_error: bool = False
+    """Dump request and response into logging on errors"""
 
     def __init__(self,
                  root_url: str = None,
@@ -703,10 +713,13 @@ class GraphConnectionHandler(AbstractAPI):
     """Default pool_maxsize for requests.adapters.HTTPAdapter."""
 
     _pool_block = False
+    """As used by requests.adapters.HTTPAdapter."""
 
     _version_info: dict = None
+    """Stores the result of /api/version"""
 
     custom_endpoints: dict = None
+    """Override API endpoints."""
 
     _lock: threading.RLock
     """Reentrant mutex for thread safety"""
@@ -967,6 +980,7 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
     """
 
     _token: str
+    """Stores the fixed token."""
 
     def __init__(self, token: str = None, *args, **kwargs):
         """
@@ -1004,6 +1018,7 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
     """
 
     _env_var: str
+    """Stores the name of the environment variable."""
 
     def __init__(self, env_var: str = 'HIRO_TOKEN', *args, **kwargs):
         """
@@ -1161,6 +1176,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
     _client_secret: str
 
     _secure_logging: bool = True
+    """Avoid logging of sensitive data."""
 
     def __init__(self,
                  username: str = None,
@@ -1337,7 +1353,10 @@ class AuthenticatedAPIHandler(AbstractAPI):
     """
 
     _api_handler: AbstractTokenApiHandler
+    """Stores the TokenApiHandler used for this API."""
+
     _api_name: str
+    """Name of the API."""
 
     def __init__(self,
                  api_handler: AbstractTokenApiHandler,
