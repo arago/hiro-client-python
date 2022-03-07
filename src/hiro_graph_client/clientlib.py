@@ -555,7 +555,6 @@ class AbstractAPI:
         :param res: The response of a request. Also contains the request.
         :param request_body: Option to disable the logging of the request_body.
         :param response_body: Option to disable the logging of the response_body.
-        :return:
         """
 
         def _log_headers(headers) -> str:
@@ -944,6 +943,7 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
         """
         Return a dict with the decoded token payload. This payload contains detailed information about what this token
         has access to.
+
         :return: The dict with the decoded token payload.
         """
         base64_payload: list = self.token.split('.')
@@ -1088,6 +1088,7 @@ class TokenInfo:
     def get_epoch_millis() -> int:
         """
         Get timestamp
+
         :return: Current epoch in milliseconds
         """
         return int(time.time_ns() / 1000000)
@@ -1129,10 +1130,14 @@ class TokenInfo:
 
     def expired(self) -> bool:
         """
-        Check token expiration
+        Check token expiration.
 
-        :return: True when the token has been expired *(expires_at - refresh_offset) <= get_epoch_mills()*
+        :return: True when the token has been expired *(expires_at - refresh_offset) <= get_epoch_mills()*. If
+                 no *expires_at* is available, always return False since this token would never expire.
         """
+        if self.refresh_time() is None:
+            return False
+
         return self.refresh_time() <= self.get_epoch_millis()
 
     def fresh(self, span: int = 30000) -> bool:
@@ -1312,7 +1317,7 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
         """
         Calculate refresh time.
 
-        :return: Timestamp after which the token becomes invalid.
+        :return: Timestamp after which the token becomes invalid. Returns None if token cannot be refreshed.
         """
         return self._token_info.refresh_time()
 
