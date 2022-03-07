@@ -1,6 +1,6 @@
 # v5.2.5
 
-* [bugfix] Calculation within *clientlib.TokenInfo.expired()* now returns *None* as expected when no *expires_at* 
+* [bugfix] Calculation within *clientlib.TokenInfo.expired()* now returns *False* as expected when no *expires_at* 
   is available for a token. Previous versions would raise an exception.
 
 # v5.2.4
