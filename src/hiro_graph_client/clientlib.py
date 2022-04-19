@@ -956,6 +956,7 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
 
         :param token: The token to decode.
         :return: The dict with the decoded token payload.
+        :raises AuthenticationTokenError: When the token does not contain the base64 encoded data payload.
         """
         base64_payload: list = token.split('.')
         if len(base64_payload) == 1:
