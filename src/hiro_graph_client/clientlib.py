@@ -945,6 +945,7 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
         information about what this token has access to.
 
         :return: The dict with the decoded token payload.
+        :raises AuthenticationTokenError: When the token does not contain the base64 encoded data payload.
         """
         return AbstractTokenApiHandler.get_token_data(self.token)
 
