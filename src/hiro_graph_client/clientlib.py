@@ -941,12 +941,23 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
 
     def decode_token(self) -> dict:
         """
-        Return a dict with the decoded token payload. This payload contains detailed information about what this token
-        has access to.
+        Return a dict with the decoded token payload from the internal token. This payload contains detailed
+        information about what this token has access to.
 
         :return: The dict with the decoded token payload.
         """
-        base64_payload: list = self.token.split('.')
+        return AbstractTokenApiHandler.get_token_data(self.token)
+
+    @staticmethod
+    def get_token_data(token: str):
+        """
+        Return a dict with the decoded token payload. This payload contains detailed information about what this token
+        has access to.
+
+        :param token: The token to decode.
+        :return: The dict with the decoded token payload.
+        """
+        base64_payload: list = token.split('.')
         if len(base64_payload) == 1:
             raise AuthenticationTokenError("Token is missing base64 payload")
 
