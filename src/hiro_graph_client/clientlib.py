@@ -13,7 +13,6 @@ from urllib.parse import quote, urlencode
 import backoff
 import requests
 import requests.adapters
-import requests.packages.urllib3.exceptions
 
 from hiro_graph_client.version import __version__
 
@@ -191,9 +190,6 @@ class AbstractAPI:
         self._headers = AbstractAPI._merge_headers(initial_headers, headers)
 
         self.ssl_config = ssl_config or SSLConfig()
-
-        if not self.ssl_config.verify:
-            requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
         self._proxies = proxies
         self._raise_exceptions = raise_exceptions
@@ -947,10 +943,10 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
         :return: The dict with the decoded token payload.
         :raises AuthenticationTokenError: When the token does not contain the base64 encoded data payload.
         """
-        return AbstractTokenApiHandler.get_token_data(self.token)
+        return AbstractTokenApiHandler.decode_token_ext(self.token)
 
     @staticmethod
-    def get_token_data(token: str):
+    def decode_token_ext(token: str):
         """
         Return a dict with the decoded token payload. This payload contains detailed information about what this token
         has access to.
