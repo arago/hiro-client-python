@@ -946,7 +946,7 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
         return AbstractTokenApiHandler.decode_token_ext(self.token)
 
     @staticmethod
-    def decode_token_ext(token: str):
+    def decode_token_ext(token: str) -> dict:
         """
         Return a dict with the decoded token payload. This payload contains detailed information about what this token
         has access to.
@@ -963,7 +963,7 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
 
         json_payload = base64.urlsafe_b64decode(payload)
 
-        return json.loads(json_payload)
+        return dict(json.loads(json_payload))
 
     @abstractmethod
     def refresh_token(self) -> None:
