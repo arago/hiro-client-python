@@ -973,6 +973,15 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
         raise RuntimeError('Cannot use method of this abstract class.')
 
     @abstractmethod
+    def revoke_token(self, token_hint: str = "revoke_token") -> None:
+        """
+        Revoke a token.
+
+        :param token_hint: The default is to revoke the "revoke_token". The alternative is "access_token".
+        """
+        raise RuntimeError('Cannot use method of this abstract class.')
+
+    @abstractmethod
     def refresh_time(self) -> Optional[int]:
         """
         Calculate the time after which the token should be refreshed in milliseconds.
@@ -1013,6 +1022,9 @@ class FixedTokenApiHandler(AbstractTokenApiHandler):
     def refresh_token(self) -> None:
         raise FixedTokenError('Token is invalid and cannot be changed because it has been given externally.')
 
+    def revoke_token(self, token_hint: str = "revoke_token") -> None:
+        raise FixedTokenError('Token cannot be revoked because it has been given externally.')
+
     def refresh_time(self) -> Optional[int]:
         """
 
@@ -1051,6 +1063,11 @@ class EnvironmentTokenApiHandler(AbstractTokenApiHandler):
     def refresh_token(self) -> None:
         raise FixedTokenError(
             "Token is invalid and cannot be changed because it has been given as environment variable '{}'"
+            " externally.".format(self._env_var))
+
+    def revoke_token(self, token_hint: str = "revoke_token") -> None:
+        raise FixedTokenError(
+            "Token cannot be revoked because it has been given as environment variable '{}'"
             " externally.".format(self._env_var))
 
     def refresh_time(self) -> Optional[int]:
@@ -1123,7 +1140,7 @@ class TokenInfo:
 
         self.last_update = self.get_epoch_millis()
 
-        self.token = res.get('_TOKEN')
+        self.token = res.get('_TOKEN') or res.get('access_token')
 
         expires_at = res.get('expires-at')
         if expires_at:
@@ -1149,16 +1166,6 @@ class TokenInfo:
 
         return self.refresh_time() <= self.get_epoch_millis()
 
-    def fresh(self, span: int = 30000) -> bool:
-        """
-        Check, whether the last token fetched is younger than span ms.
-
-        :param span: Timespan in ms in which a token is considered fresh. Default is 30 sec (30000ms).
-        :return: True when the last update was less than span ms.
-        """
-
-        return (self.get_epoch_millis() - self.last_update) < span
-
     def refresh_time(self) -> Optional[int]:
         """
         Calculate the time after which the token should be refreshed in milliseconds.
@@ -1166,6 +1173,18 @@ class TokenInfo:
         :return: expires_at - refresh_offset (in ms) or None if refresh is not possible.
         """
         return self.expires_at - self.refresh_offset if self.expires_at > 0 else None
+
+    def clear_token_data(self, access_token_only: bool):
+        """
+        Handle internal data on a token revoke.
+
+        :param access_token_only: True if only the access token gets revoked.
+        """
+        del self.token
+        self.last_update = self.get_epoch_millis()
+        if not access_token_only:
+            del self.refresh_token
+            self.expires_at = -1
 
 
 class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
@@ -1293,7 +1312,6 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
     def refresh_token(self) -> None:
         """
         Construct a request to refresh an existing token. API self._endpoint + '/refresh'.
-        Does not refresh tokens that are younger than 30 sec to avoid refresh storms on parallel connections.
 
         :raises AuthenticationTokenError: When no auth_endpoint is set.
         """
@@ -1301,9 +1319,6 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
             if not self.endpoint:
                 raise AuthenticationTokenError(
                     'Token is invalid and endpoint (auth_endpoint) for refresh is not set.')
-
-            if self._token_info.fresh():
-                return
 
             if not self._token_info.refresh_token:
                 self.get_token()
@@ -1321,6 +1336,47 @@ class PasswordAuthTokenApiHandler(AbstractTokenApiHandler):
                 self._token_info.parse_token_result(res, "{}.refresh_token".format(self.__class__.__name__))
             except AuthenticationTokenError:
                 self.get_token()
+
+    def revoke_token(self, token_hint: str = "refresh_token") -> None:
+        """
+        Revoke a token.
+
+        :param token_hint: The default is to revoke the "revoke_token". The alternative is "access_token".
+                           (has effect after auth api version 6.6)
+        """
+        with self._lock:
+            if not self.endpoint:
+                raise AuthenticationTokenError(
+                    'Token is invalid and endpoint (auth_endpoint) for revoke is not set.')
+
+            auth_api_version = float(self._version_info['auth']['version'])
+            url = self.endpoint + '/revoke'
+
+            if auth_api_version >= 6.6:
+                if token_hint == "access_token":
+                    token = self._token_info.token
+                elif token_hint == "refresh_token":
+                    token = self._token_info.refresh_token
+                else:
+                    raise AuthenticationTokenError(f"token_hint '{token_hint}' is wrong", 400)
+
+                data = {
+                    "client_id": self._client_id,
+                    "client_secret": self._client_secret,
+                    "token": token,
+                    "token_hint": token_hint
+                }
+            else:
+                token_hint = "refresh_token"
+                data = {
+                    "client_id": self._client_id,
+                    "client_secret": self._client_secret,
+                    "refresh_token": self._token_info.refresh_token
+                }
+
+            self.post(url, data)
+
+            self._token_info.clear_token_data(token_hint != "refresh_token")
 
     def refresh_time(self) -> Optional[int]:
         """
