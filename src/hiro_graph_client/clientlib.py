@@ -210,6 +210,34 @@ class AbstractAPI:
     def _capitalize_header(name: str) -> str:
         return "-".join([n.capitalize() for n in name.split('-')])
 
+    @staticmethod
+    def _handle_content_type_and_headers(content_type: Optional[str],
+                                         extern_headers: dict = None,
+                                         initial_headers: dict = None) -> dict:
+        """
+        Handle header merging and content_type parameter in basic requests below.
+
+        :param content_type: The desired content_type for the call. This can explicitly set to None to erase it from the
+               headers in the final http call. This value will always be present under key 'Content-Type' in the
+               returned dict and overwrites every other specification in the header dicts unless set to None.
+        :param extern_headers: Optional external headers that need to me merged with the initial headers. extern_headers
+               will be merged upon initial_headers, overwriting values within it.
+        :param initial_headers: Headers which are specific for the type of http call.
+        :return: A dict with headers. Will always contain a key "Content-Type" - the value of which might be None.
+        """
+        final_headers: dict = initial_headers or {}
+        if extern_headers:
+            final_headers.update(extern_headers)
+
+        for name in final_headers:
+            if name.lower() == "content-type":
+                content_type = content_type or final_headers[name]
+                del final_headers[name]
+
+        final_headers.update({"Content-Type": content_type})
+
+        return final_headers
+
     ###############################################################################################################
     # Basic requests
     ###############################################################################################################
@@ -226,9 +254,11 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _get_binary() -> Iterator[bytes]:
-            _headers: dict = {"Content-Type": None, "Accept": (accept or "*/*")}
-            if headers:
-                _headers.update(headers)
+            _headers = AbstractAPI._handle_content_type_and_headers(
+                None,
+                headers,
+                {"Accept": (accept or "*/*")}
+            )
             with self._session.get(url,
                                    headers=self._get_headers(_headers),
                                    verify=self.ssl_config.get_verify(),
@@ -264,9 +294,10 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _post_binary() -> Any:
-            _headers: dict = {"Content-Type": (content_type or "application/octet-stream")}
-            if headers:
-                _headers.update(headers)
+            _headers = AbstractAPI._handle_content_type_and_headers(
+                content_type or "application/octet-stream",
+                headers
+            )
             res = self._session.post(url,
                                      data=data,
                                      headers=self._get_headers(_headers),
@@ -299,9 +330,10 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _put_binary() -> Any:
-            _headers: dict = {"Content-Type": (content_type or "application/octet-stream")}
-            if headers:
-                _headers.update(headers)
+            _headers = AbstractAPI._handle_content_type_and_headers(
+                content_type or "application/octet-stream",
+                headers
+            )
             res = self._session.put(url,
                                     data=data,
                                     headers=self._get_headers(_headers),
@@ -316,20 +348,26 @@ class AbstractAPI:
 
     def get(self,
             url: str,
-            expected_media_type: str = 'application/json') -> Any:
+            expected_media_type: str = 'application/json',
+            headers: dict = None) -> Any:
         """
         Implementation of GET
 
         :param url: Url to use
         :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
                '*/*', any media_type is accepted.
+        :param headers: Optional additional headers.
         :return: The payload of the response
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _get() -> Any:
+            _headers = AbstractAPI._handle_content_type_and_headers(
+                None,
+                headers
+            )
             res = self._session.get(url,
-                                    headers=self._get_headers({"Content-Type": None}),
+                                    headers=self._get_headers(_headers),
                                     verify=self.ssl_config.get_verify(),
                                     cert=self.ssl_config.get_cert(),
                                     timeout=self._timeout,
@@ -361,10 +399,11 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _post() -> Any:
-            _headers: dict = {"Content-Type": content_type}
-            if headers:
-                _headers.update(headers)
-            if content_type == 'application/json':
+            _headers = AbstractAPI._handle_content_type_and_headers(
+                content_type,
+                headers
+            )
+            if _headers["Content-Type"].startswith('application/json'):
                 res = self._session.post(url,
                                          json=data,
                                          headers=self._get_headers(_headers),
@@ -408,13 +447,14 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _put() -> Any:
-            _headers: dict = {"Content-Type": content_type}
-            if headers:
-                _headers.update(headers)
-            if content_type == 'application/json':
+            _headers = AbstractAPI._handle_content_type_and_headers(
+                content_type,
+                headers
+            )
+            if _headers["Content-Type"].startswith('application/json'):
                 res = self._session.put(url,
                                         json=data,
-                                        headers=self._get_headers(),
+                                        headers=self._get_headers(_headers),
                                         verify=self.ssl_config.get_verify(),
                                         cert=self.ssl_config.get_cert(),
                                         timeout=self._timeout,
@@ -422,7 +462,7 @@ class AbstractAPI:
             else:
                 res = self._session.put(url,
                                         data=data,
-                                        headers=self._get_headers({"Content-Type": content_type}),
+                                        headers=self._get_headers(_headers),
                                         verify=self.ssl_config.get_verify(),
                                         cert=self.ssl_config.get_cert(),
                                         timeout=self._timeout,
@@ -455,10 +495,11 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _patch() -> Any:
-            _headers: dict = {"Content-Type": content_type}
-            if headers:
-                _headers.update(headers)
-            if content_type == 'application/json':
+            _headers = AbstractAPI._handle_content_type_and_headers(
+                content_type,
+                headers
+            )
+            if _headers["Content-Type"].startswith('application/json'):
                 res = self._session.patch(url,
                                           json=data,
                                           headers=self._get_headers(_headers),
@@ -481,20 +522,26 @@ class AbstractAPI:
 
     def delete(self,
                url: str,
-               expected_media_type: str = 'application/json') -> Any:
+               expected_media_type: str = 'application/json',
+               headers: dict = None) -> Any:
         """
         Implementation of DELETE
 
         :param url: Url to use
         :param expected_media_type: The expected media type. Default is 'application/json'. If this is set to '*' or
                '*/*', any media_type is accepted.
+        :param headers: Optional additional headers.
         :return: The payload of the response
         """
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _delete() -> Any:
+            _headers = AbstractAPI._handle_content_type_and_headers(
+                None,
+                headers
+            )
             res = self._session.delete(url,
-                                       headers=self._get_headers({"Content-Type": None}),
+                                       headers=self._get_headers(_headers),
                                        verify=self.ssl_config.get_verify(),
                                        cert=self.ssl_config.get_cert(),
                                        timeout=self._timeout,
@@ -788,7 +835,7 @@ class GraphConnectionHandler(AbstractAPI):
                  version_info: dict = None,
                  pool_maxsize: int = None,
                  pool_block: bool = None,
-                 connection_handler = None,
+                 connection_handler=None,
                  *args,
                  **kwargs):
         """
