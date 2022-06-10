@@ -13,7 +13,6 @@ from urllib.parse import quote, urlencode
 import backoff
 import requests
 import requests.adapters
-import requests.packages.urllib3.exceptions
 
 from hiro_graph_client.version import __version__
 
@@ -191,9 +190,6 @@ class AbstractAPI:
         self._headers = AbstractAPI._merge_headers(initial_headers, headers)
 
         self.ssl_config = ssl_config or SSLConfig()
-
-        if not self.ssl_config.verify:
-            requests.packages.urllib3.disable_warnings(requests.packages.urllib3.exceptions.InsecureRequestWarning)
 
         self._proxies = proxies
         self._raise_exceptions = raise_exceptions
@@ -941,12 +937,25 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
 
     def decode_token(self) -> dict:
         """
+        Return a dict with the decoded token payload from the internal token. This payload contains detailed
+        information about what this token has access to.
+
+        :return: The dict with the decoded token payload.
+        :raises AuthenticationTokenError: When the token does not contain the base64 encoded data payload.
+        """
+        return AbstractTokenApiHandler.decode_token_ext(self.token)
+
+    @staticmethod
+    def decode_token_ext(token: str) -> dict:
+        """
         Return a dict with the decoded token payload. This payload contains detailed information about what this token
         has access to.
 
+        :param token: The token to decode.
         :return: The dict with the decoded token payload.
+        :raises AuthenticationTokenError: When the token does not contain the base64 encoded data payload.
         """
-        base64_payload: list = self.token.split('.')
+        base64_payload: list = token.split('.')
         if len(base64_payload) == 1:
             raise AuthenticationTokenError("Token is missing base64 payload")
 
@@ -954,7 +963,7 @@ class AbstractTokenApiHandler(GraphConnectionHandler):
 
         json_payload = base64.urlsafe_b64decode(payload)
 
-        return json.loads(json_payload)
+        return dict(json.loads(json_payload))
 
     @abstractmethod
     def refresh_token(self) -> None:
