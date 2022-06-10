@@ -1,3 +1,14 @@
+# v5.3.0
+
+* Decode any token via static `decode_token_ext()`.
+
+Changes for /api/auth/6.6:
+
+* Ability to revoke a token.
+* Recognize `access_token` and `_TOKEN` in token results.
+* Remove obsolete method `fresh()` from class TokenInfo because each token refresh issues a new refresh_token by default
+  now.
+
 # v5.2.5
 
 * [bugfix] Calculation within *clientlib.TokenInfo.expired()* now returns *False* as expected when no *expires_at* 
