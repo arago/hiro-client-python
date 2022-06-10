@@ -210,34 +210,6 @@ class AbstractAPI:
     def _capitalize_header(name: str) -> str:
         return "-".join([n.capitalize() for n in name.split('-')])
 
-    @staticmethod
-    def _handle_content_type_and_headers(content_type: Optional[str],
-                                         extern_headers: dict = None,
-                                         initial_headers: dict = None) -> dict:
-        """
-        Handle header merging and content_type parameter in basic requests below.
-
-        :param content_type: The desired content_type for the call. This can explicitly set to None to erase it from the
-               headers in the final http call. This value will always be present under key 'Content-Type' in the
-               returned dict and overwrites every other specification in the header dicts unless set to None.
-        :param extern_headers: Optional external headers that need to me merged with the initial headers. extern_headers
-               will be merged upon initial_headers, overwriting values within it.
-        :param initial_headers: Headers which are specific for the type of http call.
-        :return: A dict with headers. Will always contain a key "Content-Type" - the value of which might be None.
-        """
-        final_headers: dict = initial_headers or {}
-        if extern_headers:
-            final_headers.update(extern_headers)
-
-        for name in final_headers:
-            if name.lower() == "content-type":
-                content_type = content_type or final_headers[name]
-                del final_headers[name]
-
-        final_headers.update({"Content-Type": content_type})
-
-        return final_headers
-
     ###############################################################################################################
     # Basic requests
     ###############################################################################################################
@@ -254,13 +226,11 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _get_binary() -> Iterator[bytes]:
-            _headers = AbstractAPI._handle_content_type_and_headers(
-                None,
-                headers,
-                {"Accept": (accept or "*/*")}
-            )
+            _headers = self._get_headers(None, headers)
+            _headers.update({"Accept": (accept or "*/*")})
+
             with self._session.get(url,
-                                   headers=self._get_headers(_headers),
+                                   headers=_headers,
                                    verify=self.ssl_config.get_verify(),
                                    cert=self.ssl_config.get_cert(),
                                    timeout=self._timeout,
@@ -294,13 +264,12 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _post_binary() -> Any:
-            _headers = AbstractAPI._handle_content_type_and_headers(
-                content_type or "application/octet-stream",
-                headers
-            )
             res = self._session.post(url,
                                      data=data,
-                                     headers=self._get_headers(_headers),
+                                     headers=self._get_headers(
+                                         content_type or "application/octet-stream",
+                                         headers
+                                     ),
                                      verify=self.ssl_config.get_verify(),
                                      cert=self.ssl_config.get_cert(),
                                      timeout=self._timeout,
@@ -330,13 +299,12 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _put_binary() -> Any:
-            _headers = AbstractAPI._handle_content_type_and_headers(
-                content_type or "application/octet-stream",
-                headers
-            )
             res = self._session.put(url,
                                     data=data,
-                                    headers=self._get_headers(_headers),
+                                    headers=self._get_headers(
+                                        content_type or "application/octet-stream",
+                                        headers
+                                    ),
                                     verify=self.ssl_config.get_verify(),
                                     cert=self.ssl_config.get_cert(),
                                     timeout=self._timeout,
@@ -362,12 +330,11 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _get() -> Any:
-            _headers = AbstractAPI._handle_content_type_and_headers(
-                None,
-                headers
-            )
             res = self._session.get(url,
-                                    headers=self._get_headers(_headers),
+                                    headers=self._get_headers(
+                                        None,
+                                        headers
+                                    ),
                                     verify=self.ssl_config.get_verify(),
                                     cert=self.ssl_config.get_cert(),
                                     timeout=self._timeout,
@@ -399,14 +366,14 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _post() -> Any:
-            _headers = AbstractAPI._handle_content_type_and_headers(
+            _headers = self._get_headers(
                 content_type,
                 headers
             )
             if _headers["Content-Type"].startswith('application/json'):
                 res = self._session.post(url,
                                          json=data,
-                                         headers=self._get_headers(_headers),
+                                         headers=_headers,
                                          verify=self.ssl_config.get_verify(),
                                          cert=self.ssl_config.get_cert(),
                                          timeout=self._timeout,
@@ -414,7 +381,7 @@ class AbstractAPI:
             else:
                 res = self._session.post(url,
                                          data=data,
-                                         headers=self._get_headers(_headers),
+                                         headers=_headers,
                                          verify=self.ssl_config.get_verify(),
                                          cert=self.ssl_config.get_cert(),
                                          timeout=self._timeout,
@@ -447,14 +414,14 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _put() -> Any:
-            _headers = AbstractAPI._handle_content_type_and_headers(
+            _headers = self._get_headers(
                 content_type,
                 headers
             )
             if _headers["Content-Type"].startswith('application/json'):
                 res = self._session.put(url,
                                         json=data,
-                                        headers=self._get_headers(_headers),
+                                        headers=_headers,
                                         verify=self.ssl_config.get_verify(),
                                         cert=self.ssl_config.get_cert(),
                                         timeout=self._timeout,
@@ -462,7 +429,7 @@ class AbstractAPI:
             else:
                 res = self._session.put(url,
                                         data=data,
-                                        headers=self._get_headers(_headers),
+                                        headers=_headers,
                                         verify=self.ssl_config.get_verify(),
                                         cert=self.ssl_config.get_cert(),
                                         timeout=self._timeout,
@@ -495,14 +462,14 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _patch() -> Any:
-            _headers = AbstractAPI._handle_content_type_and_headers(
+            _headers = self._get_headers(
                 content_type,
                 headers
             )
             if _headers["Content-Type"].startswith('application/json'):
                 res = self._session.patch(url,
                                           json=data,
-                                          headers=self._get_headers(_headers),
+                                          headers=_headers,
                                           verify=self.ssl_config.get_verify(),
                                           cert=self.ssl_config.get_cert(),
                                           timeout=self._timeout,
@@ -510,7 +477,7 @@ class AbstractAPI:
             else:
                 res = self._session.patch(url,
                                           data=data,
-                                          headers=self._get_headers(_headers),
+                                          headers=_headers,
                                           verify=self.ssl_config.get_verify(),
                                           cert=self.ssl_config.get_cert(),
                                           timeout=self._timeout,
@@ -536,12 +503,11 @@ class AbstractAPI:
 
         @backoff.on_exception(*BACKOFF_ARGS, **BACKOFF_KWARGS, max_tries=self._get_max_tries)
         def _delete() -> Any:
-            _headers = AbstractAPI._handle_content_type_and_headers(
-                None,
-                headers
-            )
             res = self._session.delete(url,
-                                       headers=self._get_headers(_headers),
+                                       headers=self._get_headers(
+                                           None,
+                                           headers
+                                       ),
                                        verify=self.ssl_config.get_verify(),
                                        cert=self.ssl_config.get_cert(),
                                        timeout=self._timeout,
@@ -579,16 +545,23 @@ class AbstractAPI:
 
         return headers
 
-    def _get_headers(self, override: dict = None) -> dict:
+    def _get_headers(self,
+                     content_type: Optional[str],
+                     override: dict = None) -> dict:
         """
-        Create a header dict for requests. Uses abstract method *self._handle_token()*.
+        Handle header merging and content_type parameter in basic requests below.
 
-        :param override: Dict of headers that override the internal headers. If a header key is set to value None,
-               it will be removed from the headers.
-        :return: A dict containing header values for requests.
+        :param content_type: The desired content_type for the call. This can explicitly set to None to erase it from the
+               headers in the final http call. This value will always be present under key 'Content-Type' in the
+               returned dict and overwrites every other specification in the header dicts unless set to None.
+        :param override: Optional external headers, overriding the initial headers.
+        :return: A dict with headers. Will always contain a key "Content-Type" - the value of which might be None. Will
+                 also contain Authorization Bearer Token if available.
         """
-
         headers = AbstractAPI._merge_headers(self._headers.copy(), override)
+
+        if content_type:
+            headers.update({"Content-Type": content_type})
 
         token = self._handle_token()
         if token:
@@ -1546,7 +1519,6 @@ class PasswordAuthTokenApiHandler(AbstractRemoteTokenApiHandler):
     def __init__(self,
                  username: str = None,
                  password: str = None,
-                 connection_handler=None,
                  *args, **kwargs):
         """
         Constructor
@@ -1565,7 +1537,7 @@ class PasswordAuthTokenApiHandler(AbstractRemoteTokenApiHandler):
         :param args: Unnamed parameter passthrough for parent class.
         :param kwargs: Named parameter passthrough for parent class.
         """
-        super().__init__(connection_handler=connection_handler, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._username = username
         self._password = password
@@ -1647,7 +1619,6 @@ class CodeFlowAuthTokenApiHandler(AbstractRemoteTokenApiHandler):
                  code: str = None,
                  redirect_uri: str = None,
                  code_verifier: str = None,
-                 connection_handler=None,
                  *args, **kwargs):
         """
         Constructor
@@ -1671,7 +1642,7 @@ class CodeFlowAuthTokenApiHandler(AbstractRemoteTokenApiHandler):
         :param args: Unnamed parameter passthrough for parent class.
         :param kwargs: Named parameter passthrough for parent class.
         """
-        super().__init__(connection_handler=connection_handler, *args, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._code = code
         self._code_verifier = code_verifier
