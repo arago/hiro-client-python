@@ -3,6 +3,7 @@ import base64
 import json
 import logging
 import os
+import secrets
 import threading
 import time
 import urllib
@@ -11,6 +12,7 @@ from typing import Optional, Any, Iterator, Union, Tuple
 from urllib.parse import quote, urlencode
 
 import backoff
+import pkce
 import requests
 import requests.adapters
 
@@ -598,12 +600,12 @@ class AbstractAPI:
     @staticmethod
     def _get_query_part(params: dict) -> str:
         """
-        Create the query part of an url. Keys in *params* whose values are set to None are removed.
+        Create the query part of an url. Keys in *params* whose values are set to None or empty are removed.
 
         :param params: A dict of params to use for the query.
         :return: The query part of an url with a leading '?', or an empty string when query is empty.
         """
-        params_cleaned = {k: AbstractAPI._bool_to_external_str(v) for k, v in params.items() if v is not None}
+        params_cleaned = {k: AbstractAPI._bool_to_external_str(v) for k, v in params.items() if v}
         return ('?' + urlencode(params_cleaned, quote_via=quote, safe="/,")) if params_cleaned else ""
 
     def _parse_response(self,
@@ -1625,14 +1627,15 @@ class CodeFlowAuthTokenApiHandler(AbstractRemoteTokenApiHandler):
 
     It is built this way to avoid endless calling loops when resolving tokens.
     """
-    _code: str
-    _code_verifier: str
+    _scope: str
     _redirect_uri: str
+    _code_verifier: str
+    _code: str
+    _state: str
 
     def __init__(self,
-                 code: str = None,
-                 redirect_uri: str = None,
-                 code_verifier: str = None,
+                 redirect_uri: str,
+                 scope: str = None,
                  *args, **kwargs):
         """
         Constructor
@@ -1643,10 +1646,8 @@ class CodeFlowAuthTokenApiHandler(AbstractRemoteTokenApiHandler):
         See parent :class:`AbstractRemoteTokenApiHandler` for a full description
         of all remaining parameters.
 
-        :param code: One time code received from the authorization server.
-        :param redirect_uri: The original redirect_uri parameter from the authorization-redirect call (first call of the
-               code flow not handled here).
-        :param code_verifier: The code_verifier for the PKCE code flow.
+        :param redirect_uri: The redirect_uri parameter for the authorization-redirect call.
+        :param scope: Optional scope for OAuth login.
         :param client_id: OAuth client_id for authentication
         :param client_secret: OAuth client_secret for authentication. This is optional here.
         :param organization: Optional name of an organization to be used for the token requests.
@@ -1658,9 +1659,46 @@ class CodeFlowAuthTokenApiHandler(AbstractRemoteTokenApiHandler):
         """
         super().__init__(*args, **kwargs)
 
-        self._code = code
-        self._code_verifier = code_verifier
+        self._scope = scope
         self._redirect_uri = redirect_uri
+
+        self._state = secrets.token_urlsafe(16)
+        self._code_verifier = pkce.generate_code_verifier(length=64)
+
+    def get_authorize_uri(self) -> str:
+        """
+        Construct an authorization uri for your browser.
+
+        :return: The uri for the browser.
+        """
+        if not self._redirect_uri:
+            raise AuthenticationTokenError("redirect_uri is missing", 400)
+
+        url = self.endpoint + "/authorize"
+
+        data = {
+            "response_type": "code",
+            "client_id": self._client_id,
+            "redirect_uri": self._redirect_uri,
+            "code_challenge": pkce.get_code_challenge(self._code_verifier),
+            "code_challenge_method": "S256",
+            "state": self._state,
+            "scope": self._scope
+        }
+
+        return url + self._get_query_part(data)
+
+    def handle_authorize_callback(self, state: str, code: str) -> None:
+        """
+        Saves the code and matches the state from the authorization callback.
+
+        :param state: The state returned by the callback. Must not have changed.
+        :param code: The one-time-code returned (used to obtain a full authorization token).
+        """
+        if state != self._state:
+            raise AuthenticationTokenError("The parameter 'state' of the callback does not match.", 400)
+
+        self._code = code
 
     def get_token(self, organization: str = None, organization_id: str = None) -> None:
         """

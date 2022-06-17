@@ -31,7 +31,8 @@ setup(
         'requests',
         'backoff',
         'websocket-client',
-        'apscheduler'
+        'apscheduler',
+        'pkce'
     ],
     package_data={
         name: ['VERSION']
