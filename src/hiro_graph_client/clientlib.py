@@ -1662,9 +1662,6 @@ class CodeFlowAuthTokenApiHandler(AbstractRemoteTokenApiHandler):
         self._scope = scope
         self._redirect_uri = redirect_uri
 
-        self._state = secrets.token_urlsafe(16)
-        self._code_verifier = pkce.generate_code_verifier(length=64)
-
     def get_authorize_uri(self) -> str:
         """
         Construct an authorization uri for your browser.
@@ -1675,6 +1672,10 @@ class CodeFlowAuthTokenApiHandler(AbstractRemoteTokenApiHandler):
             raise AuthenticationTokenError("redirect_uri is missing", 400)
 
         url = self.endpoint + "/authorize"
+
+        # Initialize state and code_verifier anew with each call.
+        self._state = secrets.token_urlsafe(16)
+        self._code_verifier = pkce.generate_code_verifier(length=64)
 
         data = {
             "response_type": "code",
