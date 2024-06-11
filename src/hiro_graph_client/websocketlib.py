@@ -433,6 +433,7 @@ class AbstractAuthenticatedWebSocketHandler:
                     self._ws.run_forever(http_proxy_host=self._proxy_hostname,
                                          http_proxy_port=self._proxy_port,
                                          http_proxy_auth=self._proxy_auth,
+                                         proxy_type='http',
                                          sslopt={
                                              "cert_reqs": ssl.CERT_NONE
                                          } if not self._api_handler.ssl_config.verify else None)
