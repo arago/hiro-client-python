@@ -44,4 +44,4 @@ Look at [README.md in src](src).
 
 
 
-(c) 2022 arago GmbH (https://www.arago.co/)
+(c) 2024 Almato AI GmbH (https://www.almato.com/)
