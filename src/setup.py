@@ -33,6 +33,9 @@ setup(
         'websocket-client',
         'apscheduler'
     ],
+    extras_require={
+        'doc': ['sphinx', 'sphinx-rtd-theme'],
+    },
     package_data={
         name: ['VERSION']
     },
