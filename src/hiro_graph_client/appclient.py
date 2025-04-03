@@ -9,7 +9,7 @@ from hiro_graph_client.clientlib import AuthenticatedAPIHandler, AbstractTokenAp
 class HiroApp(AuthenticatedAPIHandler):
     """
     Python implementation for accessing the HIRO App REST API.
-    See https://core.arago.co/help/specs/?url=definitions/app.yaml
+    See https://core.engine.datagroup.de/help/specs/?url=definitions/app.yaml
     """
 
     def __init__(self, api_handler: AbstractTokenApiHandler):

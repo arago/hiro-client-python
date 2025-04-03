@@ -8,9 +8,9 @@ To process large batches of data, take a look at "hiro-batch-client". - (
 PyPI: [hiro-batch-client](https://pypi.org/project/hiro-batch-client/),
 GitHub: [hiro-batch-client-python](https://github.com/arago/hiro-batch-client-python))
 
-For more information about HIRO Automation, look at https://www.arago.co/
+For more information about HIRO Automation, look at https://www.almato.com/de/loesungen/hiro-ai.
 
-For more information about the APIs this library covers, see https://developer.hiro.arago.co/7.0/api/
+For more information about the APIs this library covers, see https://dev-portal.engine.datagroup.de/7.0/.
 
 Currently, implemented are
 
@@ -29,8 +29,8 @@ and for the websockets
 
 ## Quickstart
 
-To use this library, you will need an account at https://id.arago.co/ and access to an OAuth Client-Id and Client-Secret
-to access the HIRO Graph. See also https://developer.hiro.arago.co.
+To use this library, you will need an account at https://desktop.engine.datagroup.de/ and access to an OAuth Client-Id and Client-Secret
+to access the HIRO Graph. See also https://dev-portal.engine.datagroup.de/7.0/.
 
 Most of the documentation is done in the sourcecode.
 
@@ -43,7 +43,7 @@ from hiro_graph_client import PasswordAuthTokenApiHandler, HiroGraph
 
 hiro_client: HiroGraph = HiroGraph(
     api_handler=PasswordAuthTokenApiHandler(
-        root_url="https://core.arago.co",
+        root_url="https://core.engine.datagroup.de",
         username='',
         password='',
         client_id='',
@@ -104,7 +104,7 @@ from hiro_graph_client import EnvironmentTokenApiHandler, HiroGraph
 
 hiro_client: HiroGraph = HiroGraph(
     api_handler=EnvironmentTokenApiHandler(
-        root_url="https://core.arago.co"
+        root_url="https://core.engine.datagroup.de"
     )
 )
 
@@ -122,7 +122,7 @@ from hiro_graph_client import EnvironmentTokenApiHandler, HiroGraph
 
 hiro_client: HiroGraph = HiroGraph(
     api_handler=EnvironmentTokenApiHandler(
-        root_url="https://core.arago.co",
+        root_url="https://core.engine.datagroup.de",
         env_var='_TOKEN',
         headers={
             'X-Custom-Header': 'My custom value'
@@ -152,7 +152,7 @@ and version-request-handling, and the token string itself between them.
 from hiro_graph_client import HiroGraph, HiroApp, PasswordAuthTokenApiHandler
 
 hiro_api_handler = PasswordAuthTokenApiHandler(
-    root_url="https://core.arago.co",
+    root_url="https://core.engine.datagroup.de",
     username='',
     password='',
     client_id='',
@@ -183,7 +183,7 @@ and the Python documentation of `requests.adapters.HTTPAdapter` and `GraphConnec
 from hiro_graph_client import HiroGraph, HiroApp, FixedTokenApiHandler, GraphConnectionHandler
 
 connection_handler = GraphConnectionHandler(
-    root_url="https://core.arago.co",
+    root_url="https://core.engine.datagroup.de",
     pool_maxsize=200,                     # Optional: Max pool of cached connections for this connection session
     pool_block=True,                      # Optional: Do not allow more parallel connections than pool_maxsize
     client_name="Your Graph Client 0.0.1" # Optional: Will be used in the header 'User-Agent'
@@ -233,7 +233,7 @@ from hiro_graph_client import EnvironmentTokenApiHandler, HiroGraph, SSLConfig
 
 hiro_client: HiroGraph = HiroGraph(
     api_handler=EnvironmentTokenApiHandler(
-        root_url="https://core.arago.co",
+        root_url="https://core.engine.datagroup.de",
         # Disable any verification.
         ssl_config=SSLConfig(verify=False)
     )
@@ -251,7 +251,7 @@ from hiro_graph_client import EnvironmentTokenApiHandler, HiroGraph, SSLConfig
 
 hiro_client: HiroGraph = HiroGraph(
     api_handler=EnvironmentTokenApiHandler(
-        root_url="https://core.arago.co",
+        root_url="https://core.engine.datagroup.de",
         # Set custom certification files. If any of them are omitted, system defaults will be used.
         ssl_config=SSLConfig(
             cert_file="<path to client certificate file>",
@@ -269,7 +269,7 @@ print(query_result)
 ## Graph Client "HiroGraph"
 
 The Graph Client is mostly straightforward to use, since all public methods of this class represent an API call in the
-[Graph API](https://core.arago.co/help/specs/?url=definitions/graph.yaml). Documentation is available in source code as
+[Graph API](https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml). Documentation is available in source code as
 well. Some calls are a bit more complicated though and explained in more detail below:
 
 ### Attachments
@@ -355,7 +355,7 @@ ensures, that the shutdown is synchronized and *ws.stop()* will return after the
 
 This websocket receives notifications about changes to vertices that match a certain filter.
 
-See also [API description of event-ws](https://core.arago.co/help/specs/?url=definitions/events-ws.yaml)
+See also [API description of event-ws](https://core.engine.datagroup.de/help/specs/?url=definitions/events-ws.yaml)
 
 Example:
 
@@ -413,7 +413,7 @@ with EventsWebSocket(api_handler=api_handler,
 This websocket receives notifications about actions that have been triggered within a KI. Use this to write your own
 custom action handler.
 
-See also [API description of action-ws](https://core.arago.co/help/specs/?url=definitions/action-ws.yaml)
+See also [API description of action-ws](https://core.engine.datagroup.de/help/specs/?url=definitions/action-ws.yaml)
 
 Simple example:
 

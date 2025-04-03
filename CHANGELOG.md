@@ -1,3 +1,7 @@
+# v5.3.2
+
+* Point to https://core.engine.datagroup.de instead of https://core.arago.co.
+
 # v5.3.0
 
 * Decode any token via static `decode_token_ext()`.

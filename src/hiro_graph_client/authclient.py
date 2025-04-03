@@ -8,7 +8,7 @@ from hiro_graph_client.clientlib import AuthenticatedAPIHandler, AbstractTokenAp
 class HiroAuth(AuthenticatedAPIHandler):
     """
     Python implementation for accessing the HIRO Auth REST API.
-    See https://core.arago.co/help/specs/?url=definitions/auth.yaml
+    See https://core.engine.datagroup.de/help/specs/?url=definitions/auth.yaml
     """
 
     def __init__(self, api_handler: AbstractTokenApiHandler):
@@ -84,7 +84,7 @@ class HiroAuth(AuthenticatedAPIHandler):
         HIRO REST query API: `POST self._auth_endpoint + '/me/profile`
 
         :param data: The attributes for the profile.
-               See https://core.arago.co/help/specs/?url=definitions/auth.yaml#/[Me]_Identity/post_me_profile
+               See https://core.engine.datagroup.de/help/specs/?url=definitions/auth.yaml#/[Me]_Identity/post_me_profile
         :return: The result payload
         """
         url = self.endpoint + '/me/profile'
