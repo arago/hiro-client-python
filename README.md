@@ -42,6 +42,17 @@ For more details, take a look at the [Makefile](Makefile)
 
 Look at [README.md in src](src).
 
+### Locally building the API documentation
 
+Install the package and the dependencies for building the documentation and build it:
+
+```
+pip install './src[doc]'
+make pythondoc
+```
+
+This will generate HTML documentation in `docs/_build/html`.
+
+---
 
 (c) 2024 Almato AI GmbH (https://www.almato.com/)

@@ -6,7 +6,7 @@ from hiro_graph_client.clientlib import AuthenticatedAPIHandler, AbstractTokenAp
 class HiroAuthz(AuthenticatedAPIHandler):
     """
     Python implementation for accessing the HIRO Authz REST API.
-    See https://core.arago.co/help/specs/?url=definitions/authz.yaml
+    See https://core.engine.datagroup.de/help/specs/?url=definitions/authz.yaml
     """
 
     def __init__(self, api_handler: AbstractTokenApiHandler):
@@ -29,7 +29,7 @@ class HiroAuthz(AuthenticatedAPIHandler):
         HIRO REST query API: `POST self._endpoint + '/entitlement`
 
         :param data: Entitlement request data.
-               See https://core.arago.co/help/specs/?url=definitions/authz.yaml#/[Authorization]_Entitlement/post_entitlement
+               See https://core.engine.datagroup.de/help/specs/?url=definitions/authz.yaml#/[Authorization]_Entitlement/post_entitlement
         :return: The result payload
         """
         url = self.endpoint + '/entitlement'

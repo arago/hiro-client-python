@@ -10,7 +10,7 @@ Welcome to the hiro_graph_client documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   modules
+   api/modules
 
 Indices and tables
 ==================

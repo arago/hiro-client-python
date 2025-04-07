@@ -142,7 +142,7 @@ class AbstractAPI:
         headers. Use this to erase entries from existing default headers or headers copied from *apstract_api* (when
         given).
 
-        :param root_url: Root uri of the HIRO API, like *https://core.arago.co*.
+        :param root_url: Root uri of the HIRO API, like *https://core.engine.datagroup.de*.
         :param session: The requests.Session object for the connection pool. Required.
         :param raise_exceptions: Raise exceptions on HTTP status codes that denote an error. Default is True.
         :param proxies: Proxy configuration for *requests*. Default is None.
@@ -748,7 +748,7 @@ class GraphConnectionHandler(AbstractAPI):
 
         See parent :class:`AbstractAPI` for a description of all remaining parameters.
 
-        :param root_url: Root url for HIRO, like https://core.arago.co.
+        :param root_url: Root url for HIRO, like https://core.engine.datagroup.de.
         :param custom_endpoints: Optional map of {name:endpoint_path, ...} that overrides or adds to the endpoints taken
                from /api/version. Example see above.
         :param version_info: Optional full dict of the JSON result received via /api/version. Setting this will use it

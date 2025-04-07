@@ -7,7 +7,7 @@ from hiro_graph_client.clientlib import AuthenticatedAPIHandler, AbstractTokenAp
 class HiroKi(AuthenticatedAPIHandler):
     """
     Python implementation for accessing the HIRO Ki REST API.
-    See https://core.arago.co/help/specs/?url=definitions/ki.yaml
+    See https://core.engine.datagroup.de/help/specs/?url=definitions/ki.yaml
     """
 
     def __init__(self, api_handler: AbstractTokenApiHandler):
@@ -30,7 +30,7 @@ class HiroKi(AuthenticatedAPIHandler):
         HIRO REST query API: `POST self._endpoint + '/check`
 
         :param data: KI validation request data.
-               See https://core.arago.co/help/specs/?url=definitions/ki.yaml#/[Validatation]_Validate/post_check
+               See https://core.engine.datagroup.de/help/specs/?url=definitions/ki.yaml#/[Validatation]_Validate/post_check
         :return: The result payload
         """
         url = self.endpoint + '/check'

@@ -8,8 +8,8 @@ from hiro_graph_client.clientlib import AuthenticatedAPIHandler, AbstractTokenAp
 
 class HiroGraph(AuthenticatedAPIHandler):
     """
-    Python implementation for accessing the HIRO HIRO REST API.
-    See https://core.arago.co/help/specs/?url=definitions/graph.yaml
+    Python implementation for accessing the HIRO Graph REST API.
+    See https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml
     """
 
     def __init__(self, api_handler: AbstractTokenApiHandler):
@@ -34,7 +34,7 @@ class HiroGraph(AuthenticatedAPIHandler):
               meta: bool = None,
               count: bool = None) -> dict:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/post_query_vertices
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Query]_Search/post_query_vertices
 
         :param query: The actual query. e.g. ogit\\\\/_type: ogit\\\\/Question for vertices.
         :param fields: the comma separated list of fields to return
@@ -70,7 +70,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                       include_deleted: bool = None,
                       meta: bool = None) -> dict:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/post_query_gremlin
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Query]_Search/post_query_gremlin
 
         :param query: The actual query. e.g. outE().inV() for gremlin.
         :param root: ogit/_id of the root node where the gremlin query starts.
@@ -93,7 +93,7 @@ class HiroGraph(AuthenticatedAPIHandler):
 
     def create_node(self, data: dict, obj_type: str, return_id=False) -> Union[dict, str]:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/post_new__type_
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/post_new__type_
 
         :param data: Payload for the new node/vertex
         :param obj_type: ogit/_type of the new node/vertex
@@ -106,7 +106,7 @@ class HiroGraph(AuthenticatedAPIHandler):
 
     def update_node(self, node_id: str, data: dict) -> dict:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/post__id_
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/post__id_
 
         :param data: Payload for the node/vertex
         :param node_id: ogit/_id of the node/vertex
@@ -117,7 +117,7 @@ class HiroGraph(AuthenticatedAPIHandler):
 
     def delete_node(self, node_id: str) -> dict:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/delete__id_
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/delete__id_
 
         :param node_id: ogit/_id of the node/vertex
         :return: The result payload
@@ -127,7 +127,7 @@ class HiroGraph(AuthenticatedAPIHandler):
 
     def connect_nodes(self, from_node_id: str, verb: str, to_node_id: str) -> dict:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Verb/post_connect__type_
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Graph]_Verb/post_connect__type_
 
         :param from_node_id: ogit/_id of the source node/vertex
         :param verb: verb for the connection
@@ -140,7 +140,7 @@ class HiroGraph(AuthenticatedAPIHandler):
 
     def disconnect_nodes(self, from_node_id: str, verb: str, to_node_id: str) -> dict:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Verb/delete__id_
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Graph]_Verb/delete__id_
 
         :param from_node_id: ogit/_id of the source node/vertex
         :param verb: verb for the connection
@@ -163,7 +163,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                  include_deleted: bool = None,
                  vid: str = None) -> dict:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/get__id_
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Graph]_Entity/get__id_
 
         :param node_id: ogit/_id of the node/vertex or edge
         :param fields: Filter for fields
@@ -189,7 +189,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                   include_deleted: bool = None,
                   ) -> dict:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/get_query_ids
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Query]_Search/get_query_ids
 
         :param node_ids: list of ogit/_ids of the node/vertexes or edges
         :param fields: Filter for fields
@@ -213,7 +213,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                         meta: bool = None,
                         include_deleted: bool = None) -> dict:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/get_xid__id_
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Query]_Search/get_xid__id_
 
         :param node_id: ogit/_xid of the node/vertex or edge
         :param fields: Filter for fields
@@ -240,7 +240,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                        order: str = "asc",
                        aggregate: str = None) -> Union[List, Dict]:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Timeseries/get__id__values
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Query]_Timeseries/get__id__values
 
         :param node_id: ogit/_id of the node containing timeseries
         :param starttime: ms since epoch.
@@ -274,7 +274,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                                timestamp: str = None,
                                include_deleted: bool = None) -> Union[List, Dict]:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Timeseries/get__id__values_history
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Query]_Timeseries/get__id__values_history
 
         :param node_id: ogit/_id of the node containing timeseries
         :param timestamp: timestamp in ms
@@ -303,7 +303,7 @@ class HiroGraph(AuthenticatedAPIHandler):
         Run a query against the graph and return agragated timeseries values for timeseries vertices matching
         query result. query: Entities with matching ogit/_type:ogit/Timeseries
 
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Search/get_query_values
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Query]_Search/get_query_values
 
         :param starttime: ms since epoch.
         :param endtime: ms since epoch.
@@ -333,7 +333,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                         synchronous: bool = True,
                         ttl: int = None) -> dict:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Storage]_Timeseries/post__id__values
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Storage]_Timeseries/post__id__values
 
         :param synchronous: whether the operation should return synchronously. Default is True here.
         :param ttl: time to live for values to be stored in seconds (overrides /ttl in vertex).
@@ -356,7 +356,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                        content_id: str = None,
                        include_deleted: bool = None) -> Iterator[bytes]:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_Blob/get__id__content
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Query]_Blob/get__id__content
 
         :param node_id: Id of the attachment node
         :param content_id: Id of the content within the attachment node. Default is None.
@@ -376,7 +376,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                         data: Any,
                         content_type: str = None) -> dict:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Storage]_Blob/post__id__content
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Storage]_Blob/post__id__content
 
         :param node_id: Id of the attachment node
         :param data: Data to upload in binary form. Can also be an IO object for streaming.
@@ -399,7 +399,7 @@ class HiroGraph(AuthenticatedAPIHandler):
                     meta: bool = None
                     ) -> dict:
         """
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Query]_History/get__id__history
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Query]_History/get__id__history
 
         :param node_id: Id of the node
         :param ts_from: timestamp in ms where to start returning entries (default: 0)
@@ -441,7 +441,7 @@ class HiroGraph(AuthenticatedAPIHandler):
         """
         Replays events from history
 
-        https://core.arago.co/help/specs/?url=definitions/graph.yaml#/[Events]_History/get_events_
+        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Events]_History/get_events_
 
         :param ts_from: timestamp in ms where to start returning entries (default: 0)
         :param ts_to: timestamp in ms where to end returning entries (default: now)

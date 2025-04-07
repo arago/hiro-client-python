@@ -22,6 +22,7 @@ PACKAGENAME := hiro_graph_client
 SRCPATH := src
 PYTHONPATH := $(SRCPATH)/$(PACKAGENAME)
 PYTHONDOCPATH := docs/python
+DOCBUILDPATH := docs/_build
 VERSION := $(shell (cd $(SRCPATH) && $(PYTHON) version_by_git.py $(PACKAGENAME) && cat $(PACKAGENAME)/VERSION))
 
 TIMESTAMP := $(shell $(PYTHON) $(SRCPATH)/timestamp.py)
@@ -37,6 +38,7 @@ DISTBASENAME := $(PACKAGENAME)-dist-$(VERSION)
 #
 TESTFILE := tests/test-results.xml
 
+.PHONY: pythondoc
 
 #######################################################################################################################
 # Install as a local tool on the current system. Remember to use PIPARGS=--user for a local installation.
@@ -65,10 +67,9 @@ install-sphinx:
 	touch install-sphinx
 
 # Create a python code documentation using sphinx
-pythondoc: install install-sphinx
-	sphinx-apidoc -f -P -o $(PYTHONDOCPATH)/$(PACKAGENAME) $(PYTHONPATH)
-	sphinx-build -M html $(PYTHONDOCPATH)/$(PACKAGENAME) $(PYTHONDOCPATH)/$(PACKAGENAME)
-
+pythondoc:
+	sphinx-apidoc --force --private --output-dir $(PYTHONDOCPATH)/$(PACKAGENAME)/api $(PYTHONPATH)
+	sphinx-build -M html $(PYTHONDOCPATH)/$(PACKAGENAME) $(DOCBUILDPATH)
 
 #######################################################################################################################
 # Upload to PyPI
@@ -101,11 +102,6 @@ deploy: dist
 uninstall:
 	$(PIP) uninstall -y $(PACKAGENAME) || true
 
-# Cleanup pythondoc
-clean-pythondoc:
-	rm -rf $(PYTHONDOCPATH)/$(PACKAGENAME)/html $(PYTHONDOCPATH)/$(PACKAGENAME)/doctrees
-	rm -f `find $(PYTHONDOCPATH) -type f \( -name "*.rst" -and -not -name "index.rst" \)`
-
 # Cleanup, but keep installed packages and dist tar
 clean:
 	$(PIP) install $(PIP_INSTALL_ARGS) --upgrade pyclean
@@ -117,4 +113,4 @@ clean-dist:
 	rm -rf $(SRCPATH)/dist/ $(SRCPATH)/build/ dist dist-test build hiro_graph_client.egg-info
 
 # Like 'clean', but also remove installed packages.
-distclean: uninstall clean-pythondoc clean-dist clean
+distclean: uninstall clean-dist clean
