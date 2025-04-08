@@ -31,7 +31,8 @@ setup(
         'requests',
         'backoff',
         'websocket-client',
-        'apscheduler'
+        'apscheduler',
+        'pkce'
     ],
     extras_require={
         'doc': ['sphinx', 'sphinx-rtd-theme'],
