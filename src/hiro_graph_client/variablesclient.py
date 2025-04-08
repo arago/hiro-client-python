@@ -32,7 +32,7 @@ class HiroVariables(AuthenticatedAPIHandler):
         HIRO REST query API: `PUT self._endpoint`
 
         :param data: Variable content. See
-               https://core.engine.datagroup.de/help/specs/?url=definitions/variables.yaml#/[Variables]/put_
+               `<https://core.engine.datagroup.de/help/specs/?url=definitions/variables.yaml#/[Variables]/put_>`__
         :param subtype: Query variable. Value of ogit/subType. Optional.
         :return: The result payload
         """

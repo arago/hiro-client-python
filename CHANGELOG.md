@@ -1,6 +1,7 @@
 # v5.3.2
 
 * Point to https://core.engine.datagroup.de instead of https://core.arago.co.
+* Add `HiroGraph.escaped_query` method.
 
 # v5.3.0
 

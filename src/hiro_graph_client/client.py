@@ -25,6 +25,23 @@ class HiroGraph(AuthenticatedAPIHandler):
     # REST API operations
     ###############################################################################################################
 
+    def escaped_query(self, query, *args, **kwargs) -> dict:
+        """
+        Wrapper with the same arguments and return value as :func:`~hiro_graph_client.client.HiroGraph.query` that escapes slashes outside of quotes, e.g.
+
+        .. code-block:: python
+
+            hiro_client.escaped_query('+ogit/_type:ogit/Person +ogit/firstName:"Tom"')
+
+        instead of
+
+        .. code-block:: python
+
+            hiro_client.query('+ogit\\/_type:ogit\\/Person +ogit\\/firstName:"Tom"')
+        """
+
+        return self.query(query, *args, **kwargs)
+
     def query(self,
               query: str,
               fields: str = None,
@@ -43,7 +60,7 @@ class HiroGraph(AuthenticatedAPIHandler):
         :param order: order by a field asc|desc, e.g. ogit/name desc
         :param meta: List detailed metainformations in result payload
         :param count: Just return the number of found items. Result payload is like
-               {"items":[&lt;number of items found as int&gt;]}.
+               ``{"items":[<number of items found as int>]}``.
         :return: Result payload
         """
         url = self.endpoint + '/query/vertices'
@@ -441,7 +458,7 @@ class HiroGraph(AuthenticatedAPIHandler):
         """
         Replays events from history
 
-        https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Events]_History/get_events_
+        `<https://core.engine.datagroup.de/help/specs/?url=definitions/graph.yaml#/[Events]_History/get_events_>`__
 
         :param ts_from: timestamp in ms where to start returning entries (default: 0)
         :param ts_to: timestamp in ms where to end returning entries (default: now)
@@ -459,3 +476,32 @@ class HiroGraph(AuthenticatedAPIHandler):
 
         url = self.endpoint + '/events' + self._get_query_part(query)
         return self.get(url)
+
+def escape_slashes_in_lucene_query(querystring: str) -> str:
+    new_querystring = ""
+
+    i = 0
+    # We only want to replace slashes outside of quotes
+    inside_quotes = False
+    escaped = False
+    while i < len(querystring):
+        char = querystring[i]
+        print(char)
+
+        if char == "/" and not inside_quotes:
+            new_querystring += "\\/"
+        elif char == "\\":
+            new_querystring += char
+            # skip next character (required to not misdetect quotes, e.g. <field:blah\"foo otherfield:"te\"st">
+            i += 1
+            if i < len(querystring):
+                new_querystring += querystring[i]
+        elif char == '"':
+            new_querystring += char
+            inside_quotes = not inside_quotes
+        else:
+            new_querystring += char
+
+        i += 1
+
+    return new_querystring
