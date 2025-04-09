@@ -40,7 +40,7 @@ class HiroGraph(AuthenticatedAPIHandler):
             hiro_client.query('+ogit\\/_type:ogit\\/Person +ogit\\/firstName:"Tom"')
         """
 
-        return self.query(query, *args, **kwargs)
+        return self.query(escape_slashes_in_lucene_query(query), *args, **kwargs)
 
     def query(self,
               query: str,
@@ -486,7 +486,6 @@ def escape_slashes_in_lucene_query(querystring: str) -> str:
     escaped = False
     while i < len(querystring):
         char = querystring[i]
-        print(char)
 
         if char == "/" and not inside_quotes:
             new_querystring += "\\/"
